@@ -8,7 +8,7 @@
 // @include     http://2dgal.com/index.php*
 // @include     http://*.2dgal.com/
 // @include     http://*.2dgal.com/index.php*
-// @version     2.0.0
+// @version     2.1.0
 // @grant       none
 // @run-at      document-end
 // ==/UserScript==
@@ -20,7 +20,13 @@ var Config = {
     favorSmboxNumbers: [],  //偏好的神秘盒子数字，例：[52,2,28,16]（按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个
     autoDrawItemOrCardType: 1, //1：抽取道具或卡片；2：只抽取道具
     showMsgDuration: 8,  //提示消息的显示时间（秒）
-    donationCookieName: 'pd_donation'   //标记已捐款的Cookie名称
+    autoRefreshEnabled: false,  //是否开启定时模式（需停留在首页），true：开启；false：关闭
+    showRefreshModeTipsType: 'Auto',    //是否在首页的网页标题上显示定时模式的提示，Auto：停留一分钟后显示；Always：总是显示；Never：不显示
+    //以下设置如非必要请勿修改：
+    donationCookieName: 'pd_donation',   //标记已捐款的Cookie名称
+    defDrawItemOrCardInterval: 480, //道具或卡片的默认抽奖间隔（分钟）
+    completeRefreshInterval: 20, //抽取神秘盒子完成后页面的再刷新间隔（秒），用于在定时模式中进行判断，并非神秘盒子实际的抽奖间隔
+    showRefreshModeTipsInterval: 1    //在网页标题上显示定时模式提示的更新间隔（分钟）
 };
 
 (function () {
@@ -191,7 +197,7 @@ var Config = {
         $.post('kf_fw_ig_one.php', param, function (html) {
             var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
             var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
-            var msg = '<h1>抽取道具或卡片</h1>';
+            var msg = '<h1>抽取道具{0}</h1>'.replace('{0}', Config.autoDrawItemOrCardType == 2 ? '' : '或卡片');
             if (itemRegex.test(html)) {
                 var matches = itemRegex.exec(html);
                 msg += '<strong>道具<em>+1</em></strong><a target="_blank" href="{0}">查看道具</a>'
@@ -208,6 +214,61 @@ var Config = {
             showFormatLog('抽取道具或卡片', html);
             showMsg(msg);
         }, 'html');
+    };
+
+    //获取定时刷新的间隔时间（毫秒）
+    var getRefreshInterval = function () {
+        var drawSmboxInterval = -1,
+            drawItemOrCardInterval = -1,
+            donationInterval = -1;
+        var matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
+        if (!matches) {
+            if ($('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0) {
+                return Config.completeRefreshInterval * 1000;
+            }
+        }
+        else {
+            drawSmboxInterval = parseInt(matches[1]);
+        }
+        matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text())
+        if (!matches) drawItemOrCardInterval = Config.defDrawItemOrCardInterval;
+        else drawItemOrCardInterval = parseInt(matches[1]);
+        var nextDay = getMidnightHourDate(1);
+        var now = new Date();
+        donationInterval = parseInt((nextDay - now) / 1000 / 60);
+        var min = drawSmboxInterval < 0 ? drawItemOrCardInterval : drawSmboxInterval;
+        min = min < drawItemOrCardInterval ? min : drawItemOrCardInterval;
+        min = min < donationInterval ? min : donationInterval;
+        return (min * 60 + 5) * 1000;
+    };
+
+    //定时刷新
+    var autoRefresh = function () {
+        var interval = getRefreshInterval();
+        window.setTimeout(function () {
+            location.href = location.href;
+        }, interval);
+        interval = parseInt(interval / 1000);
+        interval = interval == Config.completeRefreshInterval ? interval : parseInt(interval / 60);
+        var unit = interval == Config.completeRefreshInterval ? '秒' : '分钟';
+        console.log('定时模式启动，下一次刷新间隔为：{0}{1}'
+                .replace('{0}', interval)
+                .replace('{1}', unit)
+        );
+        if (Config.showRefreshModeTipsType.toLowerCase() != 'never') {
+            var title = document.title;
+            var showRefreshModeTips = function () {
+                document.title = '{0} (定时模式：{1}{2})'
+                    .replace('{0}', title)
+                    .replace('{1}', interval)
+                    .replace('{2}', unit);
+                interval -= 1;
+            };
+            if (Config.showRefreshModeTipsType.toLowerCase() == 'always' || interval == Config.completeRefreshInterval)
+                showRefreshModeTips();
+            else interval -= 1;
+            window.setInterval(showRefreshModeTips, Config.showRefreshModeTipsInterval * 60 * 1000);
+        }
     };
 
     //初始化
@@ -229,6 +290,10 @@ var Config = {
         }
         if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
             drawItemOrCard();
+        }
+        if (Config.autoRefreshEnabled) {
+            if (location.pathname == '/' || location.pathname == '/index.php')
+                autoRefresh();
         }
     };
 
