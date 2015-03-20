@@ -8,7 +8,7 @@
 // @include     http://2dgal.com/index.php*
 // @include     http://*.2dgal.com/
 // @include     http://*.2dgal.com/index.php*
-// @version     2.1.0
+// @version     2.1.1
 // @grant       none
 // @run-at      document-end
 // ==/UserScript==
@@ -239,7 +239,7 @@ var Config = {
         var min = drawSmboxInterval < 0 ? drawItemOrCardInterval : drawSmboxInterval;
         min = min < drawItemOrCardInterval ? min : drawItemOrCardInterval;
         min = min < donationInterval ? min : donationInterval;
-        return (min * 60 + 5) * 1000;
+        return (min + 1) * 60 * 1000;
     };
 
     //定时刷新
