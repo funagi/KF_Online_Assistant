@@ -4,10 +4,8 @@
 // @author      喵拉布丁
 // @homepage    https://greasyfork.org/scripts/8615
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款
-// @include     http://2dgal.com/
-// @include     http://2dgal.com/index.php*
-// @include     http://*.2dgal.com/
-// @include     http://*.2dgal.com/index.php*
+// @include     http://2dgal.com/*
+// @include     http://*.2dgal.com/*
 // @version     2.2.0-dev
 // @grant       none
 // @run-at      document-end
@@ -27,24 +25,30 @@ var Config = {
     donationKfb: 1,
     // 偏好的神秘盒子数字，例：[52,2,28,16]（按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个
     favorSmboxNumbers: [],
-    // 1：抽取道具或卡片；2：只抽取道具
+    // 抽取道具或卡片的类型，1：抽取道具或卡片；2：只抽取道具
     autoDrawItemOrCardType: 1,
     // 提示消息的显示时间（秒）
-    defShowMsgDuration: 8,
+    defShowMsgDuration: 10,
     // 是否开启定时模式（需停留在首页），true：开启；false：关闭
-    autoRefreshEnabled: true,
+    autoRefreshEnabled: false,
     // 是否在首页的网页标题上显示定时模式的提示，Auto：停留一分钟后显示；Always：总是显示；Never：不显示
     showRefreshModeTipsType: 'Auto',
 
     /* 以下设置如非必要请勿修改： */
-    // 标记已捐款的Cookie名称
-    donationCookieName: 'pd_donation',
+    // 神秘盒子的默认抽奖间隔（分钟）
+    defDrawSmboxInterval: 300,
     // 道具或卡片的默认抽奖间隔（分钟）
     defDrawItemOrCardInterval: 480,
     // 抽取神秘盒子完成后页面的再刷新间隔（秒），用于在定时模式中进行判断
     completeRefreshInterval: 20,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
-    showRefreshModeTipsInterval: 1
+    showRefreshModeTipsInterval: 1,
+    // 标记已捐款的Cookie名称
+    donationCookieName: 'pd_donation',
+    // 标记已抽取神秘盒子的Cookie名称
+    drawSmboxCookieName: 'pd_draw_smbox',
+    // 标记已抽取道具或卡片的Cookie名称
+    drawItemOrCardCookieName: 'pd_draw_item_or_card'
 };
 
 /**
@@ -73,6 +77,14 @@ var Tools = {
     },
 
     /**
+     * 获取Cookie名称前缀
+     * @returns {string} Cookie名称前缀
+     */
+    getCookiePrefix: function () {
+        return !KFOL.uid ? '' : KFOL.uid + '_';
+    },
+
+    /**
      * 获取距今N天的零时整点的Date对象
      * @param {number} days 距今的天数
      * @returns {Date} 距今N天的零时整点的Date对象
@@ -88,11 +100,14 @@ var Tools = {
     },
 
     /**
-     * 获取Cookie名称前缀
-     * @returns {string} Cookie名称前缀
+     * 获取指定时间量之后的Date对象
+     * @param {number} seconds 时间量（秒）
+     * @returns {Date} 指定时间量之后的Date对象
      */
-    getCookiePrefix: function () {
-        return !KFOL.uid ? '' : KFOL.uid + '_';
+    getAfterDate: function (seconds) {
+        var date = new Date();
+        date.setSeconds(seconds);
+        return date;
     },
 
     /**
@@ -144,6 +159,7 @@ var KFOL = {
             '.pd_pop_tips em { font-weight: 700; color:#ff6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_pop_tips .pd_highlight { font-weight: bold; color: #ff0000; }',
+            '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
             '</style>'].join(''));
     },
 
@@ -177,7 +193,7 @@ var KFOL = {
         length = length ? length : 0;
         var $popTips = $('<div class="pd_pop_tips">' + settings.msg + '</div>').appendTo($popBox);
         if (settings.clickable) {
-            $popTips.click(function () {
+            $popTips.css('cursor', 'pointer').click(function () {
                 $(this).stop(true, true).fadeOut('slow', function () {
                     KFOL.removePopTips(this);
                 });
@@ -200,6 +216,14 @@ var KFOL = {
                 KFOL.removePopTips(this);
             });
         }
+    },
+
+    /**
+     * 显示等待消息
+     * @param {string} msg 等待消息
+     */
+    showWaitMsg: function (msg) {
+        KFOL.showMsg({msg: msg, duration: -1, clickable: false});
     },
 
     /**
@@ -240,18 +264,24 @@ var KFOL = {
         console.log('KFB捐款Start');
         $.post('kf_growup.php?ok=1', {kfb: Config.donationKfb}, function (html) {
             Tools.setCookie(Tools.getCookiePrefix() + Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
+            var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', Config.donationKfb);
             var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
             if (!matches) {
-                KFOL.showFormatLog('KFB捐款', html);
-                return;
+                if (/KFB不足。<br \/>/.test(html)) {
+                    msg += '<i class="pd_notice">KFB不足</i>';
+                }
+                else {
+                    KFOL.showFormatLog('KFB捐款', html);
+                    return;
+                }
             }
-            var msg = '<strong>捐款<em>{0}</em>KFB</strong><i>经验值<em>+{1}</em></i>'
-                .replace('{0}', Config.donationKfb)
-                .replace('{1}', matches[1]);
-            if (typeof matches[2] !== 'undefined' && typeof matches[3] !== 'undefined') {
-                msg += '<i style="margin-left:5px">(补偿期:</i><i>KFB<em>+{0}</em></i><i>经验值<em>+{1}</em>)</i>'
-                    .replace('{0}', matches[2])
-                    .replace('{1}', matches[3]);
+            else {
+                msg += '<i>经验值<em>+{0}</em></i>'.replace('{0}', matches[1]);
+                if (typeof matches[2] !== 'undefined' && typeof matches[3] !== 'undefined') {
+                    msg += '<i style="margin-left:5px">(补偿期:</i><i>KFB<em>+{0}</em></i><i>经验值<em>+{1}</em>)</i>'
+                        .replace('{0}', matches[2])
+                        .replace('{1}', matches[3]);
+                }
             }
             KFOL.showFormatLog('KFB捐款', html);
             KFOL.showMsg(msg);
@@ -288,6 +318,9 @@ var KFOL = {
                 smboxNumber = numberMatches ? numberMatches[1] : 0;
             }
             $.get(url, function (html) {
+                Tools.setCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName, 1,
+                    Tools.getAfterDate(Config.defDrawSmboxInterval * 60)
+                );
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 var kfbRegex = /获得了(\d+)KFB的奖励/i;
                 var smRegex = /获得本轮的头奖/i;
@@ -305,7 +338,7 @@ var KFOL = {
                 }
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 KFOL.showMsg(msg);
-            });
+            }, 'html');
         }, 'html');
     },
 
@@ -318,6 +351,10 @@ var KFOL = {
         if (Config.autoDrawItemOrCardType === 2) param.submit2 = '未抽到道具不要给我卡片';
         else param.submit1 = '正常抽奖20%道具80%卡片';
         $.post('kf_fw_ig_one.php', param, function (html) {
+            Tools.setCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName, 1,
+                Tools.getAfterDate(Config.defDrawItemOrCardInterval * 60)
+            );
+            KFOL.showFormatLog('抽取道具或卡片', html);
             var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
             var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
             var msg = '<strong>抽取道具{0}</strong>'.replace('{0}', Config.autoDrawItemOrCardType === 2 ? '' : '或卡片');
@@ -332,10 +369,12 @@ var KFOL = {
                 msg += '<i>卡片<em>+1</em></i><a target="_blank" href="{0}">查看卡片</a>'
                     .replace('{0}', matches[1]);
             }
-            else {
-                msg += '<i style="font-style: italic">没有收获</i>';
+            else if (/运气不太好，这次没中/i.test(html)) {
+                msg += '<i class="pd_notice">没有收获</i>';
             }
-            KFOL.showFormatLog('抽取道具或卡片', html);
+            else {
+                return;
+            }
             KFOL.showMsg(msg);
         }, 'html');
     },
@@ -377,10 +416,10 @@ var KFOL = {
         window.setTimeout(function () {
             location.href = location.href;
         }, interval * 1000);
-        var intervalText = interval === Config.completeRefreshInterval ? interval : parseInt(interval / 60);
+        var titleInterval = interval === Config.completeRefreshInterval ? interval : parseInt(interval / 60);
         var unit = interval === Config.completeRefreshInterval ? '秒' : '分钟';
         console.log('定时模式启动，下一次刷新间隔为：{0}{1}'
-                .replace('{0}', intervalText)
+                .replace('{0}', titleInterval)
                 .replace('{1}', unit)
         );
         if (Config.showRefreshModeTipsType.toLowerCase() !== 'never') {
@@ -388,13 +427,13 @@ var KFOL = {
             var showRefreshModeTips = function () {
                 document.title = '{0} (定时模式：{1}{2})'
                     .replace('{0}', title)
-                    .replace('{1}', intervalText)
+                    .replace('{1}', titleInterval)
                     .replace('{2}', unit);
-                intervalText -= 1;
+                titleInterval -= 1;
             };
             if (Config.showRefreshModeTipsType.toLowerCase() === 'always' || interval === Config.completeRefreshInterval)
                 showRefreshModeTips();
-            else intervalText -= 1;
+            else titleInterval -= 1;
             window.setInterval(showRefreshModeTips, Config.showRefreshModeTipsInterval * 60 * 1000);
         }
     },
@@ -413,21 +452,188 @@ var KFOL = {
         if (Config.autoDonationEnabled && !Tools.getCookie(Tools.getCookiePrefix() + Config.donationCookieName)) {
             KFOL.donation();
         }
+
         var isDrawSmboxStarted = false;
         var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled &&
-            $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0;
+            (KFOL.isInHomePage ? $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0 :
+                !Tools.getCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName)
+            );
         if (Config.autoDrawSmboxEnabled) {
-            if ($('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0) {
+            if (KFOL.isInHomePage ? $('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0 :
+                    !Tools.getCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName)
+            ) {
                 isDrawSmboxStarted = true;
                 KFOL.drawSmbox(autoDrawItemOrCardAvailable);
             }
         }
+
         if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
             KFOL.drawItemOrCard();
         }
+
+        if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
+            ItemToEnergy.convertAllItemsToEnergy();
+        }
+
         if (Config.autoRefreshEnabled) {
             if (KFOL.isInHomePage) KFOL.autoRefresh();
         }
+    }
+};
+
+/**
+ * 道具转换能量类
+ */
+var ItemToEnergy = {
+    /**
+     * 转换指定的道具为能量
+     * @param {Object} options 设置项
+     * @param {number} options.type 转换类型，1：转换本级全部已使用的道具为能量；2：转换本级部分已使用的道具为能量
+     * @param {string[]} options.urlList 指定的道具Url列表
+     * @param {string} options.safeId 用户的SafeID
+     * @param {number} options.level 道具等级
+     * @param {Object} [options.$itemLine] 当前转换道具所在的表格行
+     */
+    convertItemsToEnergy: function (options) {
+        var settings = {
+            type: 1,
+            urlList: [],
+            safeId: '',
+            level: 1,
+            $itemLine: null
+        };
+        $.extend(settings, options);
+        var successNum = 0;
+        var energyNum = ItemToEnergy.getEnergyNumByLevel(settings.level);
+        $.each(settings.urlList, function (index, key) {
+            var id = /pro=(\d+)/i.exec(key);
+            id = id ? id[1] : 0;
+            if (!id) return;
+            var url = 'kf_fw_ig_doit.php?tomp={0}&id={1}'
+                .replace('{0}', settings.safeId)
+                .replace('{1}', id);
+            $(document).queue('ConvertItemToEnergy', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('转换道具能量', html);
+                    if (/转换为了\s*\d+\s*点能量/i.test(html) || /提交速度过快/i.test(html)) {
+                        successNum++;
+                    }
+                    $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === settings.urlList.length - 1) {
+                        $('.pd_pop_box').remove();
+                        var successEnergyNum = successNum * energyNum;
+                        console.log('共有{0}个道具成功转换为能量，能量+{1}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', successEnergyNum)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个道具成功转换为能量</strong><i>能量+<em>{1}</em></i>'
+                                .replace('{0}', successNum)
+                                .replace('{1}', successEnergyNum),
+                            duration: -1
+                        });
+                        if (settings.type === 1) {
+                            ItemToEnergy.setAllClickDisable(false);
+                            var $itemUsed = settings.$itemLine.children().eq(2);
+                            $itemUsed.text(parseInt($itemUsed.text()) - successNum);
+                            var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
+                            if ($totalEnergyNum.length === 1) {
+                                $totalEnergyNum.text(parseInt($totalEnergyNum.text()) + successEnergyNum);
+                            }
+                        }
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('ConvertItemToEnergy');
+                    }, 500);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('ConvertItemToEnergy');
+    },
+
+    /**
+     * 获得指定道具等级可得到的能量点
+     * @param {number} level 道具等级
+     * @returns {number} 能量点
+     */
+    getEnergyNumByLevel: function (level) {
+        switch (level) {
+            case 1:
+                return 2;
+            case 2:
+                return 10;
+            case 3:
+                return 50;
+            case 4:
+                return 300;
+            case 5:
+                return 2000;
+        }
+    },
+
+    /**
+     * 禁止所有转换道具能量链接的点击
+     * @param {boolean} disable 是否禁止
+     */
+    setAllClickDisable: function (disable) {
+        $links = $('.kf_fw_ig1 a:contains("全部转换本级已使用道具为能量")');
+        if (disable) $links.data('disable', true);
+        else $links.removeData('disable');
+    },
+
+    /**
+     * 转换本级全部已使用的道具为能量
+     */
+    convertAllItemsToEnergy: function () {
+        $('.kf_fw_ig1 td:nth-child(4):contains("全部转换本级已使用道具为能量")').each(function (i) {
+            $(this).html('<a href="#">全部转换本级已使用道具为能量</a>').find('a').click(function (event) {
+                event.preventDefault();
+                if ($(this).data('disable')) return;
+                var safeId = /safeid=(\w+)/i.exec($('a[href^="kf_fw_card_pk.php?safeid="]').attr('href'));
+                safeId = safeId ? safeId[1] : 0;
+                if (!safeId) return;
+                var $itemLine = $(this).parent().parent(),
+                    itemLevel = parseInt($itemLine.children().eq(0).text()),
+                    itemName = $itemLine.children().eq(1).text(),
+                    itemUsedNum = parseInt($itemLine.children().eq(2).text()),
+                    listUrl = $itemLine.children().eq(4).find('a').attr('href');
+                if (!itemUsedNum) {
+                    alert('本级没有已使用的道具');
+                    ItemToEnergy.setAllClickDisable(false);
+                    return;
+                }
+                if (window.confirm('你要转换的是Lv.{0}：{1}，是否转换本级全部已使用的道具为能量？'
+                            .replace('{0}', itemLevel)
+                            .replace('{1}', itemName)
+                    )
+                ) {
+                    ItemToEnergy.setAllClickDisable(true);
+                    $('.pd_pop_box').remove();
+                    if (!listUrl || !/kf_fw_ig_renew\.php\?lv=\d+/.test(listUrl)) return;
+                    KFOL.showWaitMsg('正在获取本级已使用道具列表，请稍后...');
+                    $.get(listUrl, function (html) {
+                        $('.pd_pop_box').remove();
+                        var matches = html.match(/kf_fw_ig_my\.php\?pro=\d+/gi);
+                        if (!matches) {
+                            alert('本级没有已使用的道具');
+                            ItemToEnergy.setAllClickDisable(false);
+                            return;
+                        }
+                        console.log('转换本级全部已使用的道具为能量Start，转换道具数量：' + matches.length);
+                        KFOL.showWaitMsg('<strong>正在转换能量中...</strong><i>剩余数量:<em id="pd_remaining_num">{0}</em></i>'
+                            .replace('{0}', matches.length));
+                        ItemToEnergy.convertItemsToEnergy({
+                            type: 1,
+                            urlList: matches,
+                            safeId: safeId,
+                            level: itemLevel,
+                            $itemLine: $itemLine
+                        });
+                    }, 'html');
+                }
+            });
+        });
     }
 };
 
