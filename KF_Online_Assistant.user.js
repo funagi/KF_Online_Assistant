@@ -472,7 +472,7 @@ var KFOL = {
         }
 
         if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
-            ItemToEnergy.convertAllItemsToEnergy();
+            ConvertItemToEnergy.convertAllItemsToEnergy();
         }
 
         if (Config.autoRefreshEnabled) {
@@ -484,7 +484,7 @@ var KFOL = {
 /**
  * 道具转换能量类
  */
-var ItemToEnergy = {
+var ConvertItemToEnergy = {
     /**
      * 转换指定的道具为能量
      * @param {Object} options 设置项
@@ -504,7 +504,7 @@ var ItemToEnergy = {
         };
         $.extend(settings, options);
         var successNum = 0;
-        var energyNum = ItemToEnergy.getEnergyNumByLevel(settings.level);
+        var energyNum = ConvertItemToEnergy.getEnergyNumByLevel(settings.level);
         $.each(settings.urlList, function (index, key) {
             var id = /pro=(\d+)/i.exec(key);
             id = id ? id[1] : 0;
@@ -534,7 +534,7 @@ var ItemToEnergy = {
                             duration: -1
                         });
                         if (settings.type === 1) {
-                            ItemToEnergy.setAllClickDisable(false);
+                            ConvertItemToEnergy.setAllClickDisable(false);
                             var $itemUsed = settings.$itemLine.children().eq(2);
                             $itemUsed.text(parseInt($itemUsed.text()) - successNum);
                             var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
@@ -600,7 +600,7 @@ var ItemToEnergy = {
                     listUrl = $itemLine.children().eq(4).find('a').attr('href');
                 if (!itemUsedNum) {
                     alert('本级没有已使用的道具');
-                    ItemToEnergy.setAllClickDisable(false);
+                    ConvertItemToEnergy.setAllClickDisable(false);
                     return;
                 }
                 if (window.confirm('你要转换的是Lv.{0}：{1}，是否转换本级全部已使用的道具为能量？'
@@ -608,7 +608,7 @@ var ItemToEnergy = {
                             .replace('{1}', itemName)
                     )
                 ) {
-                    ItemToEnergy.setAllClickDisable(true);
+                    ConvertItemToEnergy.setAllClickDisable(true);
                     $('.pd_pop_box').remove();
                     if (!listUrl || !/kf_fw_ig_renew\.php\?lv=\d+/.test(listUrl)) return;
                     KFOL.showWaitMsg('正在获取本级已使用道具列表，请稍后...');
@@ -617,13 +617,13 @@ var ItemToEnergy = {
                         var matches = html.match(/kf_fw_ig_my\.php\?pro=\d+/gi);
                         if (!matches) {
                             alert('本级没有已使用的道具');
-                            ItemToEnergy.setAllClickDisable(false);
+                            ConvertItemToEnergy.setAllClickDisable(false);
                             return;
                         }
                         console.log('转换本级全部已使用的道具为能量Start，转换道具数量：' + matches.length);
                         KFOL.showWaitMsg('<strong>正在转换能量中...</strong><i>剩余数量:<em id="pd_remaining_num">{0}</em></i>'
                             .replace('{0}', matches.length));
-                        ItemToEnergy.convertItemsToEnergy({
+                        ConvertItemToEnergy.convertItemsToEnergy({
                             type: 1,
                             urlList: matches,
                             safeId: safeId,
