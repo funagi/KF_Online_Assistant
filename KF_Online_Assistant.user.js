@@ -39,7 +39,7 @@ var Config = {
     defDrawSmboxInterval: 300,
     // 道具或卡片的默认抽奖间隔（分钟）
     defDrawItemOrCardInterval: 480,
-    // 抽取神秘盒子完成后页面的再刷新间隔（秒），用于在定时模式中进行判断
+    // 抽取神秘盒子完成后页面的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时刷新模式的实际间隔时间
     completeRefreshInterval: 20,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
     showRefreshModeTipsInterval: 1,
