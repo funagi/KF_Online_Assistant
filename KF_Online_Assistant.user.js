@@ -1,4 +1,4 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name        KF Online助手
 // @namespace   https://greasyfork.org/users/4514
 // @author      喵拉布丁
@@ -439,6 +439,17 @@ var KFOL = {
     },
 
     /**
+     * 获取用户的SafeID
+     * @returns {string} 用户的SafeID
+     */
+    getSafeId: function() {
+        var safeId = /safeid=(\w+)/i.exec($('a[href*="safeid="]').attr('href'));
+        safeId = safeId ? safeId[1] : 0;
+        if (!safeId) return '';
+        else return safeId;
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -528,7 +539,7 @@ var ConvertItemToEnergy = {
                                 .replace('{1}', successEnergyNum)
                         );
                         KFOL.showMsg({
-                            msg: '<strong>共有<em>{0}</em>个道具成功转换为能量</strong><i>能量+<em>{1}</em></i>'
+                            msg: '<strong>共有<em>{0}</em>个道具成功转换为能量</strong><i>能量<em>+{1}</em></i>'
                                 .replace('{0}', successNum)
                                 .replace('{1}', successEnergyNum),
                             duration: -1
@@ -590,8 +601,7 @@ var ConvertItemToEnergy = {
             $(this).html('<a href="#">全部转换本级已使用道具为能量</a>').find('a').click(function (event) {
                 event.preventDefault();
                 if ($(this).data('disable')) return;
-                var safeId = /safeid=(\w+)/i.exec($('a[href^="kf_fw_card_pk.php?safeid="]').attr('href'));
-                safeId = safeId ? safeId[1] : 0;
+                var safeId = KFOL.getSafeId();
                 if (!safeId) return;
                 var $itemLine = $(this).parent().parent(),
                     itemLevel = parseInt($itemLine.children().eq(0).text()),
