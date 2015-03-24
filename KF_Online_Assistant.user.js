@@ -61,21 +61,30 @@ var Tools = {
      * @param {string} name Cookie名称
      * @param {*} value Cookie值
      * @param {?Date} [date] Cookie有效期，为空则表示有效期为浏览器进程关闭
-     * @todo 修改Cookie方法，加上默认前缀
+     * @param {string} [prefix] Cookie名称前缀，留空则表示使用{@link KFOL.uid}前缀
      */
-    setCookie: function (name, value, date) {
-        document.cookie = name + '=' + escape(value) + (!date ? '' : ';expires=' + date.toGMTString()) + ';path=/;';
+    setCookie: function (name, value, date, prefix) {
+        document.cookie = '{0}{1}={2}{3};path=/;'
+            .replace('{0}', typeof prefix === 'undefined' || prefix === null ? KFOL.uid + '_' : prefix)
+            .replace('{1}', name)
+            .replace('{2}', encodeURI(value))
+            .replace('{3}', !date ? '' : ';expires=' + date.toUTCString());
     },
 
     /**
      * 获取Cookie
      * @param {string} name Cookie名称
+     * @param {string} [prefix] Cookie名称前缀，留空则表示使用{@link KFOL.uid}前缀
      * @returns {?string} Cookie值
      */
-    getCookie: function (name) {
-        var arr = document.cookie.match(new RegExp('(^| )' + name + '=([^;]*)(;|$)'));
-        if (arr !== null) return unescape(arr[2]);
-        else return null;
+    getCookie: function (name, prefix) {
+        var regex = new RegExp('(^| ){0}{1}=([^;]*)(;|$)'
+                .replace('{0}', typeof prefix === 'undefined' || prefix === null ? KFOL.uid + '_' : prefix)
+                .replace('{1}', name)
+        );
+        var matches = document.cookie.match(regex);
+        if (!matches) return null;
+        else return decodeURI(matches[2]);
     },
 
     /**
@@ -698,6 +707,8 @@ var KFOL = {
                 $(this).stop(true, true).fadeOut('slow', function () {
                     KFOL.removePopTips(this);
                 });
+            }).find('a').click(function (event) {
+                event.stopPropagation();
             });
         }
         $popBox.data('length', length + 1);
@@ -764,7 +775,7 @@ var KFOL = {
     donation: function () {
         console.log('KFB捐款Start');
         $.post('kf_growup.php?ok=1', {kfb: Config.donationKfb}, function (html) {
-            Tools.setCookie(Tools.getCookiePrefix() + Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
+            Tools.setCookie(Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
             var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', Config.donationKfb);
             var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
             if (!matches) {
@@ -819,8 +830,7 @@ var KFOL = {
                 smboxNumber = numberMatches ? numberMatches[1] : 0;
             }
             $.get(url, function (html) {
-                Tools.setCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName, 1,
-                    Tools.getAfterDate(Config.defDrawSmboxInterval * 60)
+                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getAfterDate(Config.defDrawSmboxInterval * 60)
                 );
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 var kfbRegex = /获得了(\d+)KFB的奖励/i;
@@ -852,8 +862,7 @@ var KFOL = {
         if (Config.autoDrawItemOrCardType === 2) param.submit2 = '未抽到道具不要给我卡片';
         else param.submit1 = '正常抽奖20%道具80%卡片';
         $.post('kf_fw_ig_one.php', param, function (html) {
-            Tools.setCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName, 1,
-                Tools.getAfterDate(Config.defDrawItemOrCardInterval * 60)
+            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getAfterDate(Config.defDrawItemOrCardInterval * 60)
             );
             KFOL.showFormatLog('抽取道具或卡片', html);
             var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
@@ -968,22 +977,22 @@ var KFOL = {
      */
     adjustCookiesExpires: function () {
         var matches, minutes, date;
-        if (parseInt(Tools.getCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName)) === 1) {
+        if (parseInt(Tools.getCookie(Config.drawSmboxCookieName)) === 1) {
             matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
             if (matches) {
                 minutes = parseInt(matches[1]);
                 date = new Date();
                 date.setMinutes(minutes + 1);
-                Tools.setCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName, 2, date);
+                Tools.setCookie(Config.drawSmboxCookieName, 2, date);
             }
         }
-        if (parseInt(Tools.getCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName)) === 1) {
+        if (parseInt(Tools.getCookie(Config.drawItemOrCardCookieName)) === 1) {
             matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text());
             if (matches) {
                 minutes = parseInt(matches[1]);
                 date = new Date();
                 date.setMinutes(minutes + 1);
-                Tools.setCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName, 2, date);
+                Tools.setCookie(Config.drawItemOrCardCookieName, 2, date);
             }
         }
     },
@@ -1002,18 +1011,18 @@ var KFOL = {
         KFOL.appendConfigDialogLink();
 
         if (KFOL.isInHomePage) KFOL.adjustCookiesExpires();
-        if (Config.autoDonationEnabled && !Tools.getCookie(Tools.getCookiePrefix() + Config.donationCookieName)) {
+        if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
             KFOL.donation();
         }
 
         var isDrawSmboxStarted = false;
         var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled &&
             (KFOL.isInHomePage ? $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0 :
-                !Tools.getCookie(Tools.getCookiePrefix() + Config.drawItemOrCardCookieName)
+                !Tools.getCookie(Config.drawItemOrCardCookieName)
             );
         if (Config.autoDrawSmboxEnabled) {
             if (KFOL.isInHomePage ? $('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0 :
-                    !Tools.getCookie(Tools.getCookiePrefix() + Config.drawSmboxCookieName)
+                    !Tools.getCookie(Config.drawSmboxCookieName)
             ) {
                 isDrawSmboxStarted = true;
                 KFOL.drawSmbox(autoDrawItemOrCardAvailable);
