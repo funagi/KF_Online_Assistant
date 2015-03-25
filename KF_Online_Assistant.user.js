@@ -202,6 +202,18 @@ var Tools = {
             return true;
         }
         return false;
+    },
+
+    /**
+     * 获取URL中的指定参数
+     * @param {string} name 参数名称
+     * @returns {?string} URL中的指定参数
+     */
+    getUrlParam: function (name) {
+        var regex = new RegExp('(^|&)' + name + '=([^&]*)(&|$)');
+        var matches = location.search.substr(1).match(regex);
+        if (matches) return decodeURI(matches[2]);
+        else return null;
     }
 };
 
@@ -700,6 +712,8 @@ var KFOL = {
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_pop_tips .pd_highlight { font-weight: bold; color: #ff0000; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
+            '.readlou .pd_goto_link { color: #000; }',
+            '.readlou .pd_goto_link:hover { color: #51D; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
@@ -1073,12 +1087,37 @@ var KFOL = {
     },
 
     /**
+     * 为帖子里的每个楼层添加跳转链接
+     */
+    addFloorGotoLink: function () {
+        $('.readlou > div:nth-child(2) > span').each(function () {
+            $this = $(this);
+            var floorText = $this.text();
+            if (!/^\d+楼$/.test(floorText)) return;
+            var linkName = $this.closest('.readlou').prev().attr('name');
+            if (!linkName || !/^\d+$/.test(linkName)) return;
+            $this.html('<a class="pd_goto_link" href="#">{0}</a>'.replace('{0}', floorText));
+            $this.find('a').click(function (event) {
+                event.preventDefault();
+                window.prompt('本层的跳转链接（请按Ctrl+C复制）：',
+                    '{0}read.php?tid={1}&spid={2}'
+                        .replace('{0}', Tools.getHostNameUrl())
+                        .replace('{1}', Tools.getUrlParam('tid'))
+                        .replace('{2}', linkName)
+                );
+            });
+        });
+
+    },
+
+    /**
      * 初始化
      */
     init: function () {
         if (typeof jQuery === 'undefined') return;
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
+        if (location.pathname === '/read.php') KFOL.addFloorGotoLink();
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
         console.log('KF Online助手启动');
