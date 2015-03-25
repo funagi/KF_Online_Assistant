@@ -6,7 +6,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.4.0-dev
+// @version     2.4.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -708,9 +708,9 @@ var KFOL = {
             '}',
             '.pd_pop_tips strong { margin-right: 5px; }',
             '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
-            '.pd_pop_tips em { font-weight: 700; color:#ff6600; padding: 0 5px; }',
+            '.pd_pop_tips em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
-            '.pd_pop_tips .pd_highlight { font-weight: bold; color: #ff0000; }',
+            '.pd_pop_tips .pd_highlight { font-weight: bold; color: #FF0000; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
