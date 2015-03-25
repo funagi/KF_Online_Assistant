@@ -6,7 +6,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.3.0
+// @version     2.4.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -34,6 +34,8 @@ var Config = {
     showRefreshModeTipsType: 'auto',
     // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
+    // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
+    hideMarkReadAtTipsEnabled: true,
 
     /* 以下设置如非必要请勿修改： */
     // 神秘盒子的默认抽奖间隔（分钟）
@@ -44,12 +46,16 @@ var Config = {
     completeRefreshInterval: 20,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
     showRefreshModeTipsInterval: 1,
+    // 标记已去除首页已读at高亮提示的Cookie有效期（天）
+    hideMarkReadAtTipsExpires: 3,
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
     // 标记已抽取神秘盒子的Cookie名称
     drawSmboxCookieName: 'pd_draw_smbox',
     // 标记已抽取道具或卡片的Cookie名称
-    drawItemOrCardCookieName: 'pd_draw_item_or_card'
+    drawItemOrCardCookieName: 'pd_draw_item_or_card',
+    // 标记已去除首页已读at高亮提示的Cookie名称
+    hideMarkReadAtTipsCookieName: 'pd_hide_mark_read_at_tips'
 };
 
 /**
@@ -88,14 +94,6 @@ var Tools = {
     },
 
     /**
-     * 获取Cookie名称前缀
-     * @returns {string} Cookie名称前缀
-     */
-    getCookiePrefix: function () {
-        return !KFOL.uid ? '' : KFOL.uid + '_';
-    },
-
-    /**
      * 获取距今N天的零时整点的Date对象
      * @param {number} days 距今的天数
      * @returns {Date} 距今N天的零时整点的Date对象
@@ -111,13 +109,51 @@ var Tools = {
     },
 
     /**
-     * 获取指定时间量之后的Date对象
-     * @param {number} seconds 时间量（秒）
-     * @returns {Date} 指定时间量之后的Date对象
+     * 获取在当前时间的基础上的指定（相对）时间量的Date对象
+     * @param {string} value 指定（相对）时间量，+或-：之后或之前（相对于当前时间）；无符号：绝对值；Y：完整年份；y：年；M：月；d：天；h：小时；m：分；s：秒；ms：毫秒
+     * @returns {?Date} 指定（相对）时间量的Date对象
+     * @example
+     * Tools.getDate('+2y') 获取2年后的Date对象
+     * Tools.getDate('+3M') 获取3个月后的Date对象
+     * Tools.getDate('-4d') 获取4天前的Date对象
+     * Tools.getDate('5h') 获取今天5点的Date对象（其它时间量与当前时间一致）
+     * Tools.getDate('2015Y') 获取年份为2015年的Date对象
      */
-    getAfterDate: function (seconds) {
+    getDate: function (value) {
         var date = new Date();
-        date.setSeconds(seconds);
+        var matches = /^(-|\+)?(\d+)([a-zA-Z]{1,2})$/.exec(value);
+        if (!matches) return null;
+        var flag = typeof matches[1] === 'undefined' ? 0 : (matches[1] === '+' ? 1 : -1);
+        var increment = flag === -1 ? -parseInt(matches[2]) : parseInt(matches[2]);
+        var unit = matches[3];
+        switch (unit) {
+            case 'Y':
+                date.setFullYear(increment);
+                break;
+            case 'y':
+                date.setYear(flag === 0 ? increment : date.getYear() + increment);
+                break;
+            case 'M':
+                date.setMonth(flag === 0 ? increment : date.getMonth() + increment);
+                break;
+            case 'd':
+                date.setDate(flag === 0 ? increment : date.getDate() + increment);
+                break;
+            case 'h':
+                date.setHours(flag === 0 ? increment : date.getHours() + increment);
+                break;
+            case 'm':
+                date.setMinutes(flag === 0 ? increment : date.getMinutes() + increment);
+                break;
+            case 's':
+                date.setSeconds(flag === 0 ? increment : date.getSeconds() + increment);
+                break;
+            case 'ms':
+                date.setMilliseconds(flag === 0 ? increment : date.getMilliseconds() + increment);
+                break;
+            default:
+                return null;
+        }
         return date;
     },
 
@@ -222,7 +258,9 @@ var ConfigDialog = {
             '    <fieldset>',
             '      <legend>其它设置</legend>',
             '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:50px" type="text" value="10" />秒 ',
-            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />',
+            '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ',
+            '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
@@ -243,14 +281,6 @@ var ConfigDialog = {
         $configBox.find('h1 span, #pd_cfg_cancel').click(ConfigDialog.close)
             .end().find('.pd_cfg_tips').click(function () {
                 return false;
-            })
-            .end().keydown(function (event) {
-                if (event.key == 'Enter') {
-                    $('#pd_cfg_ok').click();
-                }
-                else if (event.key == 'Esc' || event.key == 'Escape') {
-                    $('#pd_cfg_cancel').click();
-                }
             });
         $('#pd_cfg_ok').click(function () {
             if (!ConfigDialog.verify()) return;
@@ -273,9 +303,16 @@ var ConfigDialog = {
                 location.reload();
             }
         });
-        $(window).on('resize.pd_cfg_box', resizeBox);
+        $(window).on('resize.pd_cfg_box', resizeBox)
+            .on('keydown.pd_cfg_box', function (event) {
+                if (event.key == 'Enter') {
+                    $('#pd_cfg_ok').click();
+                }
+                else if (event.key == 'Esc' || event.key == 'Escape') {
+                    $('#pd_cfg_cancel').click();
+                }
+            });
         ConfigDialog.setValue();
-        $configBox.find('input').eq(0).focus();
     },
 
     /**
@@ -283,7 +320,7 @@ var ConfigDialog = {
      */
     close: function () {
         $('#pd_cfg_box').remove();
-        $(window).off('resize.pd_cfg_box');
+        $(window).off('resize.pd_cfg_box').off('keydown.pd_cfg_box');
     },
 
     /**
@@ -299,6 +336,7 @@ var ConfigDialog = {
         $('#pd_cfg_auto_refresh_enabled').prop('checked', Config.autoRefreshEnabled);
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
+        $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
     },
 
     /**
@@ -316,6 +354,7 @@ var ConfigDialog = {
         options.autoRefreshEnabled = $('#pd_cfg_auto_refresh_enabled').prop('checked');
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
+        options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         return options;
     },
 
@@ -377,16 +416,16 @@ var ConfigDialog = {
         var settings = {};
         var defConfig = ConfigDialog.defConfig;
         if ($.type(options) !== 'object') return settings;
-        settings.autoDonationEnabled = options.autoDonationEnabled == true;
-        settings.autoDrawSmboxEnabled = options.autoDrawSmboxEnabled == true;
-        settings.autoDrawItemOrCardEnabled = options.autoDrawItemOrCardEnabled == true;
-        settings.autoRefreshEnabled = options.autoRefreshEnabled == true;
+        settings.autoDonationEnabled = typeof options.autoDonationEnabled === 'boolean' ?
+            options.autoDonationEnabled : Config.autoDonationEnabled;
         if (typeof options.donationKfb !== 'undefined') {
             var donationKfb = parseInt(options.donationKfb);
             if ($.isNumeric(donationKfb) && donationKfb > 0 && donationKfb <= 5000)
                 settings.donationKfb = donationKfb;
             else settings.donationKfb = defConfig.donationKfb;
         }
+        settings.autoDrawSmboxEnabled = typeof options.autoDrawSmboxEnabled === 'boolean' ?
+            options.autoDrawSmboxEnabled : Config.autoDrawSmboxEnabled;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
             if ($.isArray(options.favorSmboxNumbers)) {
                 settings.favorSmboxNumbers = [];
@@ -397,12 +436,16 @@ var ConfigDialog = {
             }
             else settings.favorSmboxNumbers = defConfig.favorSmboxNumbers;
         }
+        settings.autoDrawItemOrCardEnabled = typeof options.autoDrawItemOrCardEnabled === 'boolean' ?
+            options.autoDrawItemOrCardEnabled : Config.autoDrawItemOrCardEnabled;
         if (typeof options.autoDrawItemOrCardType !== 'undefined') {
             var autoDrawItemOrCardType = parseInt(options.autoDrawItemOrCardType);
             if (autoDrawItemOrCardType >= 1 && autoDrawItemOrCardType <= 2)
                 settings.autoDrawItemOrCardType = autoDrawItemOrCardType;
             else settings.autoDrawItemOrCardType = defConfig.autoDrawItemOrCardType;
         }
+        settings.autoRefreshEnabled = typeof options.autoRefreshEnabled === 'boolean' ?
+            options.autoRefreshEnabled : Config.autoRefreshEnabled;
         if (typeof options.showRefreshModeTipsType !== 'undefined') {
             var showRefreshModeTipsType = $.trim(options.showRefreshModeTipsType).toLowerCase();
             var allowTypes = ['auto', 'always', 'never'];
@@ -416,6 +459,8 @@ var ConfigDialog = {
                 settings.defShowMsgDuration = defShowMsgDuration;
             else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
         }
+        settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
+            options.hideMarkReadAtTipsEnabled : Config.hideMarkReadAtTipsEnabled;
         return settings;
     },
 
@@ -615,18 +660,23 @@ var ConvertItemToEnergy = {
 var KFOL = {
     // 用户ID
     uid: 0,
+    // 用户名
+    userName: '',
     // 是否位于首页
     isInHomePage: false,
 
     /**
-     * 获取Uid
-     * @returns {number} Uid
+     * 获取Uid和用户名
+     * @returns {boolean} 是否获取成功
      */
-    getUid: function () {
-        var href = $('a[href^="profile.php?action=show&uid="]').attr('href');
-        if (!href) return null;
-        var matches = /&uid=(\d+)/.exec(href);
-        return matches ? matches[1] : 0;
+    getUidAndUserName: function () {
+        var $user = $('a[href^="profile.php?action=show&uid="]');
+        if ($user.length === 0) return false;
+        KFOL.userName = $user.text();
+        var matches = /&uid=(\d+)/.exec($user.attr('href'));
+        if (!matches) return false;
+        KFOL.uid = matches[1];
+        return true;
     },
 
     /**
@@ -830,7 +880,7 @@ var KFOL = {
                 smboxNumber = numberMatches ? numberMatches[1] : 0;
             }
             $.get(url, function (html) {
-                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getAfterDate(Config.defDrawSmboxInterval * 60)
+                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm')
                 );
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 var kfbRegex = /获得了(\d+)KFB的奖励/i;
@@ -862,7 +912,7 @@ var KFOL = {
         if (Config.autoDrawItemOrCardType === 2) param.submit2 = '未抽到道具不要给我卡片';
         else param.submit1 = '正常抽奖20%道具80%卡片';
         $.post('kf_fw_ig_one.php', param, function (html) {
-            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getAfterDate(Config.defDrawItemOrCardInterval * 60)
+            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getDate('+' + Config.defDrawItemOrCardInterval + 'm')
             );
             KFOL.showFormatLog('抽取道具或卡片', html);
             var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
@@ -981,19 +1031,44 @@ var KFOL = {
             matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
             if (matches) {
                 minutes = parseInt(matches[1]);
-                date = new Date();
-                date.setMinutes(minutes + 1);
-                Tools.setCookie(Config.drawSmboxCookieName, 2, date);
+                Tools.setCookie(Config.drawSmboxCookieName, 2, Tools.getDate('+' + (minutes + 1) + 'm'));
             }
         }
         if (parseInt(Tools.getCookie(Config.drawItemOrCardCookieName)) === 1) {
             matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text());
             if (matches) {
                 minutes = parseInt(matches[1]);
-                date = new Date();
-                date.setMinutes(minutes + 1);
-                Tools.setCookie(Config.drawItemOrCardCookieName, 2, date);
+                Tools.setCookie(Config.drawItemOrCardCookieName, 2, Tools.getDate('+' + (minutes + 1) + 'm'));
             }
+        }
+    },
+
+    /**
+     * 处理首页已读at高亮提示
+     */
+    handleMarkReadAtTips: function () {
+        var $atTips = $('a[href^="guanjianci.php?gjc="]');
+        if ($atTips.length > 0) {
+            var cookieText = Tools.getCookie(Config.hideMarkReadAtTipsCookieName);
+            var atTipsText = $atTips.text();
+            if (cookieText) {
+                if (cookieText === atTipsText) {
+                    $atTips.removeClass('indbox5').addClass('indbox6');
+                    return;
+                }
+            }
+            $atTips.click(function () {
+                Tools.setCookie(Config.hideMarkReadAtTipsCookieName, atTipsText,
+                    Tools.getDate('+' + Config.hideMarkReadAtTipsExpires + 'd')
+                );
+                $(this).removeClass('indbox5').addClass('indbox6');
+            });
+        }
+        else {
+            var html = ('<div style="width:300px;"><a href="guanjianci.php?gjc={0}" target="_blank" class="indbox6">最近无人@你</a>' +
+            '<br /><div class="line"></div><div class="c"></div></div><div class="line"></div>')
+                .replace('{0}', encodeURI(KFOL.userName));
+            $('a[href="kf_vmember.php"]:contains("VIP会员")').parent().before(html);
         }
     },
 
@@ -1004,13 +1079,17 @@ var KFOL = {
         if (typeof jQuery === 'undefined') return;
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
-        KFOL.uid = KFOL.getUid();
+        KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
+        console.log('KF Online助手启动');
         KFOL.appendCss();
         ConfigDialog.init();
         KFOL.appendConfigDialogLink();
 
-        if (KFOL.isInHomePage) KFOL.adjustCookiesExpires();
+        if (KFOL.isInHomePage) {
+            KFOL.adjustCookiesExpires();
+            if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
+        }
         if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
             KFOL.donation();
         }
@@ -1040,6 +1119,7 @@ var KFOL = {
         if (Config.autoRefreshEnabled) {
             if (KFOL.isInHomePage) KFOL.autoRefresh();
         }
+        console.log('KF Online助手加载完毕');
     }
 };
 
