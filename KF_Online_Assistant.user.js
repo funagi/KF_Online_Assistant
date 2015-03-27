@@ -6,11 +6,15 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.4.0
+// @version     2.5.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
+/**
+ * @todo 增加电梯直达功能
+ * @todo 增加跳转到指定页数的功能
+ */
 /**
  * 配置类
  */
@@ -36,6 +40,7 @@ var Config = {
     defShowMsgDuration: 10,
     // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
     hideMarkReadAtTipsEnabled: true,
+    perPageFloor: 10,
 
     /* 以下设置如非必要请勿修改： */
     // 神秘盒子的默认抽奖间隔（分钟）
@@ -317,10 +322,10 @@ var ConfigDialog = {
         });
         $(window).on('resize.pd_cfg_box', resizeBox)
             .on('keydown.pd_cfg_box', function (event) {
-                if (event.key == 'Enter') {
+                if (event.key === 'Enter') {
                     $('#pd_cfg_ok').click();
                 }
-                else if (event.key == 'Esc' || event.key == 'Escape') {
+                else if (event.key === 'Esc' || event.key === 'Escape') {
                     $('#pd_cfg_cancel').click();
                 }
             });
@@ -535,6 +540,7 @@ var ConvertItemToEnergy = {
         $.extend(settings, options);
         var successNum = 0;
         var energyNum = ConvertItemToEnergy.getEnergyNumByLevel(settings.level);
+        $(document).queue('ConvertItemToEnergy', []);
         $.each(settings.urlList, function (index, key) {
             var id = /pro=(\d+)/i.exec(key);
             id = id ? id[1] : 0;
@@ -548,7 +554,7 @@ var ConvertItemToEnergy = {
                     if (/转换为了\s*\d+\s*点能量/i.test(html) || /提交速度过快/i.test(html)) {
                         successNum++;
                     }
-                    $remainingNum = $('#pd_remaining_num');
+                    var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === settings.urlList.length - 1) {
                         $('.pd_pop_box').remove();
@@ -607,7 +613,7 @@ var ConvertItemToEnergy = {
      * @param {boolean} disable 是否禁止
      */
     setAllClickDisable: function (disable) {
-        $links = $('.kf_fw_ig1 a:contains("全部转换本级已使用道具为能量")');
+        var $links = $('.kf_fw_ig1 a:contains("全部转换本级已使用道具为能量")');
         if (disable) $links.data('disable', true);
         else $links.removeData('disable');
     },
@@ -712,8 +718,12 @@ var KFOL = {
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_pop_tips .pd_highlight { font-weight: bold; color: #FF0000; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
+            '.pd_text { height: 18px; line-height: 18px; }',
+            '.pd_text:focus { border-color: #7EB4EA; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
+            '.pd_fast_goto_floor { margin-right: 5px; }',
+            '.pd_fast_goto_floor span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
@@ -726,7 +736,7 @@ var KFOL = {
             '.pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
             '.pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
             '.pd_cfg_main label input, .pd_cfg_main label select { margin: 0 5px; }',
-            '.pd_cfg_main .pd_cfg_tips { text-decoration: none; }',
+            '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }',
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }',
             '.pd_cfg_btns button { width: 80px; margin-left: 5px; }',
@@ -894,8 +904,7 @@ var KFOL = {
                 smboxNumber = numberMatches ? numberMatches[1] : 0;
             }
             $.get(url, function (html) {
-                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm')
-                );
+                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 var kfbRegex = /获得了(\d+)KFB的奖励/i;
                 var smRegex = /获得本轮的头奖/i;
@@ -913,6 +922,9 @@ var KFOL = {
                 }
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 KFOL.showMsg(msg);
+                if (KFOL.isInHomePage) {
+                    $('a[href="kf_smbox.php"].indbox5').removeClass('indbox5').addClass('indbox6');
+                }
             }, 'html');
         }, 'html');
     },
@@ -926,8 +938,7 @@ var KFOL = {
         if (Config.autoDrawItemOrCardType === 2) param.submit2 = '未抽到道具不要给我卡片';
         else param.submit1 = '正常抽奖20%道具80%卡片';
         $.post('kf_fw_ig_one.php', param, function (html) {
-            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getDate('+' + Config.defDrawItemOrCardInterval + 'm')
-            );
+            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getDate('+' + Config.defDrawItemOrCardInterval + 'm'));
             KFOL.showFormatLog('抽取道具或卡片', html);
             var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
             var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
@@ -950,6 +961,9 @@ var KFOL = {
                 return;
             }
             KFOL.showMsg(msg);
+            if (KFOL.isInHomePage) {
+                $('a[href="kf_fw_ig_one.php"].indbox5').removeClass('indbox5').addClass('indbox6');
+            }
         }, 'html');
     },
 
@@ -1072,7 +1086,8 @@ var KFOL = {
                 }
             }
             $atTips.click(function () {
-                Tools.setCookie(Config.hideMarkReadAtTipsCookieName, atTipsText,
+                Tools.setCookie(Config.hideMarkReadAtTipsCookieName,
+                    atTipsText,
                     Tools.getDate('+' + Config.hideMarkReadAtTipsExpires + 'd')
                 );
                 $(this).removeClass('indbox5').addClass('indbox6');
@@ -1087,27 +1102,71 @@ var KFOL = {
     },
 
     /**
+     * 高亮首页VIP会员提示
+     */
+    highlightVipTips: function () {
+        $('a[href="kf_vmember.php"]:contains("VIP会员(剩余")').removeClass('indbox6').addClass('indbox5');
+    },
+
+    /**
      * 为帖子里的每个楼层添加跳转链接
      */
     addFloorGotoLink: function () {
         $('.readlou > div:nth-child(2) > span').each(function () {
-            $this = $(this);
+            var $this = $(this);
             var floorText = $this.text();
             if (!/^\d+楼$/.test(floorText)) return;
             var linkName = $this.closest('.readlou').prev().attr('name');
             if (!linkName || !/^\d+$/.test(linkName)) return;
-            $this.html('<a class="pd_goto_link" href="#">{0}</a>'.replace('{0}', floorText));
+            var url = '{0}read.php?tid={1}&spid={2}'
+                .replace('{0}', Tools.getHostNameUrl())
+                .replace('{1}', Tools.getUrlParam('tid'))
+                .replace('{2}', linkName);
+            $this.html('<a class="pd_goto_link" href="{0}">{1}</a>'.replace('{0}', url).replace('{1}', floorText));
             $this.find('a').click(function (event) {
                 event.preventDefault();
-                window.prompt('本层的跳转链接（请按Ctrl+C复制）：',
-                    '{0}read.php?tid={1}&spid={2}'
-                        .replace('{0}', Tools.getHostNameUrl())
-                        .replace('{1}', Tools.getUrlParam('tid'))
-                        .replace('{2}', linkName)
-                );
+                window.prompt('本楼的跳转链接（请按Ctrl+C复制）：', url);
             });
         });
+    },
 
+    /**
+     * 添加快速跳转到指定楼层的输入框
+     */
+    addFastGotoFloorInput: function () {
+        $('<li class="pd_fast_goto_floor">电梯直达 <input class="pd_text" style="width:35px" type="text" maxlength="8" /> <span>楼</span></li>')
+            .prependTo('.readlou:eq(0) > div:first-child > ul')
+            .find('span')
+            .click(function () {
+                var floor = parseInt($.trim($(this).prev('input').val()));
+                if (!floor || floor <= 0) return;
+                location.href = '{0}read.php?tid={1}&page={2}&floor={3}'
+                    .replace('{0}', Tools.getHostNameUrl)
+                    .replace('{1}', Tools.getUrlParam('tid'))
+                    .replace('{2}', parseInt(floor / Config.perPageFloor) + 1)
+                    .replace('{3}', floor);
+            })
+            .end()
+            .find('input')
+            .keydown(function (event) {
+                if (event.key === 'Enter') {
+                    $(this).next('span').click();
+                    return false;
+                }
+            });
+    },
+
+    /**
+     * 将页面滚动到指定楼层
+     */
+    fastGotoFloor: function () {
+        var floor = parseInt(Tools.getUrlParam('floor'));
+        if (!floor || floor <= 0) return;
+        var $floorNode = $('.readlou > div:nth-child(2) > span:contains("{0}楼")'.replace('{0}', floor));
+        if ($floorNode.length == 0) return;
+        var linkName = $floorNode.closest('.readlou').prev().attr('name');
+        if (!linkName || !/^\d+$/.test(linkName)) return;
+        location.hash = '#' + linkName;
     },
 
     /**
@@ -1115,19 +1174,24 @@ var KFOL = {
      */
     init: function () {
         if (typeof jQuery === 'undefined') return;
+        console.log('KF Online助手启动');
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
-        if (location.pathname === '/read.php') KFOL.addFloorGotoLink();
+        ConfigDialog.init();
+        if (location.pathname === '/read.php') {
+            KFOL.fastGotoFloor();
+            KFOL.addFloorGotoLink();
+            KFOL.addFastGotoFloorInput();
+        }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
-        console.log('KF Online助手启动');
         KFOL.appendCss();
-        ConfigDialog.init();
         KFOL.appendConfigDialogLink();
 
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
+            KFOL.highlightVipTips();
         }
         if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
             KFOL.donation();
