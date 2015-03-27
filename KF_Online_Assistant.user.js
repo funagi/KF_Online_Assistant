@@ -12,10 +12,6 @@
 // @license     MIT
 // ==/UserScript==
 /**
- * @todo 增加电梯直达功能
- * @todo 增加跳转到指定页数的功能
- */
-/**
  * 配置类
  */
 // （注意：请到设置界面里修改相应设置，如非必要请勿在代码里修改）
@@ -40,7 +36,8 @@ var Config = {
     defShowMsgDuration: 10,
     // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
     hideMarkReadAtTipsEnabled: true,
-    perPageFloor: 10,
+    // 帖子每页楼层数量，用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
+    perPageFloorNum: 10,
 
     /* 以下设置如非必要请勿修改： */
     // 神秘盒子的默认抽奖间隔（分钟）
@@ -278,6 +275,9 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />',
             '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ',
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
+            '      <label style="margin-left:10px">帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
+            '<option value="20">20</option><option value="30">30</option></select>',
+            '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
@@ -354,6 +354,7 @@ var ConfigDialog = {
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
+        $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
     },
 
     /**
@@ -372,6 +373,7 @@ var ConfigDialog = {
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
+        options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         return options;
     },
 
@@ -478,6 +480,12 @@ var ConfigDialog = {
         }
         settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
             options.hideMarkReadAtTipsEnabled : Config.hideMarkReadAtTipsEnabled;
+        if (typeof options.perPageFloorNum !== 'undefined') {
+            var perPageFloorNum = parseInt(options.perPageFloorNum);
+            if ($.inArray(perPageFloorNum, [10, 20, 30]))
+                settings.perPageFloorNum = perPageFloorNum;
+            else settings.perPageFloorNum = defConfig.perPageFloorNum;
+        }
         return settings;
     },
 
@@ -718,22 +726,23 @@ var KFOL = {
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_pop_tips .pd_highlight { font-weight: bold; color: #FF0000; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
-            '.pd_text { height: 18px; line-height: 18px; }',
+            '.pd_text { height: 18px; }',
             '.pd_text:focus { border-color: #7EB4EA; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
             '.pd_fast_goto_floor { margin-right: 5px; }',
-            '.pd_fast_goto_floor span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
+            '.pages .pd_fast_goto_page { margin-left: 8px; }',
+            '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
             '#pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }',
             '#pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }',
-            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 1.8em; max-height: 600px; overflow: auto; }',
+            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; max-height: 600px; overflow: auto; }',
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
             '.pd_cfg_main legend { font-weight: bold; }',
             '.pd_cfg_main input { vertical-align: middle; }',
-            '.pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
+            '.pd_cfg_main input[type="text"] { height: 18px; }',
             '.pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
             '.pd_cfg_main label input, .pd_cfg_main label select { margin: 0 5px; }',
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
@@ -1040,7 +1049,7 @@ var KFOL = {
     /**
      * 添加设置对话框的链接
      */
-    appendConfigDialogLink: function () {
+    addConfigDialogLink: function () {
         var $logout = $('a[href^="login.php?action=quit"]').eq(0);
         if ($logout.length == 0) return;
         $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore($logout)
@@ -1143,7 +1152,7 @@ var KFOL = {
                 location.href = '{0}read.php?tid={1}&page={2}&floor={3}'
                     .replace('{0}', Tools.getHostNameUrl)
                     .replace('{1}', Tools.getUrlParam('tid'))
-                    .replace('{2}', parseInt(floor / Config.perPageFloor) + 1)
+                    .replace('{2}', parseInt(floor / Config.perPageFloorNum) + 1)
                     .replace('{3}', floor);
             })
             .end()
@@ -1170,6 +1179,33 @@ var KFOL = {
     },
 
     /**
+     * 添加快速跳转到指定页数的输入框
+     */
+    addFastGotoPageInput: function () {
+        $('<li class="pd_fast_goto_page">跳至 <input class="pd_text" style="width:30px" type="text" maxlength="8" /> <span>页</span></li>')
+            .appendTo('table > tbody > tr > td > div > ul.pages')
+            .find('span')
+            .click(function () {
+                var page = parseInt($.trim($(this).prev('input').val()));
+                if (!page || page <= 0) return;
+                var fpage = parseInt(Tools.getUrlParam('fpage'));
+                location.href = '{0}read.php?tid={1}&page={2}{3}'
+                    .replace('{0}', Tools.getHostNameUrl)
+                    .replace('{1}', Tools.getUrlParam('tid'))
+                    .replace('{2}', page)
+                    .replace('{3}', fpage ? '&fpage=' + fpage : '');
+            })
+            .end()
+            .find('input')
+            .keydown(function (event) {
+                if (event.key === 'Enter') {
+                    $(this).next('span').click();
+                    return false;
+                }
+            });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -1182,11 +1218,12 @@ var KFOL = {
             KFOL.fastGotoFloor();
             KFOL.addFloorGotoLink();
             KFOL.addFastGotoFloorInput();
+            KFOL.addFastGotoPageInput();
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
         KFOL.appendCss();
-        KFOL.appendConfigDialogLink();
+        KFOL.addConfigDialogLink();
 
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
