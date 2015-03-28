@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name        KF Online助手
 // @namespace   https://greasyfork.org/users/4514
+// @icon        https://raw.githubusercontent.com/miaolapd/KF_Online_Assistant/master/icon.png
 // @author      喵拉布丁
 // @homepage    https://greasyfork.org/scripts/8615
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
