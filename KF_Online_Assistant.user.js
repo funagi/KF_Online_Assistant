@@ -6,7 +6,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.5.0
+// @version     2.5.1
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -30,7 +30,7 @@ var Config = {
     autoDrawItemOrCardEnabled: false,
     // 抽取道具或卡片的方式，1：抽取道具或卡片；2：只抽取道具
     autoDrawItemOrCardType: 1,
-    // 是否开启定时模式（开启定时模式后需停留在首页，需要刷新页面才可生效），true：开启；false：关闭
+    // 是否开启定时模式（开启定时模式后需停留在首页），true：开启；false：关闭
     autoRefreshEnabled: false,
     // 在首页的网页标题上显示定时模式提示的方案，auto：停留一分钟后显示；always：总是显示；never：不显示
     showRefreshModeTipsType: 'auto',
@@ -38,6 +38,8 @@ var Config = {
     defShowMsgDuration: 10,
     // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
     hideMarkReadAtTipsEnabled: true,
+    // 是否高亮首页的VIP身份标识，true：开启；false：关闭
+    highlightVipEnabled: true,
     // 帖子每页楼层数量，用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
     perPageFloorNum: 10,
 
@@ -282,7 +284,7 @@ var ConfigDialog = {
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" /> 定时模式 ',
-            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页，修改设置后需要刷新页面后才可生效">[?]</a></legend>',
+            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></legend>',
             '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>',
             '<option value="always">总是显示</option><option value="never">不显示</option></select>',
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>',
@@ -293,7 +295,9 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />',
             '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ',
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
-            '      <label style="margin-left:10px">帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
+            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" checked="checked" />高亮首页VIP标识 ',
+            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label><br />',
+            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
             '<option value="20">20</option><option value="30">30</option></select>',
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
             '    </fieldset>',
@@ -373,6 +377,7 @@ var ConfigDialog = {
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
+        $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
     },
 
@@ -394,6 +399,7 @@ var ConfigDialog = {
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
+        options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         return options;
     },
@@ -534,6 +540,8 @@ var ConfigDialog = {
         }
         settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
             options.hideMarkReadAtTipsEnabled : Config.hideMarkReadAtTipsEnabled;
+        settings.highlightVipEnabled = typeof options.highlightVipEnabled === 'boolean' ?
+            options.highlightVipEnabled : Config.highlightVipEnabled;
         if (typeof options.perPageFloorNum !== 'undefined') {
             var perPageFloorNum = parseInt(options.perPageFloorNum);
             if ($.inArray(perPageFloorNum, [10, 20, 30]))
@@ -1292,26 +1300,24 @@ var KFOL = {
      * 添加快速跳转到指定楼层的输入框
      */
     addFastGotoFloorInput: function () {
-        $('<li class="pd_fast_goto_floor">电梯直达 <input class="pd_text" style="width:35px" type="text" maxlength="8" /> <span>楼</span></li>')
+        $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_text" style="width:35px" type="text" maxlength="8" /> ' +
+        '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
-            .find('span')
-            .click(function () {
-                var floor = parseInt($.trim($(this).prev('input').val()));
+            .submit(function () {
+                var floor = parseInt($.trim($(this).find('input').val()));
                 if (!floor || floor <= 0) return;
                 location.href = '{0}read.php?tid={1}&page={2}&floor={3}'
                     .replace('{0}', Tools.getHostNameUrl)
                     .replace('{1}', Tools.getUrlParam('tid'))
                     .replace('{2}', parseInt(floor / Config.perPageFloorNum) + 1)
                     .replace('{3}', floor);
+                return false;
             })
-            .end()
-            .find('input')
-            .keydown(function (event) {
-                if (event.key === 'Enter') {
-                    $(this).next('span').click();
-                    return false;
-                }
+            .find('span')
+            .click(function () {
+                $(this).closest('form').submit();
             });
+
     },
 
     /**
@@ -1377,7 +1383,7 @@ var KFOL = {
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
-            KFOL.highlightVipTips();
+            if (Config.highlightVipEnabled) KFOL.highlightVipTips();
         }
         if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
             KFOL.donation();
