@@ -18,8 +18,10 @@
 var Config = {
     // 是否自动KFB捐款，true：开启；false：关闭
     autoDonationEnabled: false,
-    // KFB捐款额度（取值范围在1-5000之间，小数点将被舍去）
-    donationKfb: 1,
+    // KFB捐款额度，取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%
+    donationKfb: '1',
+    // 在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）
+    donationAfterTime: '00:00:00',
     // 是否自动抽取神秘盒子，true：开启；false：关闭
     autoDrawSmboxEnabled: false,
     // 偏好的神秘盒子数字，例：[52,1,28,400]（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空
@@ -40,12 +42,16 @@ var Config = {
     perPageFloorNum: 10,
 
     /* 以下设置如非必要请勿修改： */
+    // KFB捐款额度的最大值
+    maxDonationKfb: 5000,
     // 神秘盒子的默认抽奖间隔（分钟）
     defDrawSmboxInterval: 300,
     // 道具或卡片的默认抽奖间隔（分钟）
     defDrawItemOrCardInterval: 480,
-    // 抽取神秘盒子完成后页面的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时刷新模式的实际间隔时间
-    completeRefreshInterval: 20,
+    // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
+    drawSmboxCompleteRefreshInterval: 20,
+    // 获取剩余抽奖时间失败后的重试间隔（分钟），用于定时模式
+    errorRefreshInterval: 15,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
@@ -101,11 +107,21 @@ var Tools = {
      * @returns {Date} 距今N天的零时整点的Date对象
      */
     getMidnightHourDate: function (days) {
-        var date = new Date();
+        var date = Tools.getDateByTime('00:00:00');
         date.setDate(date.getDate() + days);
-        date.setHours(0);
-        date.setMinutes(0);
-        date.setSeconds(0);
+        return date;
+    },
+    /**
+     * 返回当天指定的时间的Date对象
+     * @param {string} time 指定的时间（例：22:30:00）
+     * @returns {Date} 修改后的Date对象
+     */
+    getDateByTime: function (time) {
+        var date = new Date();
+        var timeArr = time.split(':');
+        if (timeArr[0]) date.setHours(parseInt(timeArr[0]));
+        if (timeArr[1]) date.setMinutes(parseInt(timeArr[1]));
+        if (timeArr[2]) date.setSeconds(parseInt(timeArr[2]));
         date.setMilliseconds(0);
         return date;
     },
@@ -248,8 +264,10 @@ var ConfigDialog = {
             '  <div class="pd_cfg_main">',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" /> 自动KFB捐款</legend>',
-            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:50px" type="text" value="1" />',
-            '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000之间，小数点将被舍去">[?]</a></label>',
+            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:35px" type="text" value="1" />',
+            '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
+            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:60px" type="text" value="00:00:00" />',
+            '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" /> 自动抽取神秘盒子</legend>',
@@ -264,7 +282,7 @@ var ConfigDialog = {
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" /> 定时模式 ',
-            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页，需要刷新页面才可生效">[?]</a></legend>',
+            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页，修改设置后需要刷新页面后才可生效">[?]</a></legend>',
             '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>',
             '<option value="always">总是显示</option><option value="never">不显示</option></select>',
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>',
@@ -346,6 +364,7 @@ var ConfigDialog = {
     setValue: function () {
         $('#pd_cfg_auto_donation_enabled').prop('checked', Config.autoDonationEnabled);
         $('#pd_cfg_donation_kfb').val(Config.donationKfb);
+        $('#pd_cfg_donation_after_time').val(Config.donationAfterTime);
         $('#pd_cfg_auto_draw_smbox_enabled').prop('checked', Config.autoDrawSmboxEnabled);
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
         $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked', Config.autoDrawItemOrCardEnabled);
@@ -364,7 +383,9 @@ var ConfigDialog = {
     getValue: function () {
         var options = {};
         options.autoDonationEnabled = $('#pd_cfg_auto_donation_enabled').prop('checked');
-        options.donationKfb = parseInt($.trim($('#pd_cfg_donation_kfb').val()));
+        options.donationKfb = $.trim($('#pd_cfg_donation_kfb').val());
+        options.donationKfb = $.isNumeric(options.donationKfb) ? parseInt(options.donationKfb) : options.donationKfb;
+        options.donationAfterTime = $('#pd_cfg_donation_after_time').val();
         options.autoDrawSmboxEnabled = $('#pd_cfg_auto_draw_smbox_enabled').prop('checked');
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
         options.autoDrawItemOrCardEnabled = $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked');
@@ -384,16 +405,41 @@ var ConfigDialog = {
     verify: function () {
         var $txtDonationKfb = $('#pd_cfg_donation_kfb');
         var donationKfb = $.trim($txtDonationKfb.val());
-        if (!$.isNumeric(donationKfb)) {
-            alert('KFB捐款额度格式不正确');
-            $txtDonationKfb.select();
-            $txtDonationKfb.focus();
-            return false;
+        if (/%$/.test(donationKfb)) {
+            if (!/^1?\d?\d%$/.test(donationKfb)) {
+                alert('KFB捐款额度格式不正确');
+                $txtDonationKfb.select();
+                $txtDonationKfb.focus();
+                return false;
+            }
+            if (parseInt(donationKfb) <= 0 || parseInt(donationKfb) > 100) {
+                alert('KFB捐款额度百分比的取值范围在1-100之间');
+                $txtDonationKfb.select();
+                $txtDonationKfb.focus();
+                return false;
+            }
         }
-        if (parseInt(donationKfb) <= 0 || parseInt(donationKfb) > 5000) {
-            alert('KFB捐款额度的取值范围在1-5000之间');
-            $txtDonationKfb.select();
-            $txtDonationKfb.focus();
+        else {
+            if (!$.isNumeric(donationKfb)) {
+                alert('KFB捐款额度格式不正确');
+                $txtDonationKfb.select();
+                $txtDonationKfb.focus();
+                return false;
+            }
+            if (parseInt(donationKfb) <= 0 || parseInt(donationKfb) > Config.maxDonationKfb) {
+                alert('KFB捐款额度的取值范围在1-{0}之间'.replace('{0}', Config.maxDonationKfb));
+                $txtDonationKfb.select();
+                $txtDonationKfb.focus();
+                return false;
+            }
+        }
+
+        var $txtDonationAfterTime = $('#pd_cfg_donation_after_time');
+        var donationAfterTime = $txtDonationAfterTime.val();
+        if (!/^(2[0-3]|[0-1][0-9]):[0-5][0-9]:[0-5][0-9]$/.test(donationAfterTime)) {
+            alert('在指定时间之后捐款格式不正确');
+            $txtDonationAfterTime.select();
+            $txtDonationAfterTime.focus();
             return false;
         }
 
@@ -438,10 +484,18 @@ var ConfigDialog = {
         settings.autoDonationEnabled = typeof options.autoDonationEnabled === 'boolean' ?
             options.autoDonationEnabled : Config.autoDonationEnabled;
         if (typeof options.donationKfb !== 'undefined') {
-            var donationKfb = parseInt(options.donationKfb);
-            if ($.isNumeric(donationKfb) && donationKfb > 0 && donationKfb <= 5000)
-                settings.donationKfb = donationKfb;
+            var donationKfb = options.donationKfb;
+            if ($.isNumeric(donationKfb) && donationKfb > 0 && donationKfb <= Config.maxDonationKfb)
+                settings.donationKfb = parseInt(donationKfb);
+            else if (/^1?\d?\d%$/.test(donationKfb) && parseInt(donationKfb) > 0 && parseInt(donationKfb) <= 100)
+                settings.donationKfb = parseInt(donationKfb) + '%';
             else settings.donationKfb = defConfig.donationKfb;
+        }
+        if (typeof options.donationAfterTime !== 'undefined') {
+            var donationAfterTime = options.donationAfterTime;
+            if (/^(2[0-3]|[0-1][0-9]):[0-5][0-9]:[0-5][0-9]$/.test(donationAfterTime))
+                settings.donationAfterTime = donationAfterTime;
+            else settings.donationAfterTime = defConfig.donationAfterTime;
         }
         settings.autoDrawSmboxEnabled = typeof options.autoDrawSmboxEnabled === 'boolean' ?
             options.autoDrawSmboxEnabled : Config.autoDrawSmboxEnabled;
@@ -856,31 +910,52 @@ var KFOL = {
      * KFB捐款
      */
     donation: function () {
+        var now = new Date();
+        var date = Tools.getDateByTime(Config.donationAfterTime);
+        if (now < date) return;
         console.log('KFB捐款Start');
-        $.post('kf_growup.php?ok=1', {kfb: Config.donationKfb}, function (html) {
-            Tools.setCookie(Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
-            var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', Config.donationKfb);
-            var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
-            if (!matches) {
-                if (/KFB不足。<br \/>/.test(html)) {
-                    msg += '<i class="pd_notice">KFB不足</i><a target="_blank" href="kf_growup.php">手动捐款</a>';
+        var donationSubmit = function (kfb) {
+            $.post('kf_growup.php?ok=1', {kfb: kfb}, function (html) {
+                Tools.setCookie(Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
+                var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', kfb);
+                var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
+                if (!matches) {
+                    if (/KFB不足。<br \/>/.test(html)) {
+                        msg += '<i class="pd_notice">KFB不足</i><a target="_blank" href="kf_growup.php">手动捐款</a>';
+                    }
+                    else {
+                        KFOL.showFormatLog('KFB捐款', html);
+                        return;
+                    }
                 }
                 else {
-                    KFOL.showFormatLog('KFB捐款', html);
-                    return;
+                    msg += '<i>经验值<em>+{0}</em></i>'.replace('{0}', matches[1]);
+                    if (typeof matches[2] !== 'undefined' && typeof matches[3] !== 'undefined') {
+                        msg += '<i style="margin-left:5px">(补偿期:</i><i>KFB<em>+{0}</em></i><i>经验值<em>+{1}</em>)</i>'
+                            .replace('{0}', matches[2])
+                            .replace('{1}', matches[3]);
+                    }
                 }
-            }
-            else {
-                msg += '<i>经验值<em>+{0}</em></i>'.replace('{0}', matches[1]);
-                if (typeof matches[2] !== 'undefined' && typeof matches[3] !== 'undefined') {
-                    msg += '<i style="margin-left:5px">(补偿期:</i><i>KFB<em>+{0}</em></i><i>经验值<em>+{1}</em>)</i>'
-                        .replace('{0}', matches[2])
-                        .replace('{1}', matches[3]);
-                }
-            }
-            KFOL.showFormatLog('KFB捐款', html);
-            KFOL.showMsg(msg);
-        }, 'html');
+                KFOL.showFormatLog('捐款{0}KFB'.replace('{0}', kfb), html);
+                KFOL.showMsg(msg);
+            }, 'html');
+        };
+        var donationKfb = Config.donationKfb;
+        if (/%$/.test(donationKfb)) {
+            $.get('profile.php?action=show&uid=' + KFOL.uid, function (html) {
+                var matches = /论坛货币：(\d+)\s*KFB/i.exec(html);
+                var income = 1;
+                if (matches) income = parseInt(matches[1]);
+                else console.log('KFB余额获取失败');
+                donationKfb = parseInt(income * parseInt(donationKfb) / 100);
+                donationKfb = donationKfb > 0 ? donationKfb : 1;
+                donationKfb = donationKfb <= Config.maxDonationKfb ? donationKfb : Config.maxDonationKfb;
+                donationSubmit(donationKfb);
+            }, 'html');
+        }
+        else {
+            donationSubmit(parseInt(donationKfb));
+        }
     },
 
     /**
@@ -977,62 +1052,125 @@ var KFOL = {
     },
 
     /**
-     * 获取定时刷新的间隔时间（秒）
-     * @returns {number} 定时刷新的间隔时间（秒）
+     * 获取定时刷新的最小间隔时间（秒）
+     * @param {number} drawSmboxInterval 神秘盒子抽奖间隔（分钟）
+     * @param {number} drawItemOrCardInterval 道具或卡片抽奖间隔（分钟）
+     * @returns {number} 定时刷新的最小间隔时间（秒）
      */
-    getRefreshInterval: function () {
-        var drawSmboxInterval = -1,
-            drawItemOrCardInterval = -1,
-            donationInterval = -1;
-        var matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
-        if (!matches) {
-            if ($('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0) {
-                return Config.completeRefreshInterval;
-            }
+    getMinRefreshInterval: function (drawSmboxInterval, drawItemOrCardInterval) {
+        var donationTime = Tools.getDateByTime(Config.donationAfterTime);
+        var now = new Date();
+        var donationInterval = -1;
+        if (!Tools.getCookie(Config.donationCookieName) && now <= donationTime) {
+            donationInterval = parseInt((donationTime - now) / 1000);
         }
         else {
-            drawSmboxInterval = parseInt(matches[1]);
+            donationTime.setDate(donationTime.getDate() + 1);
+            donationInterval = parseInt((donationTime - now) / 1000);
         }
-        matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text());
-        if (!matches) drawItemOrCardInterval = Config.defDrawItemOrCardInterval;
-        else drawItemOrCardInterval = parseInt(matches[1]);
-        var nextDay = Tools.getMidnightHourDate(1);
-        var now = new Date();
-        donationInterval = parseInt((nextDay - now) / 1000 / 60);
-        var min = drawSmboxInterval < 0 ? drawItemOrCardInterval : drawSmboxInterval;
+        drawSmboxInterval *= 60;
+        drawItemOrCardInterval *= 60;
+        drawSmboxInterval = drawSmboxInterval === 0 ? Config.drawSmboxCompleteRefreshInterval : drawSmboxInterval;
+        drawItemOrCardInterval = drawItemOrCardInterval === 0 ? Config.defDrawItemOrCardInterval * 60 : drawItemOrCardInterval;
+        var min = donationInterval < drawSmboxInterval ? donationInterval : drawSmboxInterval;
         min = min < drawItemOrCardInterval ? min : drawItemOrCardInterval;
-        min = min < donationInterval ? min : donationInterval;
-        return (min + 1) * 60;
+        return min === Config.drawSmboxCompleteRefreshInterval ? min : min + 60;
     },
 
     /**
-     * 定时刷新
+     * 启动定时模式
      */
-    autoRefresh: function () {
-        var interval = KFOL.getRefreshInterval();
-        window.setTimeout(function () {
-            location.href = location.href;
-        }, interval * 1000);
-        var titleInterval = interval === Config.completeRefreshInterval ? interval : parseInt(interval / 60);
-        var unit = interval === Config.completeRefreshInterval ? '秒' : '分钟';
-        console.log('定时模式启动，下一次刷新间隔为：{0}{1}'
-                .replace('{0}', titleInterval)
-                .replace('{1}', unit)
-        );
-        if (Config.showRefreshModeTipsType.toLowerCase() !== 'never') {
-            var title = document.title;
-            var showRefreshModeTips = function () {
-                document.title = '{0} (定时模式：{1}{2})'
-                    .replace('{0}', title)
-                    .replace('{1}', titleInterval)
-                    .replace('{2}', unit);
-                titleInterval -= 1;
-            };
-            if (Config.showRefreshModeTipsType.toLowerCase() === 'always' || interval === Config.completeRefreshInterval)
-                showRefreshModeTips();
-            else titleInterval -= 1;
-            window.setInterval(showRefreshModeTips, Config.showRefreshModeTipsInterval * 60 * 1000);
-        }
+    startAutoRefreshMode: function () {
+        var minutes = KFOL.getDrawSmboxAndItemOrCardRemainTime();
+        var interval = KFOL.getMinRefreshInterval(minutes[0], minutes[1]);
+        var title = document.title;
+        var titleInterval = null;
+        var showRefreshModeTips = function (interval, isShowTitle) {
+            if (titleInterval) window.clearInterval(titleInterval);
+            var showInterval = interval === Config.drawSmboxCompleteRefreshInterval ? interval : parseInt(interval / 60);
+            var unit = interval === Config.drawSmboxCompleteRefreshInterval ? '秒' : '分钟';
+            console.log('下一次刷新间隔为：{0}{1}'
+                    .replace('{0}', showInterval)
+                    .replace('{1}', unit)
+            );
+            if (Config.showRefreshModeTipsType.toLowerCase() !== 'never') {
+                var showIntervalTitle = function () {
+                    document.title = '{0} (定时模式：{1}{2})'
+                        .replace('{0}', title)
+                        .replace('{1}', showInterval)
+                        .replace('{2}', unit);
+                    showInterval -= 1;
+                };
+                if (isShowTitle || Config.showRefreshModeTipsType.toLowerCase() === 'always' ||
+                    interval === Config.drawSmboxCompleteRefreshInterval)
+                    showIntervalTitle();
+                else showInterval -= 1;
+                titleInterval = window.setInterval(showIntervalTitle, Config.showRefreshModeTipsInterval * 60 * 1000);
+            }
+        };
+        var removeRefreshNotice = function () {
+            var $refreshNotice = $('.pd_refresh_notice').parent();
+            if ($refreshNotice.length > 0) {
+                KFOL.removePopTips($refreshNotice);
+            }
+        };
+        var handleError = function (XMLHttpRequest, textStatus) {
+            console.log('获取剩余抽奖时间失败，错误信息：' + textStatus);
+            removeRefreshNotice();
+            KFOL.showMsg('<span class="pd_refresh_notice">获取剩余抽奖时间失败，将在<em>{0}</em>分钟后重试...</span>'
+                    .replace('{0}', Config.errorRefreshInterval)
+                , -1);
+            window.setTimeout(checkRefreshInterval, Config.errorRefreshInterval * 60 * 1000);
+            showRefreshModeTips(Config.errorRefreshInterval * 60, true);
+        };
+        var checkRefreshInterval = function () {
+            removeRefreshNotice();
+            KFOL.showWaitMsg('<span class="pd_refresh_notice">正在获取抽奖剩余时间...</span>');
+            $.ajax({
+                url: 'index.php',
+                dataType: 'html',
+                success: function (html) {
+                    removeRefreshNotice();
+                    var drawSmboxInterval = -1, drawItemOrCardInterval = -1;
+                    var matches = /<a href="kf_smbox\.php".+?>神秘盒子\(剩余(\d+)分钟\)<\/a>/.exec(html);
+                    if (matches) {
+                        drawSmboxInterval = parseInt(matches[1]);
+                    }
+                    else if (/<a href="kf_smbox\.php".+?>神秘盒子\(现在可以抽取\)<\/a>/.test(html)) {
+                        drawSmboxInterval = 0;
+                    }
+                    matches = /<a href="kf_fw_ig_one\.php".+?>道具卡片\(剩余(\d+)分钟\)<\/a>/.exec(html);
+                    if (matches) {
+                        drawItemOrCardInterval = parseInt(matches[1]);
+                    }
+                    else if (/<a href="kf_fw_ig_one\.php".+?>道具卡片\(现在可以抽取\)<\/a>/.test(html)) {
+                        drawItemOrCardInterval = 0;
+                    }
+                    if (drawSmboxInterval === -1 || drawItemOrCardInterval === -1) {
+                        handleError();
+                        return;
+                    }
+                    if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
+                        KFOL.donation();
+                    }
+                    var isDrawSmboxStarted = false;
+                    var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled && drawItemOrCardInterval === 0;
+                    if (Config.autoDrawSmboxEnabled && drawSmboxInterval === 0) {
+                        isDrawSmboxStarted = true;
+                        KFOL.drawSmbox(autoDrawItemOrCardAvailable);
+                    }
+                    if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
+                        KFOL.drawItemOrCard();
+                    }
+                    var interval = KFOL.getMinRefreshInterval(drawSmboxInterval, drawItemOrCardInterval);
+                    window.setTimeout(checkRefreshInterval, interval * 1000);
+                    showRefreshModeTips(interval, true);
+                },
+                error: handleError
+            });
+        };
+        window.setTimeout(checkRefreshInterval, interval * 1000);
+        showRefreshModeTips(interval);
     },
 
     /**
@@ -1063,21 +1201,32 @@ var KFOL = {
      * 校准自动抽奖相关Cookies的有效期
      */
     adjustCookiesExpires: function () {
-        var matches, minutes, date;
+        var minutes = KFOL.getDrawSmboxAndItemOrCardRemainTime();
         if (parseInt(Tools.getCookie(Config.drawSmboxCookieName)) === 1) {
-            matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
-            if (matches) {
-                minutes = parseInt(matches[1]);
-                Tools.setCookie(Config.drawSmboxCookieName, 2, Tools.getDate('+' + (minutes + 1) + 'm'));
+            if (minutes[0] > 0) {
+                Tools.setCookie(Config.drawSmboxCookieName, 2, Tools.getDate('+' + (minutes[0] + 1) + 'm'));
             }
         }
         if (parseInt(Tools.getCookie(Config.drawItemOrCardCookieName)) === 1) {
-            matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text());
-            if (matches) {
-                minutes = parseInt(matches[1]);
-                Tools.setCookie(Config.drawItemOrCardCookieName, 2, Tools.getDate('+' + (minutes + 1) + 'm'));
+            if (minutes[1] > 0) {
+                Tools.setCookie(Config.drawItemOrCardCookieName, 2, Tools.getDate('+' + (minutes[1] + 1) + 'm'));
             }
         }
+    },
+
+    /**
+     * 获取首页上显示的神秘盒子及道具卡片的抽奖剩余时间（分钟）
+     * @returns {Array} 首页上显示的神秘盒子及道具卡片的抽奖剩余时间（分钟），[0]：神秘盒子剩余时间；[1]：道具或卡片剩余时间
+     */
+    getDrawSmboxAndItemOrCardRemainTime: function () {
+        var minutes = [];
+        var matches = /神秘盒子\(剩余(\d+)分钟\)/.exec($('a[href="kf_smbox.php"]:contains("神秘盒子(剩余")').text());
+        if (matches) minutes.push(parseInt(matches[1]));
+        else minutes.push(0);
+        matches = /道具卡片\(剩余(\d+)分钟\)/.exec($('a[href="kf_fw_ig_one.php"]:contains("道具卡片(剩余")').text());
+        if (matches) minutes.push(parseInt(matches[1]));
+        else minutes.push(0);
+        return minutes;
     },
 
     /**
@@ -1218,7 +1367,7 @@ var KFOL = {
             KFOL.fastGotoFloor();
             KFOL.addFloorGotoLink();
             KFOL.addFastGotoFloorInput();
-            KFOL.addFastGotoPageInput();
+            //KFOL.addFastGotoPageInput();
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
@@ -1257,7 +1406,7 @@ var KFOL = {
         }
 
         if (Config.autoRefreshEnabled) {
-            if (KFOL.isInHomePage) KFOL.autoRefresh();
+            if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
         }
         console.log('KF Online助手加载完毕');
     }
