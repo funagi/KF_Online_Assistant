@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.5.1
+// @version     2.6.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -43,6 +43,8 @@ var Config = {
     highlightVipEnabled: true,
     // 帖子每页楼层数量，用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
     perPageFloorNum: 10,
+    // 是否高亮今日新发表帖子的发表时间，true：开启；false：关闭
+    highlightNewPostEnabled: true,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -262,6 +264,7 @@ var ConfigDialog = {
         var $configBox = $('#pd_cfg_box');
         if ($configBox.length > 0) return;
         var html = [
+            '<form>',
             '<div id="pd_cfg_box">',
             '  <h1>KF Online助手设置<span>×</span></h1>',
             '  <div class="pd_cfg_main">',
@@ -301,13 +304,16 @@ var ConfigDialog = {
             '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
             '<option value="20">20</option><option value="30">30</option></select>',
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
+            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
+            '<a class="pd_cfg_tips" href="#" title="高亮今日新发表帖子的发表时间">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
             '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>',
             '    <button id="pd_cfg_ok">确定</button><button id="pd_cfg_cancel">取消</button><button id="pd_cfg_default">默认值</button>',
             '  </div>',
-            '</div>'
+            '</div>',
+            '</form>'
         ].join('');
         $('body').append(html);
         var resizeBox = function () {
@@ -343,12 +349,13 @@ var ConfigDialog = {
                 location.reload();
             }
         });
+        $configBox.submit(function () {
+            $('#pd_cfg_ok').click();
+            return false;
+        });
         $(window).on('resize.pd_cfg_box', resizeBox)
             .on('keydown.pd_cfg_box', function (event) {
-                if (event.key === 'Enter') {
-                    $('#pd_cfg_ok').click();
-                }
-                else if (event.key === 'Esc' || event.key === 'Escape') {
+                if (event.key === 'Esc' || event.key === 'Escape') {
                     $('#pd_cfg_cancel').click();
                 }
             });
@@ -380,6 +387,7 @@ var ConfigDialog = {
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
+        $('#pd_cfg_highlight_new_post_enabled').prop('checked', Config.highlightNewPostEnabled);
     },
 
     /**
@@ -402,6 +410,7 @@ var ConfigDialog = {
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
+        options.highlightNewPostEnabled = $('#pd_cfg_highlight_new_post_enabled').prop('checked');
         return options;
     },
 
@@ -549,6 +558,8 @@ var ConfigDialog = {
                 settings.perPageFloorNum = perPageFloorNum;
             else settings.perPageFloorNum = defConfig.perPageFloorNum;
         }
+        settings.highlightNewPostEnabled = typeof options.highlightNewPostEnabled === 'boolean' ?
+            options.highlightNewPostEnabled : Config.highlightNewPostEnabled;
         return settings;
     },
 
@@ -787,9 +798,9 @@ var KFOL = {
             '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
             '.pd_pop_tips em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
-            '.pd_pop_tips .pd_highlight { font-weight: bold; color: #FF0000; }',
+            '.pd_highlight { color: #FF0000 !important; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
-            '.pd_text { height: 18px; }',
+            '.pd_text { height: 18px; line-height: 18px; }',
             '.pd_text:focus { border-color: #7EB4EA; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
@@ -805,7 +816,7 @@ var KFOL = {
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
             '.pd_cfg_main legend { font-weight: bold; }',
             '.pd_cfg_main input { vertical-align: middle; }',
-            '.pd_cfg_main input[type="text"] { height: 18px; }',
+            '.pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
             '.pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
             '.pd_cfg_main label input, .pd_cfg_main label select { margin: 0 5px; }',
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
@@ -1007,7 +1018,7 @@ var KFOL = {
                     msg += '<i>KFB<em>+{0}</em></i>'.replace('{0}', matches[1]);
                 }
                 else if (smRegex.test(html)) {
-                    msg += '<i class="pd_highlight">神秘<em>+1</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
+                    msg += '<i class="pd_highlight" style="font-weight:bold">神秘<em>+1</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
                 }
                 else {
                     KFOL.showFormatLog('抽取神秘盒子', html);
@@ -1067,23 +1078,41 @@ var KFOL = {
      * @returns {number} 定时刷新的最小间隔时间（秒）
      */
     getMinRefreshInterval: function (drawSmboxInterval, drawItemOrCardInterval) {
-        var donationTime = Tools.getDateByTime(Config.donationAfterTime);
-        var now = new Date();
         var donationInterval = -1;
-        if (!Tools.getCookie(Config.donationCookieName) && now <= donationTime) {
-            donationInterval = parseInt((donationTime - now) / 1000);
+        if (Config.autoDonationEnabled) {
+            var donationTime = Tools.getDateByTime(Config.donationAfterTime);
+            var now = new Date();
+            if (!Tools.getCookie(Config.donationCookieName) && now <= donationTime) {
+                donationInterval = parseInt((donationTime - now) / 1000);
+            }
+            else {
+                donationTime.setDate(donationTime.getDate() + 1);
+                donationInterval = parseInt((donationTime - now) / 1000);
+            }
         }
-        else {
-            donationTime.setDate(donationTime.getDate() + 1);
-            donationInterval = parseInt((donationTime - now) / 1000);
+        if (Config.autoDrawSmboxEnabled) {
+            drawSmboxInterval *= 60;
+            drawSmboxInterval = drawSmboxInterval === 0 ? Config.drawSmboxCompleteRefreshInterval : drawSmboxInterval;
         }
-        drawSmboxInterval *= 60;
-        drawItemOrCardInterval *= 60;
-        drawSmboxInterval = drawSmboxInterval === 0 ? Config.drawSmboxCompleteRefreshInterval : drawSmboxInterval;
-        drawItemOrCardInterval = drawItemOrCardInterval === 0 ? Config.defDrawItemOrCardInterval * 60 : drawItemOrCardInterval;
-        var min = donationInterval < drawSmboxInterval ? donationInterval : drawSmboxInterval;
-        min = min < drawItemOrCardInterval ? min : drawItemOrCardInterval;
-        return min === Config.drawSmboxCompleteRefreshInterval ? min : min + 60;
+        else drawSmboxInterval = -1;
+        if (Config.autoDrawItemOrCardEnabled) {
+            drawItemOrCardInterval *= 60;
+            drawItemOrCardInterval = drawItemOrCardInterval === 0 ? Config.defDrawItemOrCardInterval * 60 : drawItemOrCardInterval;
+        }
+        else drawItemOrCardInterval = -1;
+        var minArr = [donationInterval, drawSmboxInterval, drawItemOrCardInterval];
+        minArr.sort(function (a, b) {
+            return a > b;
+        });
+        var min = -1;
+        for (var i in minArr) {
+            if (minArr[i] > -1) {
+                min = minArr[i];
+                break;
+            }
+        }
+        if (min === -1) return -1;
+        else return min === Config.drawSmboxCompleteRefreshInterval ? min : min + 60;
     },
 
     /**
@@ -1092,6 +1121,7 @@ var KFOL = {
     startAutoRefreshMode: function () {
         var minutes = KFOL.getDrawSmboxAndItemOrCardRemainTime();
         var interval = KFOL.getMinRefreshInterval(minutes[0], minutes[1]);
+        if (interval === -1) return;
         var title = document.title;
         var titleInterval = null;
         var showRefreshModeTips = function (interval, isShowTitle) {
@@ -1172,6 +1202,10 @@ var KFOL = {
                         KFOL.drawItemOrCard();
                     }
                     var interval = KFOL.getMinRefreshInterval(drawSmboxInterval, drawItemOrCardInterval);
+                    if (interval === -1) {
+                        if (titleInterval) window.clearInterval(titleInterval);
+                        return;
+                    }
                     window.setTimeout(checkRefreshInterval, interval * 1000);
                     showRefreshModeTips(interval, true);
                 },
@@ -1317,7 +1351,10 @@ var KFOL = {
             .find('span')
             .click(function () {
                 $(this).closest('form').submit();
-            });
+            })
+            .end()
+            .closest('div').next()
+            .css({'max-width': '530px', 'white-space': 'nowrap', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});
 
     },
 
@@ -1361,6 +1398,16 @@ var KFOL = {
             });
     },
 
+    highlightNewPost: function () {
+        $('.thread1 > tbody > tr > td:last-child').has('a.bl').each(function () {
+            var html = $(this).html();
+            if (/\|\s*\d{2}:\d{2}<br>/.test(html)) {
+                html = html.replace(/(\d{2}:\d{2})<br>/, '<span class="pd_highlight">$1</span><br>');
+                $(this).html(html);
+            }
+        });
+    },
+
     /**
      * 初始化
      */
@@ -1375,6 +1422,9 @@ var KFOL = {
             KFOL.addFloorGotoLink();
             KFOL.addFastGotoFloorInput();
             //KFOL.addFastGotoPageInput();
+        }
+        if (location.pathname === '/thread.php') {
+            if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
