@@ -13,6 +13,9 @@
 // @license     MIT
 // ==/UserScript==
 /**
+ * @todo 修改图标和license.txt
+ */
+/**
  * 配置类
  */
 // （注意：请到设置界面里修改相应设置，如非必要请勿在代码里修改）
@@ -43,7 +46,7 @@ var Config = {
     highlightVipEnabled: true,
     // 帖子每页楼层数量，用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
     perPageFloorNum: 10,
-    // 是否高亮今日新发表帖子的发表时间，true：开启；false：关闭
+    // 是否在帖子列表中高亮今日新发表帖子的发表时间，true：开启；false：关闭
     highlightNewPostEnabled: true,
 
     /* 以下设置如非必要请勿修改： */
@@ -68,7 +71,9 @@ var Config = {
     // 标记已抽取道具或卡片的Cookie名称
     drawItemOrCardCookieName: 'pd_draw_item_or_card',
     // 标记已去除首页已读at高亮提示的Cookie名称
-    hideMarkReadAtTipsCookieName: 'pd_hide_mark_read_at_tips'
+    hideMarkReadAtTipsCookieName: 'pd_hide_mark_read_at_tips',
+    // 存放SafeID的Cookie名称
+    safeIdCookieName: 'pd_safe_id'
 };
 
 /**
@@ -269,25 +274,25 @@ var ConfigDialog = {
             '  <h1>KF Online助手设置<span>×</span></h1>',
             '  <div class="pd_cfg_main">',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" /> 自动KFB捐款</legend>',
+            '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</legend>',
             '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:35px" type="text" value="1" />',
             '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
             '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:60px" type="text" value="00:00:00" />',
             '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" /> 自动抽取神秘盒子</legend>',
+            '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</legend>',
             '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:200px" type="text" />',
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">',
             '[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" /> 自动抽取道具或卡片</legend>',
+            '      <legend><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</legend>',
             '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
             '<option value="2">只抽道具</option></select></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" /> 定时模式 ',
+            '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
             '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></legend>',
             '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>',
             '<option value="always">总是显示</option><option value="never">不显示</option></select>',
@@ -305,7 +310,7 @@ var ConfigDialog = {
             '<option value="20">20</option><option value="30">30</option></select>',
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
             '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
-            '<a class="pd_cfg_tips" href="#" title="高亮今日新发表帖子的发表时间">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
@@ -599,11 +604,11 @@ var ConfigDialog = {
 };
 
 /**
- * 道具转换能量类
+ * 道具类
  */
-var ConvertItemToEnergy = {
+var Item = {
     /**
-     * 转换指定的道具为能量
+     * 转换指定的一系列道具为能量
      * @param {Object} options 设置项
      * @param {number} options.type 转换类型，1：转换本级全部已使用的道具为能量；2：转换本级部分已使用的道具为能量
      * @param {string[]} options.urlList 指定的道具Url列表
@@ -621,8 +626,8 @@ var ConvertItemToEnergy = {
         };
         $.extend(settings, options);
         var successNum = 0;
-        var energyNum = ConvertItemToEnergy.getEnergyNumByLevel(settings.level);
-        $(document).queue('ConvertItemToEnergy', []);
+        var energyNum = Item.getEnergyNumByLevel(settings.level);
+        $(document).queue('ConvertItemsToEnergy', []);
         $.each(settings.urlList, function (index, key) {
             var id = /pro=(\d+)/i.exec(key);
             id = id ? id[1] : 0;
@@ -630,7 +635,7 @@ var ConvertItemToEnergy = {
             var url = 'kf_fw_ig_doit.php?tomp={0}&id={1}'
                 .replace('{0}', settings.safeId)
                 .replace('{1}', id);
-            $(document).queue('ConvertItemToEnergy', function () {
+            $(document).queue('ConvertItemsToEnergy', function () {
                 $.get(url, function (html) {
                     KFOL.showFormatLog('转换道具能量', html);
                     if (/转换为了\s*\d+\s*点能量/i.test(html) || /提交速度过快/i.test(html)) {
@@ -639,7 +644,7 @@ var ConvertItemToEnergy = {
                     var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === settings.urlList.length - 1) {
-                        $('.pd_pop_box').remove();
+                        KFOL.removePopTips($('.pd_pop_tips'));
                         var successEnergyNum = successNum * energyNum;
                         console.log('共有{0}个道具成功转换为能量，能量+{1}'
                                 .replace('{0}', successNum)
@@ -651,23 +656,29 @@ var ConvertItemToEnergy = {
                                 .replace('{1}', successEnergyNum),
                             duration: -1
                         });
-                        if (settings.type === 1) {
-                            ConvertItemToEnergy.setAllClickDisable(false);
+                        if (settings.type === 2) {
+                            $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked')
+                                .closest('tr')
+                                .hide('slow', function () {
+                                    $(this).remove();
+                                });
+                        }
+                        else {
                             var $itemUsed = settings.$itemLine.children().eq(2);
                             $itemUsed.text(parseInt($itemUsed.text()) - successNum);
-                            var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
-                            if ($totalEnergyNum.length === 1) {
-                                $totalEnergyNum.text(parseInt($totalEnergyNum.text()) + successEnergyNum);
-                            }
+                        }
+                        var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
+                        if ($totalEnergyNum.length === 1) {
+                            $totalEnergyNum.text(parseInt($totalEnergyNum.text()) + successEnergyNum);
                         }
                     }
                     window.setTimeout(function () {
-                        $(document).dequeue('ConvertItemToEnergy');
+                        $(document).dequeue('ConvertItemsToEnergy');
                     }, 500);
                 }, 'html');
             });
         });
-        $(document).dequeue('ConvertItemToEnergy');
+        $(document).dequeue('ConvertItemsToEnergy');
     },
 
     /**
@@ -691,33 +702,20 @@ var ConvertItemToEnergy = {
     },
 
     /**
-     * 禁止所有转换道具能量链接的点击
-     * @param {boolean} disable 是否禁止
+     * 添加转换本级全部已使用的道具为能量的链接
      */
-    setAllClickDisable: function (disable) {
-        var $links = $('.kf_fw_ig1 a:contains("全部转换本级已使用道具为能量")');
-        if (disable) $links.data('disable', true);
-        else $links.removeData('disable');
-    },
-
-    /**
-     * 转换本级全部已使用的道具为能量
-     */
-    convertAllItemsToEnergy: function () {
+    addConvertAllItemsToEnergyLink: function () {
         $('.kf_fw_ig1 td:nth-child(4):contains("全部转换本级已使用道具为能量")').each(function (i) {
             $(this).html('<a href="#">全部转换本级已使用道具为能量</a>').find('a').click(function (event) {
                 event.preventDefault();
-                if ($(this).data('disable')) return;
-                var safeId = KFOL.getSafeId();
-                if (!safeId) return;
+                if (!KFOL.safeId) return;
                 var $itemLine = $(this).parent().parent(),
                     itemLevel = parseInt($itemLine.children().eq(0).text()),
                     itemName = $itemLine.children().eq(1).text(),
                     itemUsedNum = parseInt($itemLine.children().eq(2).text()),
-                    listUrl = $itemLine.children().eq(4).find('a').attr('href');
+                    urlList = $itemLine.children().eq(4).find('a').attr('href');
                 if (!itemUsedNum) {
                     alert('本级没有已使用的道具');
-                    ConvertItemToEnergy.setAllClickDisable(false);
                     return;
                 }
                 if (window.confirm('你要转换的是Lv.{0}：{1}，是否转换本级全部已使用的道具为能量？'
@@ -725,25 +723,24 @@ var ConvertItemToEnergy = {
                             .replace('{1}', itemName)
                     )
                 ) {
-                    ConvertItemToEnergy.setAllClickDisable(true);
-                    $('.pd_pop_box').remove();
-                    if (!listUrl || !/kf_fw_ig_renew\.php\?lv=\d+/.test(listUrl)) return;
-                    KFOL.showWaitMsg('正在获取本级已使用道具列表，请稍后...');
-                    $.get(listUrl, function (html) {
-                        $('.pd_pop_box').remove();
+                    KFOL.removePopTips($('.pd_pop_tips'));
+                    if (!urlList || !/kf_fw_ig_renew\.php\?lv=\d+/.test(urlList)) return;
+                    KFOL.showWaitMsg('正在获取本级已使用道具列表，请稍后...', true);
+                    $.get(urlList, function (html) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
                         var matches = html.match(/kf_fw_ig_my\.php\?pro=\d+/gi);
                         if (!matches) {
                             alert('本级没有已使用的道具');
-                            ConvertItemToEnergy.setAllClickDisable(false);
                             return;
                         }
                         console.log('转换本级全部已使用的道具为能量Start，转换道具数量：' + matches.length);
-                        KFOL.showWaitMsg('<strong>正在转换能量中...</strong><i>剩余数量:<em id="pd_remaining_num">{0}</em></i>'
-                            .replace('{0}', matches.length));
-                        ConvertItemToEnergy.convertItemsToEnergy({
+                        KFOL.showWaitMsg('<strong>正在转换能量中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                                .replace('{0}', matches.length)
+                            , true);
+                        Item.convertItemsToEnergy({
                             type: 1,
                             urlList: matches,
-                            safeId: safeId,
+                            safeId: KFOL.safeId,
                             level: itemLevel,
                             $itemLine: $itemLine
                         });
@@ -751,6 +748,122 @@ var ConvertItemToEnergy = {
                 }
             });
         });
+    },
+
+    /**
+     * 添加批量转换能量和恢复道具的按钮
+     */
+    addConvertEnergyAndRestoreItemsButton: function () {
+        if (!KFOL.safeId) return;
+        var matches = /(\d+)级道具/.exec($('.kf_fw_ig1:eq(1) > tbody > tr > td:nth-child(2)').eq(0).text());
+        if (!matches) return;
+        var itemLevel = parseInt(matches[1]);
+        $('.kf_fw_ig1:eq(1) > tbody > tr > td:last-child').each(function () {
+            var matches = /kf_fw_ig_my\.php\?pro=(\d+)/.exec($(this).find('a').attr('href'));
+            if (!matches) return;
+            $(this).css('width', '500')
+                .parent()
+                .append('<td style="width:20px;padding-right:5px"><input class="pd_input" type="checkbox" value="{0}" /></td>'
+                    .replace('{0}', matches[1])
+            );
+        });
+        $('<div class="pd_item_btns"><button>转换能量</button><button>全选</button><button>反选</button></div>')
+            .insertAfter('.kf_fw_ig1:eq(1)')
+            .find('button:first-child')
+            .click(function () {
+                var urlList = [];
+                $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked').each(function () {
+                    urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
+                });
+                if (urlList.length === 0) return;
+                if (!window.confirm('共选择了{0}个道具，是否转换为能量？'.replace('{0}', urlList.length))) return;
+                KFOL.showWaitMsg('<strong>正在转换能量中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', urlList.length)
+                    , true);
+                Item.convertItemsToEnergy({
+                    type: 2,
+                    urlList: urlList,
+                    safeId: KFOL.safeId,
+                    level: itemLevel
+                });
+            })
+            .next()
+            .click(function () {
+                $('.kf_fw_ig1:eq(1) input[type="checkbox"]').prop('checked', true);
+            })
+            .next()
+            .click(function () {
+                $('.kf_fw_ig1:eq(1) input[type="checkbox"]').each(function () {
+                    $(this).prop('checked', !$(this).prop('checked'));
+                });
+            });
+    },
+
+    /**
+     * 添加批量神秘抽奖的按钮
+     */
+    addBatchDrawSmButton: function () {
+        $('<form><span style="margin-left:20px;vertical-align:top"><input class="pd_input" style="width:35px" maxlength="5" type="text" />' +
+        '<input class="pd_input" style="margin-left:5px;color:#0000FF;" type="submit" value="批量抽奖" /></span></form>')
+            .appendTo('.kf_fw_ig1 > tbody > tr:last-child > td:last-child')
+            .submit(function (event) {
+                event.preventDefault();
+                if ($(this).data('disabled')) return;
+                if (!KFOL.safeId) return;
+                var num = parseInt($.trim($(this).find('input[type="text"]').val()));
+                if (!num || num <= 0) return;
+                var $maxDrawNumNode = $(this).parent().prev();
+                var matches = /：(\d+)次/.exec($maxDrawNumNode.text());
+                if (!matches) return;
+                var maxDrawNum = parseInt(matches[1]);
+                if (num > maxDrawNum) {
+                    alert('不能超过最大可用抽奖次数');
+                    return;
+                }
+                if (!window.confirm('是否进行{0}次神秘抽奖？'.replace('{0}', num))) return;
+                $(this).data('disabled', true);
+                KFOL.removePopTips($('.pd_pop_tips'));
+                $('.kf_fw_ig1').parent().append('<div class="pd_result"><strong>抽奖结果：</strong><br /></div>');
+                var successNum = 0;
+                KFOL.showWaitMsg('<strong>正在批量神秘抽奖中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', num)
+                );
+                $(document).queue('BatchDrawSm', []);
+                $.each(new Array(num), function (index) {
+                    $(document).queue('BatchDrawSm', function () {
+                        $.post('kf_fw_ig_smone.php?safeid=' + KFOL.safeId,
+                            {one: 1, submit: '点击这里抽奖'},
+                            function (html) {
+                                KFOL.showFormatLog('神秘抽奖', html);
+                                var matches = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/.exec(html);
+                                if (matches) {
+                                    successNum++;
+                                    var $remainingNum = $('#pd_remaining_num');
+                                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                                    $('.pd_result').last().append('第{0}次抽奖：获得了一个道具（<a target="_blank" href="{1}">查看道具</a>）<br />'
+                                            .replace('{0}', index + 1)
+                                            .replace('{1}', matches[1])
+                                    );
+                                }
+                                if (index === num - 1) {
+                                    console.log('成功进行了{0}次神秘抽奖，道具+{0}'.replace('{0}', successNum, 'g'));
+                                    KFOL.removePopTips($('.pd_pop_tips'));
+                                    KFOL.showMsg({
+                                        msg: '<strong>成功进行了<em>{0}</em>次神秘抽奖</strong><i>道具<em>+{0}</em></i>'
+                                            .replace('{0}', successNum, 'g'),
+                                        duration: -1
+                                    });
+                                    $maxDrawNumNode.text('我可用的神秘抽奖次数：{0}次'.replace('{0}', maxDrawNum - successNum));
+                                    $('.kf_fw_ig1 form').removeData('disabled');
+                                }
+                                window.setTimeout(function () {
+                                    $(document).dequeue('BatchDrawSm');
+                                }, 500);
+                            }, 'html');
+                    });
+                });
+                $(document).dequeue('BatchDrawSm');
+            });
     }
 };
 
@@ -762,6 +875,8 @@ var KFOL = {
     uid: 0,
     // 用户名
     userName: '',
+    // SafeID
+    safeId: '',
     // 是否位于首页
     isInHomePage: false,
 
@@ -784,6 +899,7 @@ var KFOL = {
      */
     appendCss: function () {
         $('head').append(['<style type="text/css">',
+            '.pd_layer { position: fixed; width: 100%; height: 100%; left: 0; top: 0; }',
             '.pd_pop_box { position: fixed; width: 100%; }',
             '.pd_pop_tips {',
             'border: 1px solid #6ca7c0; text-shadow: 0 0 3px rgba(0,0,0,0.1); border-radius: 3px; padding: 12px 40px; text-align: center;',
@@ -800,13 +916,17 @@ var KFOL = {
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_highlight { color: #FF0000 !important; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
-            '.pd_text { height: 18px; line-height: 18px; }',
-            '.pd_text:focus { border-color: #7EB4EA; }',
+            '.pd_input, .pd_cfg_main input { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; }',
+            '.pd_input[type="text"], .pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
+            '.pd_input:focus, .pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
             '.pd_fast_goto_floor { margin-right: 5px; }',
             '.pages .pd_fast_goto_page { margin-left: 8px; }',
             '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
+            '.pd_item_btns { text-align: right; margin-top: 5px; }',
+            '.pd_item_btns button { margin-left: 3px; }',
+            '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 1.8em; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
@@ -815,10 +935,7 @@ var KFOL = {
             '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; max-height: 600px; overflow: auto; }',
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
             '.pd_cfg_main legend { font-weight: bold; }',
-            '.pd_cfg_main input { vertical-align: middle; }',
-            '.pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
-            '.pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
-            '.pd_cfg_main label input, .pd_cfg_main label select { margin: 0 5px; }',
+            '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }',
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }',
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }',
@@ -833,6 +950,7 @@ var KFOL = {
      * @param {string} [options.msg] 提示消息
      * @param {number} [options.duration={@link Config.defShowMsgDuration}] 提示消息持续时间（秒），-1为永久显示
      * @param {boolean} [options.clickable=true] 消息框可否手动点击消除
+     * @param {boolean} [options.preventable=false] 是否阻止点击网页上的其它元素
      * @param {number} [duration] 提示消息持续时间（秒），-1为永久显示
      * @example
      * KFOL.showMsg('<strong>抽取道具或卡片</strong><i>道具<em>+1</em></i>');
@@ -842,7 +960,8 @@ var KFOL = {
         var settings = {
             msg: '',
             duration: Config.defShowMsgDuration,
-            clickable: true
+            clickable: true,
+            preventable: false
         };
         if ($.type(options) === 'object') {
             $.extend(settings, options);
@@ -854,6 +973,7 @@ var KFOL = {
         var $popBox = $('.pd_pop_box');
         var isFirst = $popBox.length == 0;
         if (isFirst) {
+            if (settings.preventable) $('<div class="pd_layer"></div>').appendTo('body');
             $popBox = $('<div class="pd_pop_box"></div>').appendTo('body');
         }
         var length = $popBox.data('length');
@@ -862,7 +982,7 @@ var KFOL = {
         if (settings.clickable) {
             $popTips.css('cursor', 'pointer').click(function () {
                 $(this).stop(true, true).fadeOut('slow', function () {
-                    KFOL.removePopTips(this);
+                    KFOL.removePopTips($(this));
                 });
             }).find('a').click(function (event) {
                 event.stopPropagation();
@@ -882,7 +1002,7 @@ var KFOL = {
             .fadeIn('slow');
         if (settings.duration !== -1) {
             $popTips.delay(settings.duration * 1000).fadeOut('slow', function () {
-                KFOL.removePopTips(this);
+                KFOL.removePopTips($(this));
             });
         }
     },
@@ -890,19 +1010,23 @@ var KFOL = {
     /**
      * 显示等待消息
      * @param {string} msg 等待消息
+     * @param {boolean} [preventable=false] 是否阻止点击网页上的其它元素
      */
-    showWaitMsg: function (msg) {
-        KFOL.showMsg({msg: msg, duration: -1, clickable: false});
+    showWaitMsg: function (msg, preventable) {
+        KFOL.showMsg({msg: msg, duration: -1, clickable: false, preventable: preventable === true});
     },
 
     /**
      * 移除指定的提示消息框
-     * @param {Object} popTips 指定的消息框节点
+     * @param {Object} $popTips 指定的消息框节点
      */
-    removePopTips: function (popTips) {
-        var $parent = $(popTips).parent();
-        $(popTips).remove();
-        if ($('.pd_pop_tips').length == 0) $parent.remove();
+    removePopTips: function ($popTips) {
+        var $parent = $popTips.parent();
+        $popTips.remove();
+        if ($('.pd_pop_tips').length == 0) {
+            $parent.remove();
+            $('.pd_layer').remove();
+        }
     },
 
     /**
@@ -1218,13 +1342,18 @@ var KFOL = {
 
     /**
      * 获取用户的SafeID
-     * @returns {string} 用户的SafeID
      */
     getSafeId: function () {
-        var safeId = /safeid=(\w+)/i.exec($('a[href*="safeid="]').attr('href'));
-        safeId = safeId ? safeId[1] : 0;
-        if (!safeId) return '';
-        else return safeId;
+        var matches = /safeid=(\w+)/i.exec($('a[href*="safeid="]').attr('href'));
+        var safeId = Tools.getCookie(Config.safeIdCookieName);
+        if (!matches) {
+            if (safeId) KFOL.safeId = safeId;
+        }
+        else {
+            KFOL.safeId = matches[1];
+            if (safeId !== KFOL.safeId)
+                Tools.setCookie(Config.safeIdCookieName, KFOL.safeId, Tools.getDate('+1M'));
+        }
     },
 
     /**
@@ -1335,7 +1464,7 @@ var KFOL = {
      * 添加快速跳转到指定楼层的输入框
      */
     addFastGotoFloorInput: function () {
-        $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_text" style="width:35px" type="text" maxlength="8" /> ' +
+        $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:35px" type="text" maxlength="8" /> ' +
         '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
             .submit(function () {
@@ -1375,7 +1504,7 @@ var KFOL = {
      * 添加快速跳转到指定页数的输入框
      */
     addFastGotoPageInput: function () {
-        $('<li class="pd_fast_goto_page">跳至 <input class="pd_text" style="width:30px" type="text" maxlength="8" /> <span>页</span></li>')
+        $('<li class="pd_fast_goto_page">跳至 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> <span>页</span></li>')
             .appendTo('table > tbody > tr > td > div > ul.pages')
             .find('span')
             .click(function () {
@@ -1423,11 +1552,12 @@ var KFOL = {
             KFOL.addFastGotoFloorInput();
             //KFOL.addFastGotoPageInput();
         }
-        if (location.pathname === '/thread.php') {
+        else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
+        KFOL.getSafeId();
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
 
@@ -1459,7 +1589,13 @@ var KFOL = {
         }
 
         if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
-            ConvertItemToEnergy.convertAllItemsToEnergy();
+            Item.addConvertAllItemsToEnergyLink();
+        }
+        else if (/\/kf_fw_ig_renew\.php\?lv=\d+$/i.test(location.href)) {
+            Item.addConvertEnergyAndRestoreItemsButton();
+        }
+        else if (location.pathname === '/kf_fw_ig_smone.php') {
+            Item.addBatchDrawSmButton();
         }
 
         if (Config.autoRefreshEnabled) {
