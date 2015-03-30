@@ -13,6 +13,7 @@
 // @license     MIT
 // ==/UserScript==
 /**
+ * @todo 抽取卡片时自动转换为VIP时间
  * @todo 修改图标和license.txt
  */
 /**
@@ -25,7 +26,9 @@ var Config = {
     // KFB捐款额度，取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%
     donationKfb: '1',
     // 在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）
-    donationAfterTime: '00:00:00',
+    donationAfterTime: '00:05:00',
+    // 在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款，true：开启；false：关闭
+    donationAfterVipEnabled: false,
     // 是否自动抽取神秘盒子，true：开启；false：关闭
     autoDrawSmboxEnabled: false,
     // 偏好的神秘盒子数字，例：[52,1,28,400]（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空
@@ -277,8 +280,10 @@ var ConfigDialog = {
             '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</legend>',
             '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:35px" type="text" value="1" />',
             '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
-            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:60px" type="text" value="00:00:00" />',
-            '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label>',
+            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:60px" type="text" value="00:05:00" />',
+            '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />',
+            '      <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ',
+            '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</legend>',
@@ -382,6 +387,7 @@ var ConfigDialog = {
         $('#pd_cfg_auto_donation_enabled').prop('checked', Config.autoDonationEnabled);
         $('#pd_cfg_donation_kfb').val(Config.donationKfb);
         $('#pd_cfg_donation_after_time').val(Config.donationAfterTime);
+        $('#pd_cfg_donation_after_vip_enabled').prop('checked', Config.donationAfterVipEnabled);
         $('#pd_cfg_auto_draw_smbox_enabled').prop('checked', Config.autoDrawSmboxEnabled);
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
         $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked', Config.autoDrawItemOrCardEnabled);
@@ -404,6 +410,7 @@ var ConfigDialog = {
         options.autoDonationEnabled = $('#pd_cfg_auto_donation_enabled').prop('checked');
         options.donationKfb = $.trim($('#pd_cfg_donation_kfb').val());
         options.donationKfb = $.isNumeric(options.donationKfb) ? parseInt(options.donationKfb) : options.donationKfb;
+        options.donationAfterVipEnabled = $('#pd_cfg_donation_after_vip_enabled').prop('checked');
         options.donationAfterTime = $('#pd_cfg_donation_after_time').val();
         options.autoDrawSmboxEnabled = $('#pd_cfg_auto_draw_smbox_enabled').prop('checked');
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
@@ -518,6 +525,8 @@ var ConfigDialog = {
                 settings.donationAfterTime = donationAfterTime;
             else settings.donationAfterTime = defConfig.donationAfterTime;
         }
+        settings.donationAfterVipEnabled = typeof options.donationAfterVipEnabled === 'boolean' ?
+            options.donationAfterVipEnabled : Config.donationAfterVipEnabled;
         settings.autoDrawSmboxEnabled = typeof options.autoDrawSmboxEnabled === 'boolean' ?
             options.autoDrawSmboxEnabled : Config.autoDrawSmboxEnabled;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
@@ -1054,13 +1063,19 @@ var KFOL = {
      * KFB捐款
      */
     donation: function () {
+        if (Config.donationAfterVipEnabled) {
+            if (!KFOL.isInHomePage) return;
+            if ($('a[href="kf_vmember.php"]:contains("VIP会员(参与论坛获得的额外权限)")').length > 0) return;
+        }
         var now = new Date();
         var date = Tools.getDateByTime(Config.donationAfterTime);
         if (now < date) return;
         console.log('KFB捐款Start');
         var donationSubmit = function (kfb) {
             $.post('kf_growup.php?ok=1', {kfb: kfb}, function (html) {
-                Tools.setCookie(Config.donationCookieName, 1, Tools.getMidnightHourDate(1));
+                var date = Tools.getDateByTime('02:00:00');
+                if (new Date() > date) date = Tools.getMidnightHourDate(1);
+                Tools.setCookie(Config.donationCookieName, 1, date);
                 var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', kfb);
                 var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
                 if (!matches) {
@@ -1527,6 +1542,9 @@ var KFOL = {
             });
     },
 
+    /**
+     * 高亮今日新发表帖子的发表时间
+     */
     highlightNewPost: function () {
         $('.thread1 > tbody > tr > td:last-child').has('a.bl').each(function () {
             var html = $(this).html();
@@ -1542,6 +1560,7 @@ var KFOL = {
      */
     init: function () {
         if (typeof jQuery === 'undefined') return;
+        var startDate = new Date();
         console.log('KF Online助手启动');
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
@@ -1601,7 +1620,8 @@ var KFOL = {
         if (Config.autoRefreshEnabled) {
             if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
         }
-        console.log('KF Online助手加载完毕');
+        var endDate = new Date();
+        console.log('KF Online助手加载完毕，加载耗时：{0}ms'.replace('{0}', endDate - startDate));
     }
 };
 
