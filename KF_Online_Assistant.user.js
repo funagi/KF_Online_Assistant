@@ -13,7 +13,6 @@
 // @license     MIT
 // ==/UserScript==
 /**
- * @todo 抽取卡片时自动转换为VIP时间
  * @todo 修改图标和license.txt
  */
 /**
@@ -37,6 +36,8 @@ var Config = {
     autoDrawItemOrCardEnabled: false,
     // 抽取道具或卡片的方式，1：抽取道具或卡片；2：只抽取道具
     autoDrawItemOrCardType: 1,
+    // 是否将抽取到的卡片自动转换为VIP时间，true：开启；false：关闭
+    autoConvertCardToVipTimeEnabled: false,
     // 是否开启定时模式（开启定时模式后需停留在首页），true：开启；false：关闭
     autoRefreshEnabled: false,
     // 在首页的网页标题上显示定时模式提示的方案，auto：停留一分钟后显示；always：总是显示；never：不显示
@@ -75,8 +76,8 @@ var Config = {
     drawItemOrCardCookieName: 'pd_draw_item_or_card',
     // 标记已去除首页已读at高亮提示的Cookie名称
     hideMarkReadAtTipsCookieName: 'pd_hide_mark_read_at_tips',
-    // 存放SafeID的Cookie名称
-    safeIdCookieName: 'pd_safe_id'
+    // 存放将自动转换为VIP时间的卡片ID的Cookie名称
+    convertCardToVipTimeCookieName: 'pd_convert_card_to_vip_time'
 };
 
 /**
@@ -294,7 +295,9 @@ var ConfigDialog = {
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</legend>',
             '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
-            '<option value="2">只抽道具</option></select></label>',
+            '<option value="2">只抽道具</option></select></label><br />',
+            '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ',
+            '<a class="pd_cfg_tips" href="#" title="将抽取到的卡片自动转换为VIP时间">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
@@ -392,6 +395,7 @@ var ConfigDialog = {
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
         $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked', Config.autoDrawItemOrCardEnabled);
         $('#pd_cfg_auto_draw_item_or_card_type').val(Config.autoDrawItemOrCardType);
+        $('#pd_convert_card_to_vip_time_enabled').prop('checked', Config.autoConvertCardToVipTimeEnabled);
         $('#pd_cfg_auto_refresh_enabled').prop('checked', Config.autoRefreshEnabled);
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
@@ -416,6 +420,7 @@ var ConfigDialog = {
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
         options.autoDrawItemOrCardEnabled = $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked');
         options.autoDrawItemOrCardType = parseInt($('#pd_cfg_auto_draw_item_or_card_type').val());
+        options.autoConvertCardToVipTimeEnabled = $('#pd_convert_card_to_vip_time_enabled').prop('checked');
         options.autoRefreshEnabled = $('#pd_cfg_auto_refresh_enabled').prop('checked');
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
@@ -547,6 +552,8 @@ var ConfigDialog = {
                 settings.autoDrawItemOrCardType = autoDrawItemOrCardType;
             else settings.autoDrawItemOrCardType = defConfig.autoDrawItemOrCardType;
         }
+        settings.autoConvertCardToVipTimeEnabled = typeof options.autoConvertCardToVipTimeEnabled === 'boolean' ?
+            options.autoConvertCardToVipTimeEnabled : Config.autoConvertCardToVipTimeEnabled;
         settings.autoRefreshEnabled = typeof options.autoRefreshEnabled === 'boolean' ?
             options.autoRefreshEnabled : Config.autoRefreshEnabled;
         if (typeof options.showRefreshModeTipsType !== 'undefined') {
@@ -717,7 +724,8 @@ var Item = {
         $('.kf_fw_ig1 td:nth-child(4):contains("全部转换本级已使用道具为能量")').each(function (i) {
             $(this).html('<a href="#">全部转换本级已使用道具为能量</a>').find('a').click(function (event) {
                 event.preventDefault();
-                if (!KFOL.safeId) return;
+                var safeId = KFOL.getSafeId();
+                if (!safeId) return;
                 var $itemLine = $(this).parent().parent(),
                     itemLevel = parseInt($itemLine.children().eq(0).text()),
                     itemName = $itemLine.children().eq(1).text(),
@@ -749,7 +757,7 @@ var Item = {
                         Item.convertItemsToEnergy({
                             type: 1,
                             urlList: matches,
-                            safeId: KFOL.safeId,
+                            safeId: safeId,
                             level: itemLevel,
                             $itemLine: $itemLine
                         });
@@ -763,7 +771,8 @@ var Item = {
      * 添加批量转换能量和恢复道具的按钮
      */
     addConvertEnergyAndRestoreItemsButton: function () {
-        if (!KFOL.safeId) return;
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
         var matches = /(\d+)级道具/.exec($('.kf_fw_ig1:eq(1) > tbody > tr > td:nth-child(2)').eq(0).text());
         if (!matches) return;
         var itemLevel = parseInt(matches[1]);
@@ -792,7 +801,7 @@ var Item = {
                 Item.convertItemsToEnergy({
                     type: 2,
                     urlList: urlList,
-                    safeId: KFOL.safeId,
+                    safeId: safeId,
                     level: itemLevel
                 });
             })
@@ -818,7 +827,8 @@ var Item = {
             .submit(function (event) {
                 event.preventDefault();
                 if ($(this).data('disabled')) return;
-                if (!KFOL.safeId) return;
+                var safeId = KFOL.getSafeId();
+                if (!safeId) return;
                 var num = parseInt($.trim($(this).find('input[type="text"]').val()));
                 if (!num || num <= 0) return;
                 var $maxDrawNumNode = $(this).parent().prev();
@@ -840,7 +850,7 @@ var Item = {
                 $(document).queue('BatchDrawSm', []);
                 $.each(new Array(num), function (index) {
                     $(document).queue('BatchDrawSm', function () {
-                        $.post('kf_fw_ig_smone.php?safeid=' + KFOL.safeId,
+                        $.post('kf_fw_ig_smone.php?safeid=' + safeId,
                             {one: 1, submit: '点击这里抽奖'},
                             function (html) {
                                 KFOL.showFormatLog('神秘抽奖', html);
@@ -877,6 +887,31 @@ var Item = {
 };
 
 /**
+ * 卡片类
+ */
+var Card = {
+    /**
+     * 将指定的卡片转换为VIP时间
+     * @param {number} cardId 指定的卡片ID
+     */
+    convertCardToVipTime: function (cardId) {
+        if (!cardId || cardId < 0) return;
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
+        $.get('kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId),
+            function (html) {
+                Tools.setCookie(Config.convertCardToVipTimeCookieName, '');
+                KFOL.showFormatLog('将卡片转换为VIP时间', html);
+                var matches = /增加(\d+)小时VIP时间(?:.*?获得(\d+)点恢复能量)?/i.exec(html);
+                if (!matches) return;
+                var msg = '<strong><em>1</em>张卡片被转换为VIP时间</strong><i>VIP小时<em>+{0}</em></i>'.replace('{0}', matches[1]);
+                if (typeof matches[2] !== 'undefined') msg += '<i>能量<em>+{0}</em></i>'.replace('{0}', matches[2]);
+                KFOL.showMsg(msg);
+            }, 'html');
+    }
+};
+
+/**
  * KF Online主类
  */
 var KFOL = {
@@ -884,8 +919,6 @@ var KFOL = {
     uid: 0,
     // 用户名
     userName: '',
-    // SafeID
-    safeId: '',
     // 是否位于首页
     isInHomePage: false,
 
@@ -1076,16 +1109,14 @@ var KFOL = {
                 var date = Tools.getDateByTime('02:00:00');
                 if (new Date() > date) date = Tools.getMidnightHourDate(1);
                 Tools.setCookie(Config.donationCookieName, 1, date);
+                KFOL.showFormatLog('捐款{0}KFB'.replace('{0}', kfb), html);
                 var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', kfb);
                 var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
                 if (!matches) {
                     if (/KFB不足。<br \/>/.test(html)) {
                         msg += '<i class="pd_notice">KFB不足</i><a target="_blank" href="kf_growup.php">手动捐款</a>';
                     }
-                    else {
-                        KFOL.showFormatLog('KFB捐款', html);
-                        return;
-                    }
+                    else return;
                 }
                 else {
                     msg += '<i>经验值<em>+{0}</em></i>'.replace('{0}', matches[1]);
@@ -1095,7 +1126,6 @@ var KFOL = {
                             .replace('{1}', matches[3]);
                     }
                 }
-                KFOL.showFormatLog('捐款{0}KFB'.replace('{0}', kfb), html);
                 KFOL.showMsg(msg);
             }, 'html');
         };
@@ -1148,6 +1178,7 @@ var KFOL = {
             }
             $.get(url, function (html) {
                 Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
+                KFOL.showFormatLog('抽取神秘盒子', html);
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 var kfbRegex = /获得了(\d+)KFB的奖励/i;
                 var smRegex = /获得本轮的头奖/i;
@@ -1160,10 +1191,8 @@ var KFOL = {
                     msg += '<i class="pd_highlight" style="font-weight:bold">神秘<em>+1</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
                 }
                 else {
-                    KFOL.showFormatLog('抽取神秘盒子', html);
                     return;
                 }
-                KFOL.showFormatLog('抽取神秘盒子', html);
                 KFOL.showMsg(msg);
                 if (KFOL.isInHomePage) {
                     $('a[href="kf_smbox.php"].indbox5').removeClass('indbox5').addClass('indbox6');
@@ -1187,12 +1216,15 @@ var KFOL = {
             var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
             var msg = '<strong>抽取道具{0}</strong>'.replace('{0}', Config.autoDrawItemOrCardType === 2 ? '' : '或卡片');
             var matches = null;
+            var type = 0;
             if (itemRegex.test(html)) {
+                type = 1;
                 matches = itemRegex.exec(html);
                 msg += '<i>道具<em>+1</em></i><a target="_blank" href="{0}">查看道具</a>'
                     .replace('{0}', matches[1]);
             }
             else if (cardRegex.test(html)) {
+                type = 2;
                 matches = cardRegex.exec(html);
                 msg += '<i>卡片<em>+1</em></i><a target="_blank" href="{0}">查看卡片</a>'
                     .replace('{0}', matches[1]);
@@ -1206,6 +1238,13 @@ var KFOL = {
             KFOL.showMsg(msg);
             if (KFOL.isInHomePage) {
                 $('a[href="kf_fw_ig_one.php"].indbox5').removeClass('indbox5').addClass('indbox6');
+            }
+            if (type === 2) {
+                if (!Config.autoConvertCardToVipTimeEnabled) return;
+                var cardMatches = /id=(\d+)/i.exec(matches[1]);
+                if (!cardMatches) return;
+                Tools.setCookie(Config.convertCardToVipTimeCookieName, cardMatches[1], Tools.getDate('+1d'));
+                Card.convertCardToVipTime(cardMatches[1]);
             }
         }, 'html');
     },
@@ -1360,15 +1399,8 @@ var KFOL = {
      */
     getSafeId: function () {
         var matches = /safeid=(\w+)/i.exec($('a[href*="safeid="]').attr('href'));
-        var safeId = Tools.getCookie(Config.safeIdCookieName);
-        if (!matches) {
-            if (safeId) KFOL.safeId = safeId;
-        }
-        else {
-            KFOL.safeId = matches[1];
-            if (safeId !== KFOL.safeId)
-                Tools.setCookie(Config.safeIdCookieName, KFOL.safeId, Tools.getDate('+1M'));
-        }
+        if (!matches) return '';
+        else return matches[1];
     },
 
     /**
@@ -1576,7 +1608,6 @@ var KFOL = {
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
-        KFOL.getSafeId();
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
 
@@ -1605,6 +1636,11 @@ var KFOL = {
 
         if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
             KFOL.drawItemOrCard();
+        }
+
+        if (Config.autoDrawItemOrCardEnabled && Config.autoConvertCardToVipTimeEnabled) {
+            var cardId = parseInt(Tools.getCookie(Config.convertCardToVipTimeCookieName));
+            if (cardId > 0) Card.convertCardToVipTime(cardId);
         }
 
         if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
