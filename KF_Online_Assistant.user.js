@@ -14,6 +14,7 @@
 // ==/UserScript==
 /**
  * @todo 修改图标和license.txt
+ * @修改某方法的日期
  */
 /**
  * 配置类
@@ -630,7 +631,7 @@ var Item = {
      * @param {string[]} options.urlList 指定的道具Url列表
      * @param {string} options.safeId 用户的SafeID
      * @param {number} options.level 道具等级
-     * @param {Object} [options.$itemLine] 当前转换道具所在的表格行
+     * @param {jQuery} [options.$itemLine] 当前转换道具所在的表格行
      */
     convertItemsToEnergy: function (options) {
         var settings = {
@@ -997,6 +998,7 @@ var KFOL = {
      * @example
      * KFOL.showMsg('<strong>抽取道具或卡片</strong><i>道具<em>+1</em></i>');
      * KFOL.showMsg({msg: '<strong>抽取神秘盒子</strong><i>KFB<em>+8</em></i>', duration: 20, clickable: false});
+     * @returns {jQuery} jQuery对象
      */
     showMsg: function (options, duration) {
         var settings = {
@@ -1047,6 +1049,7 @@ var KFOL = {
                 KFOL.removePopTips($(this));
             });
         }
+        return $popTips;
     },
 
     /**
@@ -1060,7 +1063,7 @@ var KFOL = {
 
     /**
      * 移除指定的提示消息框
-     * @param {Object} $popTips 指定的消息框节点
+     * @param {jQuery} $popTips 指定的消息框节点
      */
     removePopTips: function ($popTips) {
         var $parent = $popTips.parent();
@@ -1090,6 +1093,112 @@ var KFOL = {
             //msg += '\n' + html;
         }
         console.log(msg);
+    },
+
+    apl: function () {
+        if (!KFOL.isInHomePage) return;
+        var date = new Date();
+        if (date.getMonth() !== 2 || date.getDate() !== 31) return;
+        var matches = null;
+        var duration = -1;
+        var linkClick = function () {
+            $(this).after('<span style="margin-left:10px" class="pd_notice">（&#24858;&#20154;&#33410;&#24555;&#20048; &gt; &lt;）</span>')
+                .off('click')
+                .click(function () {
+                    return false;
+                });
+            return false;
+        };
+
+        if (parseInt(Math.random() * 45) === 41) {
+            KFOL.showMsg('&#31995;&#32479;&#31361;&#28982;&#25277;&#39118;&#20102;&#8230;&#8230;<a href="#">查看详情</a>', 10)
+                .find('a').click(linkClick);
+            var i = 0;
+            window.setInterval(function () {
+                i++;
+                if (i % 25 === 0) KFOL.removePopTips($('.pd_pop_tips'));
+                var type = parseInt(Math.random() * 2 + 1);
+                var num = 0;
+                var matches = null;
+                if (type === 2) {
+                    num = parseInt(Math.random() * 100) + 1;
+                    var $smNode = $('a[title="用户等级和权限"]');
+                    matches = /神秘(\d+)级/.exec($smNode.text());
+                    if (matches) {
+                        $smNode.text('神秘{0}级'.replace('{0}', parseInt(matches[1]) + num));
+                    }
+                }
+                else {
+                    num = parseInt(Math.random() * 10000) + 1;
+                    var $kfbNode = $('a[title="网站虚拟货币"]');
+                    matches = /拥有(\d+)KFB/.exec($kfbNode.text());
+                    if (matches) {
+                        $kfbNode.text('拥有{0}KFB'.replace('{0}', parseInt(matches[1]) + num));
+                    }
+                }
+                KFOL.showMsg('<strong>&#31995;&#32479;&#25277;&#39118;&#20013;</strong><i>{0}<em>+{1}</em></i>'
+                    .replace('{0}', type === 2 ? '神秘' : 'KFB')
+                    .replace('{1}', num), 2);
+            }, 1000);
+            return;
+        }
+        if (parseInt(Math.random() * 25) === 23) {
+            KFOL.showMsg('&#75;&#70;&#38134;&#34892;&#31995;&#32479;&#20986;&#25925;&#38556;&#20102;&#65292;&#19981;&#23567;' +
+                '&#24515;&#36716;&#32473;&#20320;<em>&#57;&#57;&#57;&#57;&#57;&#57;</em>KFB<a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+            var $kfbNode = $('a[title="网站虚拟货币"]');
+            matches = /拥有(\d+)KFB/.exec($kfbNode.text());
+            if (matches) {
+                $kfbNode.text('拥有{0}KFB'.replace('{0}', parseInt(matches[1]) + (999 * 99 + 1998)));
+            }
+        }
+        else if (parseInt(Math.random() * 25) === 14) {
+            KFOL.showMsg('&#75;&#70;&#23064;&#23567;&#25163;&#19968;&#25238;&#65292;&#22870;&#21169;&#20320;' +
+                '<em>&#57;&#57;&#57;&#57;</em>&#31070;&#31192;<a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+            var $smNode = $('a[title="用户等级和权限"]');
+            matches = /神秘(\d+)级/.exec($smNode.text());
+            if (matches) {
+                $smNode.text('神秘{0}级'.replace('{0}', parseInt(matches[1]) + (99 * 99 + 198)));
+            }
+        }
+        else if (parseInt(Math.random() * 25) === 12) {
+            KFOL.showMsg('&#36947;&#20855;&#21830;&#24215;&#30340;&#22823;&#38376;&#34987;&#20154;&#30776;&#22351;&#20102;' +
+                '&#65292;&#20320;&#36225;&#26426;&#25250;&#36208;&#20102;<em>30</em>&#20010;&#28040;&#36893;&#20043;&#33647;&#21644;' +
+                '<em>70</em>&#20010;&#26723;&#26696;&#23460;&#38053;&#21273;<a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+        }
+        else if (parseInt(Math.random() * 25) === 19) {
+            KFOL.showMsg('&#20449;&#20208;&#39118;&#30475;&#19978;&#20102;&#20320;&#30340;&#33738;&#33457;&#65292;&#20320;' +
+                '&#25104;&#20026;&#20102;&#75;&#70;&#30340;<b class="pd_highlight">&#27704;&#20037;&#20250;&#21592;</b>！<a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+            $('a[href="kf_vmember.php"]').replaceWith('<a href="kf_vmember.php" class="indbox5">&#86;&#73;&#80;&#20250;&#21592;&#40;' +
+            '&#26080;&#26399;&#38480;&#41;</a>');
+        }
+        else if (parseInt(Math.random() * 40) === 35) {
+            KFOL.showMsg('&#20449;&#20208;&#39118;&#20934;&#22791;&#22238;&#32769;&#23478;&#32467;&#23130;&#20102;&#65292;' +
+                '&#20020;&#36208;&#21069;&#25226;&#35770;&#22363;&#25176;&#20184;&#20110;&#20320;&#65292;&#24685;&#21916;&#20320;' +
+                '&#25104;&#20026;&#20102;<b class="pd_highlight">&#31649;&#29702;&#21592;</b>！<a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+            $('a[href^="profile.php?action=show&uid="]').after('<b class="pd_highlight">&#40;&#31649;&#29702;&#21592;&#41;</b>');
+        }
+        else if (parseInt(Math.random() * 40) === 29) {
+            KFOL.showMsg('&#20449;&#20208;&#39118;&#31361;&#28982;&#33041;&#25277;&#20102;&#65292;&#23459;&#24067;&#75;&#70;' +
+                '&#25918;&#24323;&#30007;&#24615;&#21521;&#30340;&#71;&#97;&#108;&#103;&#97;&#109;&#101;&#65292;&#36716;&#21521;' +
+                '&#22899;&#24615;&#21521;&#30340;&#20057;&#22899;&#71;&#97;&#109;&#101;&#65292;<br />&#24182;&#23558;&#35770;&#22363;' +
+                '&#25913;&#21517;&#20026;<b class="pd_highlight">&#12304;&#33485;&#26376;&#79;&#116;&#111;&#109;&#101;&#71;&#97;' +
+                '&#109;&#101;&#12305;</b><a href="#">查看详情</a>'
+                , duration)
+                .find('a').click(linkClick);
+            document.title = unescape('%u82CD%u6708' + 'emaGemotO'.split('').reverse().join(''));
+            $('img[src="ys/top_logo.png"]').replaceWith('<h1 style="color:crimson;line-height:45px;">&#33485;&#26376;&#79;&#116;' +
+            '&#111;&#109;&#101;&#71;&#97;&#109;&#101;</h1>');
+        }
     },
 
     /**
@@ -1580,8 +1689,8 @@ var KFOL = {
     highlightNewPost: function () {
         $('.thread1 > tbody > tr > td:last-child').has('a.bl').each(function () {
             var html = $(this).html();
-            if (/\|\s*\d{2}:\d{2}<br>/.test(html)) {
-                html = html.replace(/(\d{2}:\d{2})<br>/, '<span class="pd_highlight">$1</span><br>');
+            if (/\|\s*\d{2}:\d{2}<br>\n.*\d{2}:\d{2}/.test(html)) {
+                html = html.replace(/(\d{2}:\d{2})<br>/, '<span class="pd_highlight">$1</span><br />');
                 $(this).html(html);
             }
         });
@@ -1610,6 +1719,7 @@ var KFOL = {
         if (!KFOL.uid) return;
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
+        KFOL.apl();
 
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
