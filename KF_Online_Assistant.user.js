@@ -7,15 +7,11 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.6.0-dev
+// @version     2.6.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
-/**
- * @todo 修改图标和license.txt
- * @修改某方法的日期
- */
 /**
  * 配置类
  */
@@ -998,7 +994,7 @@ var KFOL = {
      * @example
      * KFOL.showMsg('<strong>抽取道具或卡片</strong><i>道具<em>+1</em></i>');
      * KFOL.showMsg({msg: '<strong>抽取神秘盒子</strong><i>KFB<em>+8</em></i>', duration: 20, clickable: false});
-     * @returns {jQuery} jQuery对象
+     * @returns {jQuery} 消息框的jQuery对象
      */
     showMsg: function (options, duration) {
         var settings = {
@@ -1056,9 +1052,10 @@ var KFOL = {
      * 显示等待消息
      * @param {string} msg 等待消息
      * @param {boolean} [preventable=false] 是否阻止点击网页上的其它元素
+     * @returns {jQuery} 消息框的jQuery对象
      */
     showWaitMsg: function (msg, preventable) {
-        KFOL.showMsg({msg: msg, duration: -1, clickable: false, preventable: preventable === true});
+        return KFOL.showMsg({msg: msg, duration: -1, clickable: false, preventable: preventable === true});
     },
 
     /**
@@ -1098,7 +1095,7 @@ var KFOL = {
     apl: function () {
         if (!KFOL.isInHomePage) return;
         var date = new Date();
-        if (date.getMonth() !== 2 || date.getDate() !== 31) return;
+        if (date.getMonth() !== 3 || date.getDate() !== 1) return;
         var matches = null;
         var duration = -1;
         var linkClick = function () {
@@ -1111,7 +1108,7 @@ var KFOL = {
         };
 
         if (parseInt(Math.random() * 45) === 41) {
-            KFOL.showMsg('&#31995;&#32479;&#31361;&#28982;&#25277;&#39118;&#20102;&#8230;&#8230;<a href="#">查看详情</a>', 10)
+            KFOL.showWaitMsg('&#31995;&#32479;&#31361;&#28982;&#25277;&#39118;&#20102;&#8230;&#8230;<a href="#">查看详情</a>')
                 .find('a').click(linkClick);
             var i = 0;
             window.setInterval(function () {
@@ -1137,8 +1134,9 @@ var KFOL = {
                     }
                 }
                 KFOL.showMsg('<strong>&#31995;&#32479;&#25277;&#39118;&#20013;</strong><i>{0}<em>+{1}</em></i>'
-                    .replace('{0}', type === 2 ? '神秘' : 'KFB')
-                    .replace('{1}', num), 2);
+                        .replace('{0}', type === 2 ? '神秘' : 'KFB')
+                        .replace('{1}', num)
+                    , 10);
             }, 1000);
             return;
         }
@@ -1179,7 +1177,7 @@ var KFOL = {
             $('a[href="kf_vmember.php"]').replaceWith('<a href="kf_vmember.php" class="indbox5">&#86;&#73;&#80;&#20250;&#21592;&#40;' +
             '&#26080;&#26399;&#38480;&#41;</a>');
         }
-        else if (parseInt(Math.random() * 40) === 35) {
+        else if (parseInt(Math.random() * 40) === 34) {
             KFOL.showMsg('&#20449;&#20208;&#39118;&#20934;&#22791;&#22238;&#32769;&#23478;&#32467;&#23130;&#20102;&#65292;' +
                 '&#20020;&#36208;&#21069;&#25226;&#35770;&#22363;&#25176;&#20184;&#20110;&#20320;&#65292;&#24685;&#21916;&#20320;' +
                 '&#25104;&#20026;&#20102;<b class="pd_highlight">&#31649;&#29702;&#21592;</b>！<a href="#">查看详情</a>'
@@ -1188,15 +1186,15 @@ var KFOL = {
             $('a[href^="profile.php?action=show&uid="]').after('<b class="pd_highlight">&#40;&#31649;&#29702;&#21592;&#41;</b>');
         }
         else if (parseInt(Math.random() * 40) === 29) {
-            KFOL.showMsg('&#20449;&#20208;&#39118;&#31361;&#28982;&#33041;&#25277;&#20102;&#65292;&#23459;&#24067;&#75;&#70;' +
-                '&#25918;&#24323;&#30007;&#24615;&#21521;&#30340;&#71;&#97;&#108;&#103;&#97;&#109;&#101;&#65292;&#36716;&#21521;' +
-                '&#22899;&#24615;&#21521;&#30340;&#20057;&#22899;&#71;&#97;&#109;&#101;&#65292;<br />&#24182;&#23558;&#35770;&#22363;' +
-                '&#25913;&#21517;&#20026;<b class="pd_highlight">&#12304;&#33485;&#26376;&#79;&#116;&#111;&#109;&#101;&#71;&#97;' +
-                '&#109;&#101;&#12305;</b><a href="#">查看详情</a>'
+            KFOL.showMsg('&#20449;&#20208;&#39118;&#20170;&#22825;&#31361;&#28982;&#21435;&#20570;&#20102;&#21464;&#24615;&#25163;&#26415;' +
+                '&#65292;&#24182;&#23459;&#31216;&#75;&#70;&#23558;&#25918;&#24323;&#30007;&#24615;&#21521;&#30340;&#71;&#97;&#108;&#103;' +
+                '&#97;&#109;&#101;&#65292;&#36716;&#21521;&#22899;&#24615;&#21521;&#30340;&#20057;&#22899;&#71;&#97;&#109;&#101;&#65292;' +
+                '<br />&#36824;&#23558;&#35770;&#22363;&#25913;&#21517;&#20026;<b class="pd_highlight">&#12304;&#33485;&#26376;' +
+                '&#79;&#116;&#111;&#109;&#101;&#71;&#97;&#109;&#101;&#12305;</b><a href="#">查看详情</a>'
                 , duration)
                 .find('a').click(linkClick);
             document.title = unescape('%u82CD%u6708' + 'emaGemotO'.split('').reverse().join(''));
-            $('img[src="ys/top_logo.png"]').replaceWith('<h1 style="color:crimson;line-height:45px;">&#33485;&#26376;&#79;&#116;' +
+            $('img[src="ys/top_logo.png"]').replaceWith('<h1 style="color:#DC143C;line-height:45px;">&#33485;&#26376;&#79;&#116;' +
             '&#111;&#109;&#101;&#71;&#97;&#109;&#101;</h1>');
         }
     },
@@ -1289,12 +1287,14 @@ var KFOL = {
                 Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
-                var kfbRegex = /获得了(\d+)KFB的奖励/i;
+                var kfbRegex = /获得了(\d+)KFB的奖励.*(\d+\|\d+)/i;
                 var smRegex = /获得本轮的头奖/i;
                 var msg = '<strong>抽取神秘盒子[<em>No.{0}</em>]</strong>'.replace('{0}', smboxNumber);
                 if (kfbRegex.test(html)) {
                     var matches = kfbRegex.exec(html);
-                    msg += '<i>KFB<em>+{0}</em></i>'.replace('{0}', matches[1]);
+                    msg += '<i>KFB<em>+{0}</em></i><i class="pd_notice">({1})</i>'
+                        .replace('{0}', matches[1])
+                        .replace('{1}', matches[2]);
                 }
                 else if (smRegex.test(html)) {
                     msg += '<i class="pd_highlight" style="font-weight:bold">神秘<em>+1</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
