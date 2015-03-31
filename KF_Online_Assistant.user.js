@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.6.0
+// @version     2.6.1
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -33,7 +33,7 @@ var Config = {
     autoDrawItemOrCardEnabled: false,
     // 抽取道具或卡片的方式，1：抽取道具或卡片；2：只抽取道具
     autoDrawItemOrCardType: 1,
-    // 是否将抽取到的卡片自动转换为VIP时间，true：开启；false：关闭
+    // 是否将在自动抽取中获得的卡片转换为VIP时间，true：开启；false：关闭
     autoConvertCardToVipTimeEnabled: false,
     // 是否开启定时模式（开启定时模式后需停留在首页），true：开启；false：关闭
     autoRefreshEnabled: false,
@@ -294,7 +294,7 @@ var ConfigDialog = {
             '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
             '<option value="2">只抽道具</option></select></label><br />',
             '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ',
-            '<a class="pd_cfg_tips" href="#" title="将抽取到的卡片自动转换为VIP时间">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
@@ -358,9 +358,6 @@ var ConfigDialog = {
                 alert('设置已重置');
                 location.reload();
             }
-        });
-        $configBox.submit(function () {
-            $('#pd_cfg_ok').click();
             return false;
         });
         $(window).on('resize.pd_cfg_box', resizeBox)
@@ -370,6 +367,15 @@ var ConfigDialog = {
                 }
             });
         ConfigDialog.setValue();
+        $configBox.submit(function () {
+            $('#pd_cfg_ok').click();
+            return false;
+        }).find('legend > input[type="checkbox"]').click(function () {
+            var checked = $(this).prop('checked')
+            $(this).parent().nextAll('label').find('input, select, textarea').prop('disabled', !checked);
+        }).each(function () {
+            $(this).triggerHandler('click');
+        });
     },
 
     /**
@@ -826,26 +832,26 @@ var Item = {
                 if ($(this).data('disabled')) return;
                 var safeId = KFOL.getSafeId();
                 if (!safeId) return;
-                var num = parseInt($.trim($(this).find('input[type="text"]').val()));
-                if (!num || num <= 0) return;
+                var totalNum = parseInt($.trim($(this).find('input[type="text"]').val()));
+                if (!totalNum || totalNum <= 0) return;
                 var $maxDrawNumNode = $(this).parent().prev();
                 var matches = /：(\d+)次/.exec($maxDrawNumNode.text());
                 if (!matches) return;
                 var maxDrawNum = parseInt(matches[1]);
-                if (num > maxDrawNum) {
+                if (totalNum > maxDrawNum) {
                     alert('不能超过最大可用抽奖次数');
                     return;
                 }
-                if (!window.confirm('是否进行{0}次神秘抽奖？'.replace('{0}', num))) return;
+                if (!window.confirm('是否进行{0}次神秘抽奖？'.replace('{0}', totalNum))) return;
                 $(this).data('disabled', true);
                 KFOL.removePopTips($('.pd_pop_tips'));
                 $('.kf_fw_ig1').parent().append('<div class="pd_result"><strong>抽奖结果：</strong><br /></div>');
                 var successNum = 0;
                 KFOL.showWaitMsg('<strong>正在批量神秘抽奖中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
-                        .replace('{0}', num)
+                        .replace('{0}', totalNum)
                 );
                 $(document).queue('BatchDrawSm', []);
-                $.each(new Array(num), function (index) {
+                $.each(new Array(totalNum), function (index) {
                     $(document).queue('BatchDrawSm', function () {
                         $.post('kf_fw_ig_smone.php?safeid=' + safeId,
                             {one: 1, submit: '点击这里抽奖'},
@@ -861,14 +867,16 @@ var Item = {
                                             .replace('{1}', matches[1])
                                     );
                                 }
-                                if (index === num - 1) {
-                                    console.log('成功进行了{0}次神秘抽奖，道具+{0}'.replace('{0}', successNum, 'g'));
+                                if (index === totalNum - 1) {
+                                    console.log('成功进行了{0}次神秘抽奖，道具+{1}'
+                                            .replace('{0}', successNum)
+                                            .replace('{1}', successNum)
+                                    );
                                     KFOL.removePopTips($('.pd_pop_tips'));
-                                    KFOL.showMsg({
-                                        msg: '<strong>成功进行了<em>{0}</em>次神秘抽奖</strong><i>道具<em>+{0}</em></i>'
-                                            .replace('{0}', successNum, 'g'),
-                                        duration: -1
-                                    });
+                                    KFOL.showMsg('<strong>成功进行了<em>{0}</em>次神秘抽奖</strong><i>道具<em>+{1}</em></i>'
+                                            .replace('{0}', successNum)
+                                            .replace('{1}', successNum)
+                                        , -1);
                                     $maxDrawNumNode.text('我可用的神秘抽奖次数：{0}次'.replace('{0}', maxDrawNum - successNum));
                                     $('.kf_fw_ig1 form').removeData('disabled');
                                 }
@@ -1623,7 +1631,8 @@ var KFOL = {
         $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:35px" type="text" maxlength="8" /> ' +
         '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
-            .submit(function () {
+            .submit(function (event) {
+                event.preventDefault();
                 var floor = parseInt($.trim($(this).find('input').val()));
                 if (!floor || floor <= 0) return;
                 location.href = '{0}read.php?tid={1}&page={2}&floor={3}'
@@ -1631,7 +1640,6 @@ var KFOL = {
                     .replace('{1}', Tools.getUrlParam('tid'))
                     .replace('{2}', parseInt(floor / Config.perPageFloorNum) + 1)
                     .replace('{3}', floor);
-                return false;
             })
             .find('span')
             .click(function () {
