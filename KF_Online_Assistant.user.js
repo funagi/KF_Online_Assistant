@@ -51,6 +51,8 @@ var Config = {
     perPageFloorNum: 10,
     // 是否在帖子列表中高亮今日新发表帖子的发表时间，true：开启；false：关闭
     highlightNewPostEnabled: true,
+    // 自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空
+    customMySmColor: '',
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -319,7 +321,11 @@ var ConfigDialog = {
             '<option value="20">20</option><option value="30">30</option></select>',
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
             '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
-            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label><br />',
+            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:52px" type="text" />',
+            '<input type="color" id="pd_cfg_custom_my_sm_color_select">',
+            '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">',
+            '[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
@@ -342,7 +348,32 @@ var ConfigDialog = {
             .end().find('.pd_cfg_tips').click(function () {
                 return false;
             });
-        $('#pd_cfg_ok').click(function () {
+        $('#pd_cfg_default').click(function () {
+            if (window.confirm('是否重置所有设置？')) {
+                ConfigDialog.clearConfig();
+                alert('设置已重置');
+                location.reload();
+            }
+            return false;
+        });
+        $('#pd_cfg_custom_my_sm_color_select').change(function () {
+            $('#pd_cfg_custom_my_sm_color').val($(this).val().toString().toUpperCase());
+        });
+        $('#pd_cfg_custom_my_sm_color').keyup(function () {
+            var customMySmColor = $.trim($(this).val());
+            if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
+                $('#pd_cfg_custom_my_sm_color_select').val(customMySmColor.toUpperCase());
+            }
+        });
+        $(window).on('resize.pd_cfg_box', resizeBox)
+            .on('keydown.pd_cfg_box', function (event) {
+                if (event.key === 'Esc' || event.key === 'Escape') {
+                    $('#pd_cfg_cancel').click();
+                }
+            });
+        ConfigDialog.setValue();
+        $configBox.parent().submit(function (event) {
+            event.preventDefault();
             if (!ConfigDialog.verify()) return;
             var oriAutoRefreshEnabled = Config.autoRefreshEnabled;
             var options = ConfigDialog.getValue();
@@ -355,25 +386,6 @@ var ConfigDialog = {
                     location.reload();
                 }
             }
-        });
-        $('#pd_cfg_default').click(function () {
-            if (window.confirm('是否重置所有设置？')) {
-                ConfigDialog.clearConfig();
-                alert('设置已重置');
-                location.reload();
-            }
-            return false;
-        });
-        $(window).on('resize.pd_cfg_box', resizeBox)
-            .on('keydown.pd_cfg_box', function (event) {
-                if (event.key === 'Esc' || event.key === 'Escape') {
-                    $('#pd_cfg_cancel').click();
-                }
-            });
-        ConfigDialog.setValue();
-        $configBox.submit(function () {
-            $('#pd_cfg_ok').click();
-            return false;
         }).find('legend > input[type="checkbox"]').click(function () {
             var checked = $(this).prop('checked')
             $(this).parent().nextAll('label').find('input, select, textarea').prop('disabled', !checked);
@@ -411,6 +423,8 @@ var ConfigDialog = {
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
         $('#pd_cfg_highlight_new_post_enabled').prop('checked', Config.highlightNewPostEnabled);
+        $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
+        if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
     },
 
     /**
@@ -437,6 +451,7 @@ var ConfigDialog = {
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         options.highlightNewPostEnabled = $('#pd_cfg_highlight_new_post_enabled').prop('checked');
+        options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
         return options;
     },
 
@@ -508,6 +523,15 @@ var ConfigDialog = {
             alert('默认提示消息的持续时间格式不正确');
             $txtDefShowMsgDuration.select();
             $txtDefShowMsgDuration.focus();
+            return false;
+        }
+
+        var $txtCustomMySmColor = $('#pd_cfg_custom_my_sm_color');
+        var customMySmColor = $.trim($txtCustomMySmColor.val());
+        if (customMySmColor && !/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
+            alert('自定义本人的神秘颜色格式不正确，例：#009CFF');
+            $txtCustomMySmColor.select();
+            $txtCustomMySmColor.focus();
             return false;
         }
 
@@ -592,6 +616,12 @@ var ConfigDialog = {
         }
         settings.highlightNewPostEnabled = typeof options.highlightNewPostEnabled === 'boolean' ?
             options.highlightNewPostEnabled : Config.highlightNewPostEnabled;
+        if (typeof options.customMySmColor !== 'undefined') {
+            var customMySmColor = options.customMySmColor;
+            if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor))
+                settings.customMySmColor = customMySmColor;
+            else settings.customMySmColor = defConfig.customMySmColor;
+        }
         return settings;
     },
 
@@ -991,6 +1021,7 @@ var KFOL = {
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
             '.pd_cfg_main legend { font-weight: bold; }',
             '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }',
+            '.pd_cfg_main input[type="color"] { height: 18px; width: 30px; padding: 0; }',
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }',
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }',
@@ -1630,6 +1661,18 @@ var KFOL = {
     },
 
     /**
+     * 自定义本人的神秘颜色
+     */
+    customMySmColor: function () {
+        if (!Config.customMySmColor) return;
+        var my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
+        my.css('color', Config.customMySmColor)
+            .closest('.readtext').css('border-color', Config.customMySmColor)
+            .prev('.readlou').css('border-color', Config.customMySmColor)
+            .next().next('.readlou').css('border-color', Config.customMySmColor);
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -1695,6 +1738,9 @@ var KFOL = {
         }
         else if (location.pathname === '/kf_fw_ig_smone.php') {
             Item.addBatchDrawSmButton();
+        }
+        else if (location.pathname === '/read.php') {
+            KFOL.customMySmColor();
         }
 
         if (Config.autoRefreshEnabled) {
