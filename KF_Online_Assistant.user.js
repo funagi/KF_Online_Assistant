@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.6.2
+// @version     2.7.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -29,6 +29,8 @@ var Config = {
     autoDrawSmboxEnabled: false,
     // 偏好的神秘盒子数字，例：[52,1,28,400]（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空
     favorSmboxNumbers: [],
+    // 是否不抽取会中头奖的神秘盒子（用于卡级，尚未验证是否确实可行），true：开启；false：关闭
+    drawNonWinningSmboxEnabled: false,
     // 是否自动抽取道具或卡片，true：开启；false：关闭
     autoDrawItemOrCardEnabled: false,
     // 抽取道具或卡片的方式，1：抽取道具或卡片；2：只抽取道具
@@ -49,8 +51,6 @@ var Config = {
     perPageFloorNum: 10,
     // 是否在帖子列表中高亮今日新发表帖子的发表时间，true：开启；false：关闭
     highlightNewPostEnabled: true,
-    // 是否开启愚人节彩蛋，仅在4月1日生效，愚人节快乐！
-    easterEggEnabled: true,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -289,7 +289,9 @@ var ConfigDialog = {
             '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</legend>',
             '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:200px" type="text" />',
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">',
-            '[?]</a></label>',
+            '[?]</a></label><br />',
+            '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ',
+            '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</legend>',
@@ -317,9 +319,7 @@ var ConfigDialog = {
             '<option value="20">20</option><option value="30">30</option></select>',
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
             '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
-            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label><br />',
-            '      <label><input id="pd_cfg_easter_egg_enabled" type="checkbox" checked="checked" />愚人节彩蛋 ',
-            '<a class="pd_cfg_tips" href="#" title="愚人节快乐！仅在4月1日生效">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
@@ -400,6 +400,7 @@ var ConfigDialog = {
         $('#pd_cfg_donation_after_vip_enabled').prop('checked', Config.donationAfterVipEnabled);
         $('#pd_cfg_auto_draw_smbox_enabled').prop('checked', Config.autoDrawSmboxEnabled);
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
+        $('#pd_cfg_draw_non_winning_smbox_enabled').prop('checked', Config.drawNonWinningSmboxEnabled);
         $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked', Config.autoDrawItemOrCardEnabled);
         $('#pd_cfg_auto_draw_item_or_card_type').val(Config.autoDrawItemOrCardType);
         $('#pd_convert_card_to_vip_time_enabled').prop('checked', Config.autoConvertCardToVipTimeEnabled);
@@ -410,7 +411,6 @@ var ConfigDialog = {
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
         $('#pd_cfg_highlight_new_post_enabled').prop('checked', Config.highlightNewPostEnabled);
-        $('#pd_cfg_easter_egg_enabled').prop('checked', Config.easterEggEnabled);
     },
 
     /**
@@ -426,6 +426,7 @@ var ConfigDialog = {
         options.donationAfterTime = $('#pd_cfg_donation_after_time').val();
         options.autoDrawSmboxEnabled = $('#pd_cfg_auto_draw_smbox_enabled').prop('checked');
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
+        options.drawNonWinningSmboxEnabled = $('#pd_cfg_draw_non_winning_smbox_enabled').prop('checked');
         options.autoDrawItemOrCardEnabled = $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked');
         options.autoDrawItemOrCardType = parseInt($('#pd_cfg_auto_draw_item_or_card_type').val());
         options.autoConvertCardToVipTimeEnabled = $('#pd_convert_card_to_vip_time_enabled').prop('checked');
@@ -436,7 +437,6 @@ var ConfigDialog = {
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         options.highlightNewPostEnabled = $('#pd_cfg_highlight_new_post_enabled').prop('checked');
-        options.easterEggEnabled = $('#pd_cfg_easter_egg_enabled').prop('checked');
         return options;
     },
 
@@ -553,6 +553,8 @@ var ConfigDialog = {
             }
             else settings.favorSmboxNumbers = defConfig.favorSmboxNumbers;
         }
+        settings.drawNonWinningSmboxEnabled = typeof options.drawNonWinningSmboxEnabled === 'boolean' ?
+            options.drawNonWinningSmboxEnabled : Config.drawNonWinningSmboxEnabled;
         settings.autoDrawItemOrCardEnabled = typeof options.autoDrawItemOrCardEnabled === 'boolean' ?
             options.autoDrawItemOrCardEnabled : Config.autoDrawItemOrCardEnabled;
         if (typeof options.autoDrawItemOrCardType !== 'undefined') {
@@ -568,7 +570,7 @@ var ConfigDialog = {
         if (typeof options.showRefreshModeTipsType !== 'undefined') {
             var showRefreshModeTipsType = $.trim(options.showRefreshModeTipsType).toLowerCase();
             var allowTypes = ['auto', 'always', 'never'];
-            if (showRefreshModeTipsType !== '' && $.inArray(showRefreshModeTipsType, allowTypes))
+            if (showRefreshModeTipsType !== '' && $.inArray(showRefreshModeTipsType, allowTypes) > -1)
                 settings.showRefreshModeTipsType = showRefreshModeTipsType;
             else settings.showRefreshModeTipsType = defConfig.showRefreshModeTipsType;
         }
@@ -584,14 +586,12 @@ var ConfigDialog = {
             options.highlightVipEnabled : Config.highlightVipEnabled;
         if (typeof options.perPageFloorNum !== 'undefined') {
             var perPageFloorNum = parseInt(options.perPageFloorNum);
-            if ($.inArray(perPageFloorNum, [10, 20, 30]))
+            if ($.inArray(perPageFloorNum, [10, 20, 30]) > -1)
                 settings.perPageFloorNum = perPageFloorNum;
             else settings.perPageFloorNum = defConfig.perPageFloorNum;
         }
         settings.highlightNewPostEnabled = typeof options.highlightNewPostEnabled === 'boolean' ?
             options.highlightNewPostEnabled : Config.highlightNewPostEnabled;
-        settings.easterEggEnabled = typeof options.easterEggEnabled === 'boolean' ?
-            options.easterEggEnabled : Config.easterEggEnabled;
         return settings;
     },
 
@@ -1109,147 +1109,6 @@ var KFOL = {
     },
 
     /**
-     * 愚人节彩蛋
-     */
-    aprilFool: function () {
-        if (!Config.easterEggEnabled || !KFOL.isInHomePage) return;
-        var date = new Date();
-        if (date.getMonth() !== 3 || date.getDate() !== 1) return;
-        var matches = null;
-        var duration = -1;
-        var linkClick = function () {
-            $(this).after('<span style="margin-left:10px" class="pd_notice">（&#24858;&#20154;&#33410;&#24555;&#20048; &gt; &lt;）</span>')
-                .off('click')
-                .click(function () {
-                    return false;
-                });
-            return false;
-        };
-        if (parseInt(Math.random() * 35) === 29) {
-            KFOL.showMsg('&#75;&#70;&#38134;&#34892;&#31995;&#32479;&#20986;&#25925;&#38556;&#20102;&#65292;&#19981;&#23567;' +
-                '&#24515;&#36716;&#32473;&#20320;<em>&#57;&#57;&#57;&#57;&#57;&#57;</em>KFB<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            var $kfbNode = $('a[title="网站虚拟货币"]');
-            matches = /拥有(\d+)KFB/.exec($kfbNode.text());
-            if (matches) {
-                $kfbNode.text('拥有{0}KFB'.replace('{0}', parseInt(matches[1]) + (999 * 99 + 1998)));
-            }
-        }
-        else if (parseInt(Math.random() * 35) === 7) {
-            KFOL.showMsg('&#75;&#70;&#23064;&#23567;&#25163;&#19968;&#25238;&#65292;&#22870;&#21169;&#20320;' +
-                '<em>&#57;&#57;&#57;&#57;</em>&#31070;&#31192;<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            var $smNode = $('a[title="用户等级和权限"]');
-            matches = /神秘(\d+)级/.exec($smNode.text());
-            if (matches) {
-                $smNode.text('神秘{0}级'.replace('{0}', parseInt(matches[1]) + (99 * 99 + 198)));
-            }
-        }
-        else if (parseInt(Math.random() * 35) === 12) {
-            KFOL.showMsg('&#36947;&#20855;&#21830;&#24215;&#30340;&#22823;&#38376;&#34987;&#20154;&#30776;&#22351;&#20102;' +
-                '&#65292;&#20320;&#36225;&#26426;&#25250;&#36208;&#20102;<em>30</em>&#20010;&#28040;&#36893;&#20043;&#33647;&#21644;' +
-                '<em>70</em>&#20010;&#26723;&#26696;&#23460;&#38053;&#21273;<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-        }
-        else if (parseInt(Math.random() * 40) === 24) {
-            KFOL.showMsg('&#20449;&#20208;&#39118;&#30475;&#19978;&#20102;&#20320;&#30340;&#33738;&#33457;&#65292;&#20320;' +
-                '&#25104;&#20026;&#20102;&#75;&#70;&#30340;<b class="pd_highlight">&#27704;&#20037;&#20250;&#21592;</b>！<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            $('a[href="kf_vmember.php"]').replaceWith('<a href="kf_vmember.php" class="indbox5">&#86;&#73;&#80;&#20250;&#21592;&#40;' +
-            '&#26080;&#26399;&#38480;&#41;</a>');
-        }
-        else if (parseInt(Math.random() * 50) === 36) {
-            KFOL.showMsg('&#20449;&#20208;&#39118;&#20934;&#22791;&#22238;&#32769;&#23478;&#32467;&#23130;&#20102;&#65292;' +
-                '&#20020;&#36208;&#21069;&#25226;&#35770;&#22363;&#25176;&#20184;&#20110;&#20320;&#65292;&#24685;&#21916;&#20320;' +
-                '&#25104;&#20026;&#20102;<b class="pd_highlight">&#31649;&#29702;&#21592;</b>！<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            $('a[href^="profile.php?action=show&uid="]').after('<b class="pd_highlight">&#40;&#31649;&#29702;&#21592;&#41;</b>');
-        }
-        else if (parseInt(Math.random() * 50) === 42) {
-            KFOL.showMsg('&#21941;&#26143;&#20154;&#21344;&#39046;&#20102;&#34013;&#26143;&#65292;&#75;&#70;&#35770;&#22363;&#20840;' +
-                '&#21592;&#19981;&#24184;&#24863;&#26579;&#20102;&#21941;&#21941;&#30149;&#27602;&#65292;&#24086;&#23376;&#26631;' +
-                '&#39064;&#30340;&#21477;&#23614;&#37117;&#24102;&#19978;&#20102;&#19968;&#20010;&#8220;&#21941;&#8221;&#23383;' +
-                '&#65292;&#21941;&#126;<a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            $('.b_tit4 a, .b_tit4_1 a').each(function () {
-                var text = $(this).text();
-                $(this).text(text + '喵~');
-            });
-            document.title += '喵~';
-        }
-        else if (parseInt(Math.random() * 50) === 48) {
-            KFOL.showMsg('&#20449;&#20208;&#39118;&#20170;&#22825;&#31361;&#28982;&#21435;&#20570;&#20102;&#21464;&#24615;&#25163;&#26415;' +
-                '&#65292;&#24182;&#23459;&#31216;&#75;&#70;&#23558;&#25918;&#24323;&#30007;&#24615;&#21521;&#30340;&#71;&#97;&#108;&#103;' +
-                '&#97;&#109;&#101;&#65292;&#36716;&#21521;&#22899;&#24615;&#21521;&#30340;&#20057;&#22899;&#71;&#97;&#109;&#101;&#65292;' +
-                '<br />&#36824;&#23558;&#35770;&#22363;&#25913;&#21517;&#20026;<b class="pd_highlight">&#12304;&#33485;&#26376;' +
-                '&#79;&#116;&#111;&#109;&#101;&#71;&#97;&#109;&#101;&#12305;</b><a href="#">查看详情</a>'
-                , duration)
-                .find('a').click(linkClick);
-            document.title = unescape('%u82CD%u6708' + 'emaGemotO'.split('').reverse().join(''));
-            $('img[src="ys/top_logo.png"]').replaceWith('<h1 style="color:#DC143C;line-height:45px;">&#33485;&#26376;&#79;&#116;' +
-            '&#111;&#109;&#101;&#71;&#97;&#109;&#101;</h1>');
-        }
-        else if (parseInt(Math.random() * 55) === 52) {
-            KFOL.showMsg('&#20320;&#20351;&#29992;&#36947;&#20855;&#26834;&#26834;&#31958;&#24341;&#35825;&#75;&#70;&#23064;&#65292;' +
-            '&#75;&#70;&#23064;&#36855;&#19978;&#20102;&#20320;&#65292;&#20934;&#22791;&#23233;&#32473;&#20320;&#65292;<br />' +
-            '&#24182;&#23558;&#35770;&#22363;&#20316;&#20026;&#23233;&#22918;&#36865;&#32473;&#20102;&#20320;&#65292;&#20320;&#25317;' +
-            '&#26377;&#20102;&#23545;&#26412;&#35770;&#22363;&#30340;&#21629;&#21517;&#26435;&#65306;' +
-            '<a id="pd_name" href="#">&#28857;&#27492;&#21629;&#21517;</a><a id="pd_info" href="#">查看详情</a>')
-                .find('#pd_info').click(linkClick)
-                .end().find('#pd_name').click(function () {
-                    var title = $.trim(window.prompt(unescape('%u672C%u8BBA%u575B%u7684%u65B0%u540D%u5B57%u4E3A%uFF1F')));
-                    if (title.length > 16) {
-                        alert(unescape('%u540D%u5B57%u592A%u957F%u4E86%uFF08%u4E0D%u8D85%u8FC716%u4E2A%u5B57%uFF09'));
-                    }
-                    else if (title) {
-                        document.title = title;
-                        $('img[src="ys/top_logo.png"]').replaceWith('<h1 style="color:#DC143C;line-height:45px;">' + title + '</h1>');
-                        KFOL.removePopTips($('.pd_pop_tips'));
-                    }
-                    return false;
-                });
-        }
-        else if (parseInt(Math.random() * 65) === 61) {
-            KFOL.showWaitMsg('&#31995;&#32479;&#31361;&#28982;&#25277;&#39118;&#20102;&#8230;&#8230;<a href="#">查看详情</a>')
-                .find('a').click(linkClick);
-            var i = 0;
-            window.setInterval(function () {
-                i++;
-                if (i % 25 === 0) KFOL.removePopTips($('.pd_pop_tips'));
-                var type = parseInt(Math.random() * 2 + 1);
-                var num = 0;
-                var matches = null;
-                if (type === 2) {
-                    num = parseInt(Math.random() * 100) + 1;
-                    var $smNode = $('a[title="用户等级和权限"]');
-                    matches = /神秘(\d+)级/.exec($smNode.text());
-                    if (matches) {
-                        $smNode.text('神秘{0}级'.replace('{0}', parseInt(matches[1]) + num));
-                    }
-                }
-                else {
-                    num = parseInt(Math.random() * 10000) + 1;
-                    var $kfbNode = $('a[title="网站虚拟货币"]');
-                    matches = /拥有(\d+)KFB/.exec($kfbNode.text());
-                    if (matches) {
-                        $kfbNode.text('拥有{0}KFB'.replace('{0}', parseInt(matches[1]) + num));
-                    }
-                }
-                KFOL.showMsg('<strong>&#31995;&#32479;&#25277;&#39118;&#20013;</strong><i>{0}<em>+{1}</em></i>'
-                        .replace('{0}', type === 2 ? '神秘' : 'KFB')
-                        .replace('{1}', num)
-                    , 10);
-            }, 1000);
-        }
-    },
-
-    /**
      * KFB捐款
      */
     donation: function () {
@@ -1307,8 +1166,9 @@ var KFOL = {
     /**
      * 抽取神秘盒子
      * @param {boolean} isAutoDrawItemOrCard 是否在抽取神秘盒子完毕之后自动抽取道具或卡片
+     * @param {boolean} isAutoDonation 是否在抽取神秘盒子完毕之后自动捐款
      */
-    drawSmbox: function (isAutoDrawItemOrCard) {
+    drawSmbox: function (isAutoDrawItemOrCard, isAutoDonation) {
         console.log('抽取神秘盒子Start');
         $.get('kf_smbox.php', function (html) {
             if (!/kf_smbox\.php\?box=\d+&safeid=\w+/i.test(html)) {
@@ -1317,26 +1177,48 @@ var KFOL = {
             }
             var smboxNumber = 0;
             var url = '';
-            for (var i in Config.favorSmboxNumbers) {
-                var regex = new RegExp('kf_smbox\\.php\\?box=' + Config.favorSmboxNumbers[i] + '&safeid=\\w+', 'i');
-                var favorMatches = regex.exec(html);
-                if (favorMatches) {
-                    smboxNumber = Config.favorSmboxNumbers[i];
-                    url = favorMatches[0];
-                    break;
+            if (Config.drawNonWinningSmboxEnabled) {
+                var nonWinningMatches = html.match(/\d+(?=&safeid=)/gi);
+                var nonWinningArr = [];
+                for (var i = 1; i <= 400; i++) {
+                    if ($.inArray(i.toString(), nonWinningMatches) === -1) {
+                        nonWinningArr.push(i);
+                    }
+                }
+                if (nonWinningArr.length > 0) {
+                    smboxNumber = nonWinningArr[Math.floor(Math.random() * nonWinningArr.length)];
+                    var safeIdMatches = html.match(/&safeid=(\w+)/i);
+                    if (!safeIdMatches) return;
+                    url = 'kf_smbox.php?box={0}&safeid={1}'.replace('{0}', smboxNumber).replace('{1}', safeIdMatches[1]);
+                }
+                else {
+                    Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+15m'));
+                    return;
                 }
             }
-            if (!url) {
-                var matches = html.match(/kf_smbox\.php\?box=\d+&safeid=\w+/gi);
-                if (!matches) return;
-                url = matches[Math.floor(Math.random() * matches.length)];
-                var numberMatches = /box=(\d+)/i.exec(url);
-                smboxNumber = numberMatches ? numberMatches[1] : 0;
+            else {
+                for (var i in Config.favorSmboxNumbers) {
+                    var regex = new RegExp('kf_smbox\\.php\\?box=' + Config.favorSmboxNumbers[i] + '&safeid=\\w+', 'i');
+                    var favorMatches = regex.exec(html);
+                    if (favorMatches) {
+                        smboxNumber = Config.favorSmboxNumbers[i];
+                        url = favorMatches[0];
+                        break;
+                    }
+                }
+                if (!url) {
+                    var matches = html.match(/kf_smbox\.php\?box=\d+&safeid=\w+/gi);
+                    if (!matches) return;
+                    url = matches[Math.floor(Math.random() * matches.length)];
+                    var numberMatches = /box=(\d+)/i.exec(url);
+                    smboxNumber = numberMatches ? numberMatches[1] : 0;
+                }
             }
             $.get(url, function (html) {
                 Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
+                if (isAutoDonation) KFOL.donation();
                 var kfbRegex = /获得了(\d+)KFB的奖励.*(\d+\|\d+)/i;
                 var smRegex = /获得本轮的头奖/i;
                 var msg = '<strong>抽取神秘盒子[<em>No.{0}</em>]</strong>'.replace('{0}', smboxNumber);
@@ -1526,17 +1408,18 @@ var KFOL = {
                         handleError();
                         return;
                     }
-                    if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
-                        KFOL.donation();
-                    }
                     var isDrawSmboxStarted = false;
                     var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled && drawItemOrCardInterval === 0;
+                    var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
                     if (Config.autoDrawSmboxEnabled && drawSmboxInterval === 0) {
                         isDrawSmboxStarted = true;
-                        KFOL.drawSmbox(autoDrawItemOrCardAvailable);
+                        KFOL.drawSmbox(autoDrawItemOrCardAvailable, autoDonationAvailable);
                     }
                     if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
                         KFOL.drawItemOrCard();
+                    }
+                    if (autoDonationAvailable && !isDrawSmboxStarted) {
+                        KFOL.donation();
                     }
                     var interval = KFOL.getMinRefreshInterval(drawSmboxInterval, drawItemOrCardInterval);
                     if (interval === -1) {
@@ -1769,15 +1652,11 @@ var KFOL = {
         if (!KFOL.uid) return;
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
-        KFOL.aprilFool();
 
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
             if (Config.highlightVipEnabled) KFOL.highlightVipTips();
-        }
-        if (Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName)) {
-            KFOL.donation();
         }
 
         var isDrawSmboxStarted = false;
@@ -1785,12 +1664,13 @@ var KFOL = {
             (KFOL.isInHomePage ? $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0 :
                 !Tools.getCookie(Config.drawItemOrCardCookieName)
             );
+        var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
         if (Config.autoDrawSmboxEnabled) {
             if (KFOL.isInHomePage ? $('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0 :
                     !Tools.getCookie(Config.drawSmboxCookieName)
             ) {
                 isDrawSmboxStarted = true;
-                KFOL.drawSmbox(autoDrawItemOrCardAvailable);
+                KFOL.drawSmbox(autoDrawItemOrCardAvailable, autoDonationAvailable);
             }
         }
 
@@ -1801,6 +1681,10 @@ var KFOL = {
         if (Config.autoDrawItemOrCardEnabled && Config.autoConvertCardToVipTimeEnabled) {
             var cardId = parseInt(Tools.getCookie(Config.convertCardToVipTimeCookieName));
             if (cardId > 0) Card.convertCardToVipTime(cardId);
+        }
+
+        if (autoDonationAvailable && !isDrawSmboxStarted) {
+            KFOL.donation();
         }
 
         if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
