@@ -671,7 +671,7 @@ var Item = {
      * @param {string[]} options.urlList 指定的道具Url列表
      * @param {string} options.safeId 用户的SafeID
      * @param {number} options.level 道具等级
-     * @param {jQuery} [options.$itemLine] 当前转换道具所在的表格行
+     * @param {jQuery} [options.$itemLine] 当前转换道具所在的表格行（用于转换类型1）
      */
     convertItemsToEnergy: function (options) {
         var settings = {
@@ -683,7 +683,7 @@ var Item = {
         };
         $.extend(settings, options);
         var successNum = 0;
-        var energyNum = Item.getEnergyNumByLevel(settings.level);
+        var energyNum = Item.getGainEnergyNumByLevel(settings.level);
         $(document).queue('ConvertItemsToEnergy', []);
         $.each(settings.urlList, function (index, key) {
             var id = /pro=(\d+)/i.exec(key);
@@ -710,8 +710,8 @@ var Item = {
                         KFOL.showMsg({
                             msg: '<strong>共有<em>{0}</em>个道具成功转换为能量</strong><i>能量<em>+{1}</em></i>'
                                 .replace('{0}', successNum)
-                                .replace('{1}', successEnergyNum),
-                            duration: -1
+                                .replace('{1}', successEnergyNum)
+                            , duration: -1
                         });
                         if (settings.type === 2) {
                             $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked')
@@ -739,11 +739,11 @@ var Item = {
     },
 
     /**
-     * 获得指定道具等级可得到的能量点
+     * 获得转换指定道具等级可获得的能量点
      * @param {number} level 道具等级
      * @returns {number} 能量点
      */
-    getEnergyNumByLevel: function (level) {
+    getGainEnergyNumByLevel: function (level) {
         switch (level) {
             case 1:
                 return 2;
@@ -809,6 +809,105 @@ var Item = {
     },
 
     /**
+     * 获得恢复指定道具等级所需的能量点
+     * @param {number} level 道具等级
+     * @returns {number} 能量点
+     */
+    getRestoreEnergyNumByLevel: function (level) {
+        switch (level) {
+            case 1:
+                return 10;
+            case 2:
+                return 50;
+            case 3:
+                return 300;
+            case 4:
+                return 2000;
+            case 5:
+                return 10000;
+        }
+    },
+
+    /**
+     * 恢复指定的一系列道具
+     * @param {Object} options 设置项
+     * @param {number} options.type 恢复类型，1：恢复本级全部已使用的道具；2：恢复本级部分已使用的道具
+     * @param {string[]} options.urlList 指定的道具Url列表
+     * @param {string} options.safeId 用户的SafeID
+     * @param {number} options.level 道具等级
+     * @param {jQuery} [options.$itemLine] 当前恢复道具所在的表格行（用于恢复类型1）
+     */
+    restoreItems: function (options) {
+        var settings = {
+            type: 1,
+            urlList: [],
+            safeId: '',
+            level: 1,
+            $itemLine: null
+        };
+        $.extend(settings, options);
+        var successNum = 0;
+        var failNum = 0;
+        var energyNum = Item.getRestoreEnergyNumByLevel(settings.level);
+        $(document).queue('RestoreItems', []);
+        $.each(settings.urlList, function (index, key) {
+            var id = /pro=(\d+)/i.exec(key);
+            id = id ? id[1] : 0;
+            if (!id) return;
+            var url = 'kf_fw_ig_doit.php?renew={0}&id={1}'
+                .replace('{0}', settings.safeId)
+                .replace('{1}', id);
+            $(document).queue('RestoreItems', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('恢复道具', html);
+                    if (/该道具已经被恢复/i.test(html)) {
+                        successNum++;
+                    }
+                    else if (/恢复失败/i.test(html)) {
+                        failNum++;
+                    }
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === settings.urlList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        var successEnergyNum = successNum * energyNum;
+                        console.log('共有{0}个道具恢复成功，共有{1}个道具恢复失败，能量-{2}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum)
+                                .replace('{2}', successEnergyNum)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个道具恢复成功，共有<em>{1}</em>个道具恢复失败</strong><i>能量<em>-{2}</em></i>'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum)
+                                .replace('{2}', successEnergyNum)
+                            , duration: -1
+                        });
+                        if (settings.type === 2) {
+                            $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked')
+                                .closest('tr')
+                                .hide('slow', function () {
+                                    $(this).remove();
+                                });
+                        }
+                        else {
+
+                        }
+                        var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
+                        if ($totalEnergyNum.length === 1) {
+                            $totalEnergyNum.text(parseInt($totalEnergyNum.text()) - successEnergyNum);
+                        }
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('RestoreItems');
+                    }, 500);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('RestoreItems');
+    },
+
+    /**
      * 添加批量转换能量和恢复道具的按钮
      */
     addConvertEnergyAndRestoreItemsButton: function () {
@@ -826,7 +925,7 @@ var Item = {
                     .replace('{0}', matches[1])
             );
         });
-        $('<div class="pd_item_btns"><button>转换能量</button><button>全选</button><button>反选</button></div>')
+        $('<div class="pd_item_btns"><button>转换能量</button><button>恢复道具</button><button>全选</button><button>反选</button></div>')
             .insertAfter('.kf_fw_ig1:eq(1)')
             .find('button:first-child')
             .click(function () {
@@ -840,6 +939,34 @@ var Item = {
                         .replace('{0}', urlList.length)
                     , true);
                 Item.convertItemsToEnergy({
+                    type: 2,
+                    urlList: urlList,
+                    safeId: safeId,
+                    level: itemLevel
+                });
+            })
+            .next()
+            .click(function () {
+                var urlList = [];
+                $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked').each(function () {
+                    urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
+                });
+                if (urlList.length === 0) return;
+                var totalRequiredEnergyNum = urlList.length * Item.getRestoreEnergyNumByLevel(itemLevel);
+                if (!window.confirm('共选择了{0}个道具，共需要{1}点恢复能量，是否恢复道具？'
+                            .replace('{0}', urlList.length)
+                            .replace('{1}', totalRequiredEnergyNum)
+                    )
+                ) return;
+                var totalEnergyNum = parseInt($('.kf_fw_ig1 td:contains("道具恢复能量")').find('span').text());
+                if (!totalEnergyNum || totalEnergyNum < totalRequiredEnergyNum) {
+                    alert('所需恢复能量不足');
+                    return;
+                }
+                KFOL.showWaitMsg('<strong>正在恢复道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', urlList.length)
+                    , true);
+                Item.restoreItems({
                     type: 2,
                     urlList: urlList,
                     safeId: safeId,
@@ -1666,8 +1793,9 @@ var KFOL = {
     customMySmColor: function () {
         if (!Config.customMySmColor) return;
         var my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
-        my.css('color', Config.customMySmColor)
-            .closest('.readtext').css('border-color', Config.customMySmColor)
+        if (my.length == 0) my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
+        else my.css('color', Config.customMySmColor);
+        my.closest('.readtext').css('border-color', Config.customMySmColor)
             .prev('.readlou').css('border-color', Config.customMySmColor)
             .next().next('.readlou').css('border-color', Config.customMySmColor);
     },
