@@ -890,9 +890,6 @@ var Item = {
                                     $(this).remove();
                                 });
                         }
-                        else {
-
-                        }
                         var $totalEnergyNum = $('.kf_fw_ig1 td:contains("道具恢复能量")').find('span');
                         if ($totalEnergyNum.length === 1) {
                             $totalEnergyNum.text(parseInt($totalEnergyNum.text()) - successEnergyNum);
@@ -994,7 +991,6 @@ var Item = {
             .appendTo('.kf_fw_ig1 > tbody > tr:last-child > td:last-child')
             .submit(function (event) {
                 event.preventDefault();
-                if ($(this).data('disabled')) return;
                 var safeId = KFOL.getSafeId();
                 if (!safeId) return;
                 var totalNum = parseInt($.trim($(this).find('input[type="text"]').val()));
@@ -1008,26 +1004,26 @@ var Item = {
                     return;
                 }
                 if (!window.confirm('是否进行{0}次神秘抽奖？'.replace('{0}', totalNum))) return;
-                $(this).data('disabled', true);
                 KFOL.removePopTips($('.pd_pop_tips'));
-                $('.kf_fw_ig1').parent().append('<div class="pd_result"><strong>抽奖结果：</strong><br /></div>');
+                $('.kf_fw_ig1').parent().append('<ul class="pd_result"><li><strong>抽奖结果：</strong></li></ul>');
                 var successNum = 0;
                 KFOL.showWaitMsg('<strong>正在批量神秘抽奖中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                         .replace('{0}', totalNum)
-                );
+                    , true);
                 $(document).queue('BatchDrawSm', []);
                 $.each(new Array(totalNum), function (index) {
                     $(document).queue('BatchDrawSm', function () {
-                        $.post('kf_fw_ig_smone.php?safeid=' + safeId,
+                        $.post('kf_fw_ig_smone.php?safeid=1' + safeId,
                             {one: 1, submit: '点击这里抽奖'},
                             function (html) {
                                 KFOL.showFormatLog('神秘抽奖', html);
                                 var matches = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/.exec(html);
-                                if (matches) {
+                                matches = ['', 'kf_fw_ig_my.php?pro=1589136'];
+                                if (true || matches) {
                                     successNum++;
                                     var $remainingNum = $('#pd_remaining_num');
                                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
-                                    $('.pd_result').last().append('第{0}次抽奖：获得了一个道具（<a target="_blank" href="{1}">查看道具</a>）<br />'
+                                    $('.pd_result').last().append('<li><b>第{0}次：</b>获得了<a target="_blank" href="{1}">一个道具</a></li>'
                                             .replace('{0}', index + 1)
                                             .replace('{1}', matches[1])
                                     );
@@ -1043,7 +1039,16 @@ var Item = {
                                             .replace('{1}', successNum)
                                         , -1);
                                     $maxDrawNumNode.text('我可用的神秘抽奖次数：{0}次'.replace('{0}', maxDrawNum - successNum));
-                                    $('.kf_fw_ig1 form').removeData('disabled');
+                                    $('<li><a href="#">统计数据</a></li>').appendTo($('.pd_result').last())
+                                        .find('a')
+                                        .click(function (event) {
+                                            event.preventDefault();
+                                            $(this).parent().remove();
+                                            KFOL.removePopTips($('.pd_pop_tips'));
+                                            KFOL.showWaitMsg('<strong>正在统计数据中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                                                    .replace('{0}', totalNum)
+                                                , true);
+                                        });
                                 }
                                 window.setTimeout(function () {
                                     $(document).dequeue('BatchDrawSm');
@@ -1052,6 +1057,198 @@ var Item = {
                     });
                 });
                 $(document).dequeue('BatchDrawSm');
+            });
+    },
+
+    /**
+     * 从使用道具的回应消息中获取积分数据
+     * @param {number} typeId 道具类别ID
+     * @param {string} response 使用道具的回应消息
+     * @returns {Array} 积分数据，[0]：积分类别；[1]：积分值
+     */
+    getCreditsViaResponse: function (typeId, response) {
+        var credits = [];
+        var matches = null;
+        switch (typeId) {
+            case 1:
+                matches = /恢复能量增加了\s*(\d+)\s*点/i.exec(response);
+                if (matches) credits.push('能量', parseInt(matches[1]));
+                break;
+            case 2:
+                matches = /(\d+)KFB/i.exec(response);
+                if (matches) credits.push('KFB', parseInt(matches[1]));
+                break;
+            case 3:
+                matches = /(\d+)KFB/i.exec(response);
+                if (matches) credits.push('KFB', parseInt(matches[1]));
+                break;
+            case 4:
+                matches = /(\d+)KFB/i.exec(response);
+                if (matches) credits.push('KFB', parseInt(matches[1]));
+                break;
+            case 5:
+                matches = /(\d+)KFB/i.exec(response);
+                if (matches) credits.push('KFB', parseInt(matches[1]));
+                break;
+            case 6:
+                matches = /(\d+)点贡献/i.exec(response);
+                if (matches) credits.push('贡献', parseInt(matches[1]));
+                break;
+            case 11:
+                matches = /(\d+)贡献/i.exec(response);
+                if (matches) credits.push('贡献', parseInt(matches[1]));
+                break;
+            case 7:
+                matches = /神秘提升了(\d+)级/i.exec(response);
+                if (matches) credits.push('神秘', parseInt(matches[1]));
+                break;
+            case 8:
+                matches = /贡献\+(\d+)/i.exec(response);
+                var smMatches = /神秘等级\+(\d+)/i.exec(response);
+                if (matches) credits.push('贡献', parseInt(matches[1]));
+                else if (smMatches) credits.push('神秘', parseInt(smMatches[1]));
+                break;
+            case 12:
+                matches = /(\d+)级神秘/i.exec(response);
+                if (matches) credits.push('神秘', parseInt(matches[1]));
+                break;
+        }
+        return credits;
+    },
+
+    /**
+     * 使用指定的一系列道具
+     * @param {Object} options 设置项
+     * @param {number} options.type 使用类型，1：使用本级全部已使用的道具；2：使用本级部分已使用的道具
+     * @param {string[]} options.urlList 指定的道具Url列表
+     * @param {string} options.safeId 用户的SafeID
+     * @param {jQuery} [options.$itemLine] 当前恢复道具所在的表格行（用于使用类型1）
+     */
+    useItems: function (options) {
+        var settings = {
+            type: 1,
+            urlList: [],
+            safeId: '',
+            $itemLine: null
+        };
+        $.extend(settings, options);
+        $('.kf_fw_ig1').parent().append('<ul class="pd_result"><li><strong>使用结果：</strong></li></ul>');
+        var successNum = 0;
+        $(document).queue('UseItems', []);
+        $.each(settings.urlList, function (index, key) {
+            var id = /pro=(\d+)/i.exec(key);
+            id = id ? id[1] : 0;
+            if (!id) return;
+            var url = 'kf_fw_ig_doit.php?id={0}'.replace('{0}', id);
+            $(document).queue('UseItems', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('使用道具', html);
+                    var matches = /<span style=".+?">(.+?)<\/span><br \/><a href=".+?">/i.exec(html);
+                    if (matches && !/错误的物品编号/i.test(html)) {
+                        successNum++;
+                    }
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    $('.pd_result').last().append('<li><b>第{0}次：</b>{1}</li>'
+                            .replace('{0}', index + 1)
+                            .replace('{1}', matches ? matches[1] : '未能获得预期的回应')
+                    );
+                    if (index === settings.urlList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        var typeId = parseInt(Tools.getUrlParam('lv'));
+                        if (!typeId) return;
+                        var stat = {};
+                        $('.pd_result').last().find('li').not(':first-child').each(function () {
+                            var credits = Item.getCreditsViaResponse(typeId, $(this).text());
+                            if (credits.length > 0) {
+                                if (typeof stat[credits[0]] === 'undefined')
+                                    stat[credits[0]] = credits[1];
+                                else
+                                    stat[credits[0]] += credits[1];
+                            }
+                        });
+                        var logStat = '', msgStat = '';
+                        for (var creditsType in stat) {
+                            logStat += '，{0}{1}{2}'
+                                .replace('{0}', creditsType)
+                                .replace('{1}', stat[creditsType] >= 0 ? '+' : '-')
+                                .replace('{2}', stat[creditsType]);
+                            msgStat += '<i>{0}<em>{1}{2}</em></i>'
+                                .replace('{0}', creditsType)
+                                .replace('{1}', stat[creditsType] >= 0 ? '+' : '-')
+                                .replace('{2}', stat[creditsType]);
+                        }
+                        var resultStat = msgStat;
+                        console.log('共有{0}个道具使用成功{1}'.replace('{0}', successNum).replace('{1}', logStat));
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个道具使用成功{1}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', msgStat)
+                            , duration: -1
+                        });
+                        if (settings.type === 2) {
+                            $('.kf_fw_ig1 input[type="checkbox"]:checked')
+                                .closest('tr')
+                                .hide('slow', function () {
+                                    $(this).remove();
+                                });
+                        }
+                        if (resultStat === '') resultStat = '<i>无</i>';
+                        $('.pd_result').last().append('<li class="pd_result_stat"><b>统计结果：</b>{0}</li>'.replace('{0}', resultStat));
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('UseItems');
+                    }, 500);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('UseItems');
+    },
+
+    /**
+     * 添加批量使用道具的按钮
+     */
+    addUseItemsButton: function () {
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
+        $('.kf_fw_ig1 > tbody > tr > td:last-child').each(function () {
+            var matches = /kf_fw_ig_my\.php\?pro=(\d+)/.exec($(this).find('a').attr('href'));
+            if (!matches) return;
+            $(this).css('width', '163')
+                .parent()
+                .append('<td style="width:20px;padding-right:5px"><input class="pd_input" type="checkbox" value="{0}" /></td>'
+                    .replace('{0}', matches[1])
+            );
+        });
+        $('.kf_fw_ig1 > tbody > tr:lt(2)').find('td').attr('colspan', 5);
+        $('<div class="pd_item_btns"><button>使用道具</button><button>全选</button><button>反选</button></div>')
+            .insertAfter('.kf_fw_ig1')
+            .find('button:first-child')
+            .click(function () {
+                var urlList = [];
+                $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
+                    urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
+                });
+                if (urlList.length === 0) return;
+                if (!window.confirm('共选择了{0}个道具，是否批量使用道具？'.replace('{0}', urlList.length))) return;
+                KFOL.showWaitMsg('<strong>正在使用道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', urlList.length)
+                    , true);
+                Item.useItems({
+                    type: 2,
+                    urlList: urlList,
+                    safeId: safeId
+                });
+            })
+            .next()
+            .click(function () {
+                $('.kf_fw_ig1 input[type="checkbox"]').prop('checked', true);
+            })
+            .next()
+            .click(function () {
+                $('.kf_fw_ig1 input[type="checkbox"]').each(function () {
+                    $(this).prop('checked', !$(this).prop('checked'));
+                });
             });
     }
 };
@@ -1123,8 +1320,8 @@ var KFOL = {
             'background-image: linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);',
             '}',
             '.pd_pop_tips strong { margin-right: 5px; }',
-            '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
-            '.pd_pop_tips em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
+            '.pd_pop_tips i, .pd_result_stat i { font-style: normal; padding-left: 10px; }',
+            '.pd_pop_tips em, .pd_result_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_highlight { color: #FF0000 !important; }',
             '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
@@ -1138,7 +1335,7 @@ var KFOL = {
             '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
             '.pd_item_btns { text-align: right; margin-top: 5px; }',
             '.pd_item_btns button { margin-left: 3px; }',
-            '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 1.8em; }',
+            '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
@@ -1863,6 +2060,9 @@ var KFOL = {
         }
         else if (/\/kf_fw_ig_renew\.php\?lv=\d+$/i.test(location.href)) {
             Item.addConvertEnergyAndRestoreItemsButton();
+        }
+        else if (/\/kf_fw_ig_my\.php\?lv=\d+$/i.test(location.href)) {
+            Item.addUseItemsButton();
         }
         else if (location.pathname === '/kf_fw_ig_smone.php') {
             Item.addBatchDrawSmButton();
