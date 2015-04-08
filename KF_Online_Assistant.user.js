@@ -983,6 +983,79 @@ var Item = {
     },
 
     /**
+     * 统计批量神秘抽奖结果
+     * @param {jQuery} $result 抽奖结果的jQuery对象
+     */
+    statBatchDrawSmResult: function ($result) {
+        var totalNum = $result.children().length;
+        KFOL.removePopTips($('.pd_pop_tips'));
+        KFOL.showWaitMsg('<strong>正在统计数据中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                .replace('{0}', totalNum - 1)
+            , true);
+        var stat = {};
+        var failNum = 0;
+        $(document).queue('ItemStat', []);
+        $result.find('li').each(function (index) {
+            var url = $(this).find('a').attr('href');
+            if (!/kf_fw_ig_my\.php\?pro=\d+/.test(url)) return;
+            $(document).queue('ItemStat', function () {
+                $.get(url, function (html) {
+                    var matches = />道具名称：(.+?)<\/span>/.exec(html);
+                    var itemName = '';
+                    var itemLevel = 0;
+                    if (matches) itemName = matches[1];
+                    matches = /道具等级：(\d+)级道具/.exec(html);
+                    if (matches) itemLevel = parseInt(matches[1]);
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (itemName !== '' && itemLevel !== 0) {
+                        var key = 'Lv.{0}：{1}'.replace('{0}', itemLevel).replace('{1}', itemName);
+                        if (typeof stat[key] === 'undefined') stat[key] = 1;
+                        else stat[key] += 1;
+                        $result.children().eq(index).append('（Lv.{0}：{1}）'.replace('{0}', itemLevel).replace('{1}', itemName));
+                    }
+                    else {
+                        failNum++;
+                        $result.children().eq(index).append('<span class="pd_notice">（未能获得预期的回应）</span>');
+                    }
+                    if (index === totalNum - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        var statArr = [];
+                        for (var item in stat) {
+                            statArr.push(item + '|' + stat[item]);
+                        }
+                        statArr.sort();
+                        var resultStat = '', logStat = '';
+                        for (var i in statArr) {
+                            var arr = statArr[i].split('|');
+                            if (arr.length < 2) continue;
+                            if (resultStat !== '' && i % 4 === 0) resultStat += '<br />';
+                            resultStat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', arr[0]).replace('{1}', arr[1]);
+                            logStat += '，{0}+{1}'.replace('{0}', arr[0]).replace('{1}', arr[1]);
+                        }
+                        if (resultStat !== '') {
+                            console.log('神秘抽奖统计结果（共有{0}个道具未能统计成功）{1}'
+                                    .replace('{0}', failNum)
+                                    .replace('{1}', logStat)
+                            );
+                            $result.append('<li class="pd_result_stat"><b>统计结果{0}：</b><br />{1}</li>'
+                                    .replace('{0}', failNum > 0 ?
+                                        '<span class="pd_notice">（共有{0}个道具未能统计成功）</span>'.replace('{0}', failNum)
+                                        : '')
+                                    .replace('{1}', resultStat)
+                            );
+                        }
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('ItemStat');
+                    }, 1000);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('ItemStat');
+    },
+
+    /**
      * 添加批量神秘抽奖的按钮
      */
     addBatchDrawSmButton: function () {
@@ -1013,17 +1086,21 @@ var Item = {
                 $(document).queue('BatchDrawSm', []);
                 $.each(new Array(totalNum), function (index) {
                     $(document).queue('BatchDrawSm', function () {
-                        $.post('kf_fw_ig_smone.php?safeid=1' + safeId,
+                        $.post('kf_fw_ig_smone.php?safeid=' + safeId,
                             {one: 1, submit: '点击这里抽奖'},
                             function (html) {
                                 KFOL.showFormatLog('神秘抽奖', html);
                                 var matches = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/.exec(html);
-                                matches = ['', 'kf_fw_ig_my.php?pro=1589136'];
-                                if (true || matches) {
+                                /*if (index === 1) matches = ['', 'kf_fw_ig_my.php?pro=1587347'];
+                                 else if (index === 2) matches = ['', 'kf_fw_ig_my.php?pro=1612065'];
+                                 else if (index === 3) matches = ['', 'kf_fw_ig_my.php?pro=1592013'];
+                                 else if (index === 4) matches = ['', 'kf_fw_ig_my.php?pro=1554511'];
+                                 else matches = ['', 'kf_fw_ig_my.php?pro=1589136'];*/
+                                if (matches) {
                                     successNum++;
                                     var $remainingNum = $('#pd_remaining_num');
                                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
-                                    $('.pd_result').last().append('<li><b>第{0}次：</b>获得了<a target="_blank" href="{1}">一个道具</a></li>'
+                                    $('.pd_result').last().append('<li><b>第{0}次：</b>获得了一个<a target="_blank" href="{1}">道具</a></li>'
                                             .replace('{0}', index + 1)
                                             .replace('{1}', matches[1])
                                     );
@@ -1039,16 +1116,16 @@ var Item = {
                                             .replace('{1}', successNum)
                                         , -1);
                                     $maxDrawNumNode.text('我可用的神秘抽奖次数：{0}次'.replace('{0}', maxDrawNum - successNum));
-                                    $('<li><a href="#">统计数据</a></li>').appendTo($('.pd_result').last())
-                                        .find('a')
-                                        .click(function (event) {
-                                            event.preventDefault();
-                                            $(this).parent().remove();
-                                            KFOL.removePopTips($('.pd_pop_tips'));
-                                            KFOL.showWaitMsg('<strong>正在统计数据中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
-                                                    .replace('{0}', totalNum)
-                                                , true);
-                                        });
+                                    if (successNum > 0) {
+                                        $('<li><a href="#">统计数据</a></li>').appendTo($('.pd_result').last())
+                                            .find('a')
+                                            .click(function (event) {
+                                                event.preventDefault();
+                                                var $result = $(this).closest('.pd_result');
+                                                $(this).parent().remove();
+                                                Item.statBatchDrawSmResult($result);
+                                            });
+                                    }
                                 }
                                 window.setTimeout(function () {
                                     $(document).dequeue('BatchDrawSm');
@@ -1320,11 +1397,11 @@ var KFOL = {
             'background-image: linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);',
             '}',
             '.pd_pop_tips strong { margin-right: 5px; }',
-            '.pd_pop_tips i, .pd_result_stat i { font-style: normal; padding-left: 10px; }',
+            '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
             '.pd_pop_tips em, .pd_result_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_highlight { color: #FF0000 !important; }',
-            '.pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
+            '.pd_notice, .pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
             '.pd_input, .pd_cfg_main input { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; }',
             '.pd_input[type="text"], .pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
             '.pd_input:focus, .pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
@@ -1336,6 +1413,7 @@ var KFOL = {
             '.pd_item_btns { text-align: right; margin-top: 5px; }',
             '.pd_item_btns button { margin-left: 3px; }',
             '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
+            '.pd_result_stat i { font-style: normal; margin-right: 10px; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
