@@ -47,7 +47,11 @@ var Config = {
     hideMarkReadAtTipsEnabled: true,
     // 是否高亮首页的VIP身份标识，true：开启；false：关闭
     highlightVipEnabled: true,
-    // 帖子每页楼层数量，用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
+    // 是否在帖子列表页面中显示帖子页数快捷链接，true：开启；false：关闭
+    showFastGotoThreadPageEnabled: false,
+    // 在帖子页数快捷链接中显示页数链接的最大数量
+    maxFastGotoThreadPageNum: 5,
+    // 帖子每页楼层数量，用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目
     perPageFloorNum: 10,
     // 是否在帖子列表中高亮今日新发表帖子的发表时间，true：开启；false：关闭
     highlightNewPostEnabled: true,
@@ -247,6 +251,19 @@ var Tools = {
         var matches = location.search.substr(1).match(regex);
         if (matches) return decodeURI(matches[2]);
         else return null;
+    },
+
+    /**
+     * 获取经过GBK编码后的字符串
+     * @param {string} str 待编码的字符串
+     * @returns {string} 经过GBK编码后的字符串
+     */
+    getGBKEncodeString: function (str) {
+        var img = $('<img />').appendTo('body').get(0);
+        img.src = 'nothing?sp=' + str;
+        var encodeStr = img.src.split('nothing?sp=').pop();
+        $(img).remove();
+        return encodeStr;
     }
 };
 
@@ -317,10 +334,14 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
             '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" checked="checked" />高亮首页VIP标识 ',
             '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label><br />',
-            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
+            '      <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />',
+            '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label><br />',
+            '      <label>页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" value="5" />',
+            '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label>',
+            '      <label style="margin-left:10px">帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
             '<option value="20">20</option><option value="30">30</option></select>',
-            '<a class="pd_cfg_tips" href="#" title="用于电梯直达功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
-            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
+            '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label><br />',
+            '      <label><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
             '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label><br />',
             '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:52px" type="text" />',
             '<input type="color" id="pd_cfg_custom_my_sm_color_select">',
@@ -426,6 +447,8 @@ var ConfigDialog = {
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
+        $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked', Config.showFastGotoThreadPageEnabled);
+        $('#pd_cfg_max_fast_goto_thread_page_num').val(Config.maxFastGotoThreadPageNum);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
         $('#pd_cfg_highlight_new_post_enabled').prop('checked', Config.highlightNewPostEnabled);
         $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
@@ -454,6 +477,8 @@ var ConfigDialog = {
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
+        options.showFastGotoThreadPageEnabled = $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked');
+        options.maxFastGotoThreadPageNum = parseInt($.trim($('#pd_cfg_max_fast_goto_thread_page_num').val()));
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         options.highlightNewPostEnabled = $('#pd_cfg_highlight_new_post_enabled').prop('checked');
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
@@ -531,6 +556,15 @@ var ConfigDialog = {
             return false;
         }
 
+        var $txtMaxFastGotoThreadPageNum = $('#pd_cfg_max_fast_goto_thread_page_num');
+        var maxFastGotoThreadPageNum = $.trim($txtMaxFastGotoThreadPageNum.val());
+        if (!$.isNumeric(maxFastGotoThreadPageNum) || parseInt(maxFastGotoThreadPageNum) <= 0) {
+            alert('页数链接最大数量格式不正确');
+            $txtMaxFastGotoThreadPageNum.select();
+            $txtMaxFastGotoThreadPageNum.focus();
+            return false;
+        }
+
         var $txtCustomMySmColor = $('#pd_cfg_custom_my_sm_color');
         var customMySmColor = $.trim($txtCustomMySmColor.val());
         if (customMySmColor && !/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
@@ -553,7 +587,7 @@ var ConfigDialog = {
         var defConfig = ConfigDialog.defConfig;
         if ($.type(options) !== 'object') return settings;
         settings.autoDonationEnabled = typeof options.autoDonationEnabled === 'boolean' ?
-            options.autoDonationEnabled : Config.autoDonationEnabled;
+            options.autoDonationEnabled : defConfig.autoDonationEnabled;
         if (typeof options.donationKfb !== 'undefined') {
             var donationKfb = options.donationKfb;
             if ($.isNumeric(donationKfb) && donationKfb > 0 && donationKfb <= Config.maxDonationKfb)
@@ -569,9 +603,9 @@ var ConfigDialog = {
             else settings.donationAfterTime = defConfig.donationAfterTime;
         }
         settings.donationAfterVipEnabled = typeof options.donationAfterVipEnabled === 'boolean' ?
-            options.donationAfterVipEnabled : Config.donationAfterVipEnabled;
+            options.donationAfterVipEnabled : defConfig.donationAfterVipEnabled;
         settings.autoDrawSmboxEnabled = typeof options.autoDrawSmboxEnabled === 'boolean' ?
-            options.autoDrawSmboxEnabled : Config.autoDrawSmboxEnabled;
+            options.autoDrawSmboxEnabled : defConfig.autoDrawSmboxEnabled;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
             if ($.isArray(options.favorSmboxNumbers)) {
                 settings.favorSmboxNumbers = [];
@@ -583,9 +617,9 @@ var ConfigDialog = {
             else settings.favorSmboxNumbers = defConfig.favorSmboxNumbers;
         }
         settings.drawNonWinningSmboxEnabled = typeof options.drawNonWinningSmboxEnabled === 'boolean' ?
-            options.drawNonWinningSmboxEnabled : Config.drawNonWinningSmboxEnabled;
+            options.drawNonWinningSmboxEnabled : defConfig.drawNonWinningSmboxEnabled;
         settings.autoDrawItemOrCardEnabled = typeof options.autoDrawItemOrCardEnabled === 'boolean' ?
-            options.autoDrawItemOrCardEnabled : Config.autoDrawItemOrCardEnabled;
+            options.autoDrawItemOrCardEnabled : defConfig.autoDrawItemOrCardEnabled;
         if (typeof options.autoDrawItemOrCardType !== 'undefined') {
             var autoDrawItemOrCardType = parseInt(options.autoDrawItemOrCardType);
             if (autoDrawItemOrCardType >= 1 && autoDrawItemOrCardType <= 2)
@@ -593,9 +627,9 @@ var ConfigDialog = {
             else settings.autoDrawItemOrCardType = defConfig.autoDrawItemOrCardType;
         }
         settings.autoConvertCardToVipTimeEnabled = typeof options.autoConvertCardToVipTimeEnabled === 'boolean' ?
-            options.autoConvertCardToVipTimeEnabled : Config.autoConvertCardToVipTimeEnabled;
+            options.autoConvertCardToVipTimeEnabled : defConfig.autoConvertCardToVipTimeEnabled;
         settings.autoRefreshEnabled = typeof options.autoRefreshEnabled === 'boolean' ?
-            options.autoRefreshEnabled : Config.autoRefreshEnabled;
+            options.autoRefreshEnabled : defConfig.autoRefreshEnabled;
         if (typeof options.showRefreshModeTipsType !== 'undefined') {
             var showRefreshModeTipsType = $.trim(options.showRefreshModeTipsType).toLowerCase();
             var allowTypes = ['auto', 'always', 'never'];
@@ -610,9 +644,17 @@ var ConfigDialog = {
             else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
         }
         settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
-            options.hideMarkReadAtTipsEnabled : Config.hideMarkReadAtTipsEnabled;
+            options.hideMarkReadAtTipsEnabled : defConfig.hideMarkReadAtTipsEnabled;
         settings.highlightVipEnabled = typeof options.highlightVipEnabled === 'boolean' ?
-            options.highlightVipEnabled : Config.highlightVipEnabled;
+            options.highlightVipEnabled : defConfig.highlightVipEnabled;
+        settings.showFastGotoThreadPageEnabled = typeof options.showFastGotoThreadPageEnabled === 'boolean' ?
+            options.showFastGotoThreadPageEnabled : defConfig.showFastGotoThreadPageEnabled;
+        if (typeof options.maxFastGotoThreadPageNum !== 'undefined') {
+            var maxFastGotoThreadPageNum = parseInt(options.maxFastGotoThreadPageNum);
+            if ($.isNumeric(maxFastGotoThreadPageNum) && maxFastGotoThreadPageNum > 0)
+                settings.maxFastGotoThreadPageNum = maxFastGotoThreadPageNum;
+            else settings.maxFastGotoThreadPageNum = defConfig.maxFastGotoThreadPageNum;
+        }
         if (typeof options.perPageFloorNum !== 'undefined') {
             var perPageFloorNum = parseInt(options.perPageFloorNum);
             if ($.inArray(perPageFloorNum, [10, 20, 30]) > -1)
@@ -620,7 +662,7 @@ var ConfigDialog = {
             else settings.perPageFloorNum = defConfig.perPageFloorNum;
         }
         settings.highlightNewPostEnabled = typeof options.highlightNewPostEnabled === 'boolean' ?
-            options.highlightNewPostEnabled : Config.highlightNewPostEnabled;
+            options.highlightNewPostEnabled : defConfig.highlightNewPostEnabled;
         if (typeof options.customMySmColor !== 'undefined') {
             var customMySmColor = options.customMySmColor;
             if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor))
@@ -1443,9 +1485,15 @@ var Bank = {
         var successNum = 0, failNum = 0, successMoney = 0;
         $.each(users, function (index, key) {
             $(document).queue('Bank', function () {
-                $.post('hack.php?H_name=bank',
-                    {action: 'virement', pwuser: key[0], to_money: key[1], memo: msg},
-                    function (html) {
+                $.ajax({
+                    url: 'hack.php?H_name=bank',
+                    type: 'post',
+                    data: '&action=virement&pwuser={0}&to_money={1}&memo={2}'
+                        .replace('{0}', Tools.getGBKEncodeString(key[0]))
+                        .replace('{1}', key[1])
+                        .replace('{2}', Tools.getGBKEncodeString(msg))
+                    ,
+                    success: function (html) {
                         KFOL.showFormatLog('批量转账', html);
                         var statMsg = '';
                         if (/完成转帐!<\/span>/.test(html)) {
@@ -1460,6 +1508,9 @@ var Bank = {
                             }
                             else if (/您的存款不够支付转帐/.test(html)) {
                                 statMsg = '存款不足';
+                            }
+                            else if (/当前等级无法使用该功能/.test(html)) {
+                                statMsg = '当前等级无法使用转账功能';
                             }
                             else if (/转帐数目填写不正确/.test(html)) {
                                 statMsg = '转帐金额不正确';
@@ -1499,7 +1550,9 @@ var Bank = {
                         window.setTimeout(function () {
                             $(document).dequeue('Bank');
                         }, 5000);
-                    }, 'html');
+                    },
+                    dataType: 'html'
+                });
             });
         });
         if (!isDeposited) $(document).dequeue('Bank');
@@ -1661,6 +1714,9 @@ var KFOL = {
             '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
             '.pd_result_stat i { font-style: normal; margin-right: 10px; }',
             '.pd_result_stat .pd_notice { margin-left: 5px; }',
+            '.pd_thread_page { margin-left: 5px; }',
+            '.pd_thread_page a { color: #444; padding: 0 3px; }',
+            '.pd_thread_page a:hover { color: #51D; }',
 
             /* 设置对话框 */
             '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
@@ -2334,6 +2390,34 @@ var KFOL = {
     },
 
     /**
+     * 在帖子列表页面中添加帖子页数快捷链接
+     */
+    addFastGotoThreadPageLink: function () {
+        $('.threadtit1 > a[href^="read.php"]').each(function () {
+            var $link = $(this);
+            var floorNum = $link.closest('td').next().find('ul > li > a').contents().eq(0).text();
+            if (!floorNum || floorNum < Config.perPageFloorNum) return;
+            var url = $link.attr('href');
+            var totalPageNum = Math.floor(floorNum / Config.perPageFloorNum) + 1;
+            var html = '';
+            for (var i = 1; i < totalPageNum; i++) {
+                if (i > Config.maxFastGotoThreadPageNum) {
+                    if (i + 1 <= totalPageNum) {
+                        html += '..<a href="{0}&page={1}">{2}</a>'
+                            .replace('{0}', url)
+                            .replace('{1}', totalPageNum)
+                            .replace('{2}', totalPageNum);
+                    }
+                    break;
+                }
+                html += '<a href="{0}&page={1}">{2}</a>'.replace('{0}', url).replace('{1}', i + 1).replace('{2}', i + 1);
+            }
+            html = '<span class="pd_thread_page">...{0}</span>'.replace('{0}', html);
+            $link.after(html).parent().css('white-space', 'normal');
+        });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -2351,6 +2435,7 @@ var KFOL = {
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
+            if (Config.showFastGotoThreadPageEnabled) KFOL.addFastGotoThreadPageLink();
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
