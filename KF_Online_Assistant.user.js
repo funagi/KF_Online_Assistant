@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.8.0
+// @version     2.8.1
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -1572,7 +1572,7 @@ var Bank = {
             '<textarea id="pd_bank_users" style="width:270px;height:250px;font-size:12px"></textarea></label></div>',
             '    <div style="display:inline-block;margin-left:10px;">',
             '      <label>通用转帐金额（如所有用户都已设定单独金额则可留空）：<br />',
-            '<input class="pd_input" id="pd_bank_money" type="text" style="width:220px" maxlength="10" /></label><br />',
+            '<input class="pd_input" id="pd_bank_money" type="text" style="width:220px" maxlength="15" /></label><br />',
             '      <label style="margin-top:5px">转帐附言（可留空）：<br />',
             '<textarea id="pd_bank_msg" style="width:225px;height:206px;font-size:12px" id="pd_bank_users"></textarea></label>',
             '    </div>',
@@ -1966,12 +1966,12 @@ var KFOL = {
                 if (isAutoDonation) {
                     window.setTimeout(KFOL.donation, 2000);
                 }
-                var kfbRegex = /获得了(\d+)KFB的奖励.*(\d+\|\d+)/i;
+                var kfbRegex = /获得了(\d+)KFB的奖励.*?(\(\d+\|\d+\))/i;
                 var smRegex = /获得本轮的头奖/i;
                 var msg = '<strong>抽取神秘盒子[<em>No.{0}</em>]</strong>'.replace('{0}', smboxNumber);
                 if (kfbRegex.test(html)) {
                     var matches = kfbRegex.exec(html);
-                    msg += '<i>KFB<em>+{0}</em></i><i class="pd_notice">({1})</i>'
+                    msg += '<i>KFB<em>+{0}</em></i><i class="pd_notice">{1}</i>'
                         .replace('{0}', matches[1])
                         .replace('{1}', matches[2]);
                 }
