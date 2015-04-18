@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.8.1
+// @version     2.9.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -37,12 +37,14 @@ var Config = {
     autoDrawItemOrCardType: 1,
     // 是否将在自动抽取中获得的卡片转换为VIP时间，true：开启；false：关闭
     autoConvertCardToVipTimeEnabled: false,
+    // 是否自动使用刚抽到的道具，需指定自动使用的道具名称，true：开启；false：关闭
+    autoUseItemEnabled: false,
+    // 自动使用刚抽到的道具的名称，例：['被遗弃的告白信','学校天台的钥匙','LOLI的钱包']
+    autoUseItemNames: [],
     // 是否开启定时模式（开启定时模式后需停留在首页），true：开启；false：关闭
     autoRefreshEnabled: false,
     // 在首页的网页标题上显示定时模式提示的方案，auto：停留一分钟后显示；always：总是显示；never：不显示
     showRefreshModeTipsType: 'auto',
-    // 默认提示消息的持续时间（秒）
-    defShowMsgDuration: 10,
     // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
     hideMarkReadAtTipsEnabled: true,
     // 是否高亮首页的VIP身份标识，true：开启；false：关闭
@@ -55,8 +57,14 @@ var Config = {
     perPageFloorNum: 10,
     // 是否在帖子列表中高亮今日新发表帖子的发表时间，true：开启；false：关闭
     highlightNewPostEnabled: true,
+    // 是否调整帖子内容宽度，使其保持一致，true：开启；false：关闭
+    adjustThreadContentWidthEnabled: false,
+    // 帖子内容字体大小，留空表示使用默认大小，推荐值：14
+    threadContentFontSize: '',
     // 自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空
     customMySmColor: '',
+    // 默认提示消息的持续时间（秒）
+    defShowMsgDuration: 10,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -82,7 +90,9 @@ var Config = {
     // 标记已去除首页已读at高亮提示的Cookie名称
     hideMarkReadAtTipsCookieName: 'pd_hide_mark_read_at_tips',
     // 存放将自动转换为VIP时间的卡片ID的Cookie名称
-    convertCardToVipTimeCookieName: 'pd_convert_card_to_vip_time'
+    convertCardToVipTimeCookieName: 'pd_convert_card_to_vip_time',
+    // 存放自动使用刚抽到的道具ID的Cookie名称
+    autoUseItemCookieName: 'pd_auto_use_item'
 };
 
 /**
@@ -288,25 +298,26 @@ var ConfigDialog = {
      * 显示设置对话框
      */
     show: function () {
-        var $configBox = $('#pd_cfg_box');
+        var $configBox = $('#pd_config');
         if ($configBox.length > 0) return;
         var html = [
             '<form>',
-            '<div id="pd_cfg_box">',
+            '<div id="pd_config" class="pd_cfg_box">',
             '  <h1>KF Online助手设置<span>×</span></h1>',
             '  <div class="pd_cfg_main">',
+            '    <div class="pd_cfg_nav"><a href="#">导入/导出设置</a></div>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</legend>',
-            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:35px" type="text" value="1" />',
+            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" value="1" />',
             '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
-            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:60px" type="text" value="00:05:00" />',
+            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" value="00:05:00" />',
             '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />',
             '      <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ',
             '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</legend>',
-            '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:200px" type="text" />',
+            '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />',
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">',
             '[?]</a></label><br />',
             '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ',
@@ -317,7 +328,16 @@ var ConfigDialog = {
             '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
             '<option value="2">只抽道具</option></select></label><br />',
             '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ',
-            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />',
+            '      <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ',
+            '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />',
+            '      <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">',
+            '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>',
+            '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>',
+            '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>',
+            '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>',
+            '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>',
+            '<option value="消逝之药">Lv.5：消逝之药</option></select></label>',
             '    </fieldset>',
             '    <fieldset>',
             '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
@@ -327,55 +347,75 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend>其它设置</legend>',
-            '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:50px" type="text" value="10" />秒 ',
-            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />',
+            '      <legend>首页相关</legend>',
             '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ',
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
             '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" checked="checked" />高亮首页VIP标识 ',
-            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label><br />',
+            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label>',
+            '    </fieldset>',
+            '    <fieldset>',
+            '      <legend>帖子列表页面相关</legend>',
             '      <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />',
-            '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label><br />',
-            '      <label>页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" value="5" />',
-            '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label>',
-            '      <label style="margin-left:10px">帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
+            '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label>',
+            '      <label style="margin-left:10px">页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" value="5" />',
+            '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label><br />',
+            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
             '<option value="20">20</option><option value="30">30</option></select>',
-            '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label><br />',
-            '      <label><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
-            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label><br />',
-            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:52px" type="text" />',
-            '<input type="color" id="pd_cfg_custom_my_sm_color_select">',
-            '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">',
-            '[?]</a></label>',
+            '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
+            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
+            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>',
+            '    </fieldset>',
+            '    <fieldset>',
+            '      <legend>帖子页面相关</legend>',
+            '      <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ',
+            '<a class="pd_cfg_tips" href="#" title="调整帖子内容宽度，使其保持一致">[?]</a></label>',
+            '      <label style="margin-left:10px">帖子内容字体大小<input id="pd_cfg_thread_content_font_size" maxlength="2" style="width:20px" type="text" />px ',
+            '<a class="pd_cfg_tips" href="#" title="帖子内容字体大小，留空表示使用默认大小，推荐值：14">[?]</a></label><br />',
+            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />',
+            '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">',
+            '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label>',
+            '    </fieldset>',
+            '    <fieldset>',
+            '      <legend>其它设置</legend>',
+            '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" value="10" />秒 ',
+            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>',
             '    </fieldset>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
             '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>',
-            '    <button id="pd_cfg_ok">确定</button><button id="pd_cfg_cancel">取消</button><button id="pd_cfg_default">默认值</button>',
+            '    <button>确定</button><button>取消</button><button>默认值</button>',
             '  </div>',
             '</div>',
             '</form>'
         ].join('');
-        $('body').append(html);
-        var resizeBox = function () {
-            var $box = $('#pd_cfg_box');
-            if ($box.length == 0) return;
-            $box.css('top', $(window).height() / 2 - $box.height() / 2)
-                .css('left', $(window).width() / 2 - $box.width() / 2);
-        };
-        resizeBox();
-        $configBox = $('#pd_cfg_box');
-        $configBox.find('h1 span, #pd_cfg_cancel').click(ConfigDialog.close)
-            .end().find('.pd_cfg_tips').click(function () {
-                return false;
-            });
-        $('#pd_cfg_default').click(function () {
+        $configBox = $(html).appendTo('body');
+        ConfigDialog.resize('pd_config');
+        $configBox.keydown(function (event) {
+            if (event.key === 'Esc' || event.key === 'Escape') {
+                return ConfigDialog.close('pd_config');
+            }
+        }).find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
+            return ConfigDialog.close('pd_config');
+        }).end().find('.pd_cfg_nav > a:first-child').click(function (event) {
+            event.preventDefault();
+            ConfigDialog.showImportOrExportSettingDialog();
+        }).end().find('.pd_cfg_tips').click(function () {
+            return false;
+        }).end().find('.pd_cfg_btns > button:last').click(function (event) {
+            event.preventDefault();
             if (window.confirm('是否重置所有设置？')) {
                 ConfigDialog.clearConfig();
                 alert('设置已重置');
                 location.reload();
             }
-            return false;
+        });
+        $('#pd_cfg_auto_use_item_names').keydown(function (event) {
+            if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+                event.preventDefault();
+                $(this).children().each(function () {
+                    $(this).prop('selected', true);
+                });
+            }
         });
         $('#pd_cfg_custom_my_sm_color_select').change(function () {
             $('#pd_cfg_custom_my_sm_color').val($(this).val().toString().toUpperCase());
@@ -386,14 +426,11 @@ var ConfigDialog = {
                 $('#pd_cfg_custom_my_sm_color_select').val(customMySmColor.toUpperCase());
             }
         });
-        $(window).on('resize.pd_cfg_box', resizeBox)
-            .on('keydown.pd_cfg_box', function (event) {
-                if (event.key === 'Esc' || event.key === 'Escape') {
-                    $('#pd_cfg_cancel').click();
-                }
-            });
+        $(window).on('resize.pd_config', function () {
+            ConfigDialog.resize('pd_config');
+        });
         ConfigDialog.setValue();
-        $configBox.parent().submit(function (event) {
+        $configBox.submit(function (event) {
             event.preventDefault();
             if (!ConfigDialog.verify()) return;
             var oriAutoRefreshEnabled = Config.autoRefreshEnabled;
@@ -401,7 +438,7 @@ var ConfigDialog = {
             options = ConfigDialog.getNormalizationConfig(options);
             Config = $.extend({}, Config, options);
             ConfigDialog.writeConfig();
-            ConfigDialog.close();
+            ConfigDialog.close('pd_config');
             if (oriAutoRefreshEnabled !== options.autoRefreshEnabled) {
                 if (window.confirm('你已修改了定时模式的设置，需要刷新页面才能生效，是否立即刷新？')) {
                     location.reload();
@@ -421,11 +458,84 @@ var ConfigDialog = {
     },
 
     /**
-     * 关闭设置对话框
+     * 关闭对话框
+     * @param {string} boxId 对话框ID
+     * @returns {boolean} 返回false
      */
-    close: function () {
-        $('#pd_cfg_box').remove();
-        $(window).off('resize.pd_cfg_box').off('keydown.pd_cfg_box');
+    close: function (boxId) {
+        $('#' + boxId).parent('form').remove();
+        $(window).off('resize.' + boxId);
+        return false;
+    },
+
+    /**
+     * 调整对话框的位置和大小
+     * @param {string} boxId 对话框ID
+     */
+    resize: function (boxId) {
+        var $box = $('#' + boxId);
+        if ($box.length == 0) return;
+        $box.find('.pd_cfg_main').css('max-height', $(window).height() - 80);
+        $box.css('top', $(window).height() / 2 - $box.height() / 2)
+            .css('left', $(window).width() / 2 - $box.width() / 2);
+    },
+
+    /**
+     * 显示导入或导出设置对话框
+     */
+    showImportOrExportSettingDialog: function () {
+        var $configBox = $('#pd_im_or_ex_setting');
+        if ($configBox.length > 0) return;
+        var html = [
+            '<form>',
+            '<div class="pd_cfg_box" id="pd_im_or_ex_setting">',
+            '  <h1>导入或导出设置<span>×</span></h1>',
+            '  <div class="pd_cfg_main">',
+            '    <label>',
+            '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />',
+            '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可',
+            '      <textarea id="pd_cfg_setting" style="width:98%;height:200px;word-break:break-all"></textarea>',
+            '    </label>',
+            '  </div>',
+            '  <div class="pd_cfg_btns">',
+            '    <button>保存</button><button>取消</button>',
+            '  </div>',
+            '</div>',
+            '</form>'
+        ].join('');
+        $configBox = $(html).appendTo('body');
+        ConfigDialog.resize('pd_im_or_ex_setting');
+        $configBox.find('h1 > span').click(function () {
+            return ConfigDialog.close('pd_im_or_ex_setting');
+        }).end().find('.pd_cfg_tips').click(function () {
+            return false;
+        }).end().find('.pd_cfg_btns > button:eq(0)').click(function (event) {
+            event.preventDefault();
+            var options = $.trim($('#pd_cfg_setting').val());
+            if (!options) return;
+            try {
+                options = JSON.parse(options);
+            }
+            catch (ex) {
+                alert('设置有错误');
+                return;
+            }
+            if (!options || $.type(options) !== 'object') {
+                alert('设置有错误');
+                return;
+            }
+            options = ConfigDialog.getNormalizationConfig(options);
+            Config = $.extend({}, ConfigDialog.defConfig, options);
+            ConfigDialog.writeConfig();
+            alert('设置已导入');
+            location.reload();
+        }).next('button').click(function () {
+            return ConfigDialog.close('pd_im_or_ex_setting');
+        });
+        $(window).on('resize.pd_im_or_ex_setting', function () {
+            ConfigDialog.resize('pd_im_or_ex_setting');
+        });
+        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
     },
 
     /**
@@ -442,17 +552,21 @@ var ConfigDialog = {
         $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked', Config.autoDrawItemOrCardEnabled);
         $('#pd_cfg_auto_draw_item_or_card_type').val(Config.autoDrawItemOrCardType);
         $('#pd_convert_card_to_vip_time_enabled').prop('checked', Config.autoConvertCardToVipTimeEnabled);
+        $('#pd_cfg_auto_use_item_enabled').prop('checked', Config.autoUseItemEnabled);
+        $('#pd_cfg_auto_use_item_names').val(Config.autoUseItemNames);
         $('#pd_cfg_auto_refresh_enabled').prop('checked', Config.autoRefreshEnabled);
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
-        $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
         $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked', Config.showFastGotoThreadPageEnabled);
         $('#pd_cfg_max_fast_goto_thread_page_num').val(Config.maxFastGotoThreadPageNum);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
         $('#pd_cfg_highlight_new_post_enabled').prop('checked', Config.highlightNewPostEnabled);
+        $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked', Config.adjustThreadContentWidthEnabled);
+        $('#pd_cfg_thread_content_font_size').val(Config.threadContentFontSize > 0 ? Config.threadContentFontSize : '');
         $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
+        $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
     },
 
     /**
@@ -472,16 +586,20 @@ var ConfigDialog = {
         options.autoDrawItemOrCardEnabled = $('#pd_cfg_auto_draw_item_or_card_enabled').prop('checked');
         options.autoDrawItemOrCardType = parseInt($('#pd_cfg_auto_draw_item_or_card_type').val());
         options.autoConvertCardToVipTimeEnabled = $('#pd_convert_card_to_vip_time_enabled').prop('checked');
+        options.autoUseItemEnabled = $('#pd_cfg_auto_use_item_enabled').prop('checked');
+        options.autoUseItemNames = $('#pd_cfg_auto_use_item_names').val();
         options.autoRefreshEnabled = $('#pd_cfg_auto_refresh_enabled').prop('checked');
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
-        options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
         options.showFastGotoThreadPageEnabled = $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked');
         options.maxFastGotoThreadPageNum = parseInt($.trim($('#pd_cfg_max_fast_goto_thread_page_num').val()));
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
         options.highlightNewPostEnabled = $('#pd_cfg_highlight_new_post_enabled').prop('checked');
+        options.adjustThreadContentWidthEnabled = $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked');
+        options.threadContentFontSize = parseInt($.trim($('#pd_cfg_thread_content_font_size').val()));
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
+        options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         return options;
     },
 
@@ -547,15 +665,6 @@ var ConfigDialog = {
             }
         }
 
-        var $txtDefShowMsgDuration = $('#pd_cfg_def_show_msg_duration');
-        var defShowMsgDuration = $.trim($txtDefShowMsgDuration.val());
-        if (!$.isNumeric(defShowMsgDuration) || parseInt(defShowMsgDuration) < -1) {
-            alert('默认提示消息的持续时间格式不正确');
-            $txtDefShowMsgDuration.select();
-            $txtDefShowMsgDuration.focus();
-            return false;
-        }
-
         var $txtMaxFastGotoThreadPageNum = $('#pd_cfg_max_fast_goto_thread_page_num');
         var maxFastGotoThreadPageNum = $.trim($txtMaxFastGotoThreadPageNum.val());
         if (!$.isNumeric(maxFastGotoThreadPageNum) || parseInt(maxFastGotoThreadPageNum) <= 0) {
@@ -565,12 +674,30 @@ var ConfigDialog = {
             return false;
         }
 
+        var $txtThreadContentFontSize = $('#pd_cfg_thread_content_font_size');
+        var threadContentFontSize = $.trim($txtThreadContentFontSize.val());
+        if (threadContentFontSize && (isNaN(parseInt(threadContentFontSize)) || parseInt(threadContentFontSize) < 0)) {
+            alert('帖子内容字体大小格式不正确');
+            $txtThreadContentFontSize.select();
+            $txtThreadContentFontSize.focus();
+            return false;
+        }
+
         var $txtCustomMySmColor = $('#pd_cfg_custom_my_sm_color');
         var customMySmColor = $.trim($txtCustomMySmColor.val());
         if (customMySmColor && !/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
             alert('自定义本人的神秘颜色格式不正确，例：#009CFF');
             $txtCustomMySmColor.select();
             $txtCustomMySmColor.focus();
+            return false;
+        }
+
+        var $txtDefShowMsgDuration = $('#pd_cfg_def_show_msg_duration');
+        var defShowMsgDuration = $.trim($txtDefShowMsgDuration.val());
+        if (!$.isNumeric(defShowMsgDuration) || parseInt(defShowMsgDuration) < -1) {
+            alert('默认提示消息的持续时间格式不正确');
+            $txtDefShowMsgDuration.select();
+            $txtDefShowMsgDuration.focus();
             return false;
         }
 
@@ -628,6 +755,22 @@ var ConfigDialog = {
         }
         settings.autoConvertCardToVipTimeEnabled = typeof options.autoConvertCardToVipTimeEnabled === 'boolean' ?
             options.autoConvertCardToVipTimeEnabled : defConfig.autoConvertCardToVipTimeEnabled;
+        settings.autoUseItemEnabled = typeof options.autoUseItemEnabled === 'boolean' ?
+            options.autoUseItemEnabled : defConfig.autoUseItemEnabled;
+        if (typeof options.autoUseItemNames !== 'undefined') {
+            var autoUseItemNames = options.autoUseItemNames;
+            var allowTypes = ['被遗弃的告白信', '学校天台的钥匙', 'TMA最新作压缩包', 'LOLI的钱包', '棒棒糖', '蕾米莉亚同人漫画',
+                '十六夜同人漫画', '档案室钥匙', '傲娇LOLI娇蛮音CD', '整形优惠卷', '消逝之药'];
+            if ($.isArray(autoUseItemNames)) {
+                settings.autoUseItemNames = [];
+                for (var i in autoUseItemNames) {
+                    if ($.inArray(autoUseItemNames[i], allowTypes) > -1) {
+                        settings.autoUseItemNames.push(autoUseItemNames[i]);
+                    }
+                }
+            }
+            else settings.autoUseItemNames = defConfig.autoUseItemNames;
+        }
         settings.autoRefreshEnabled = typeof options.autoRefreshEnabled === 'boolean' ?
             options.autoRefreshEnabled : defConfig.autoRefreshEnabled;
         if (typeof options.showRefreshModeTipsType !== 'undefined') {
@@ -636,12 +779,6 @@ var ConfigDialog = {
             if (showRefreshModeTipsType !== '' && $.inArray(showRefreshModeTipsType, allowTypes) > -1)
                 settings.showRefreshModeTipsType = showRefreshModeTipsType;
             else settings.showRefreshModeTipsType = defConfig.showRefreshModeTipsType;
-        }
-        if (typeof options.defShowMsgDuration !== 'undefined') {
-            var defShowMsgDuration = parseInt(options.defShowMsgDuration);
-            if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
-                settings.defShowMsgDuration = defShowMsgDuration;
-            else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
         }
         settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
             options.hideMarkReadAtTipsEnabled : defConfig.hideMarkReadAtTipsEnabled;
@@ -663,11 +800,24 @@ var ConfigDialog = {
         }
         settings.highlightNewPostEnabled = typeof options.highlightNewPostEnabled === 'boolean' ?
             options.highlightNewPostEnabled : defConfig.highlightNewPostEnabled;
+        settings.adjustThreadContentWidthEnabled = typeof options.adjustThreadContentWidthEnabled === 'boolean' ?
+            options.adjustThreadContentWidthEnabled : defConfig.adjustThreadContentWidthEnabled;
+        if (typeof options.threadContentFontSize !== 'undefined') {
+            var threadContentFontSize = parseInt(options.threadContentFontSize);
+            if (threadContentFontSize > 0) settings.threadContentFontSize = threadContentFontSize;
+            else settings.threadContentFontSize = defConfig.threadContentFontSize;
+        }
         if (typeof options.customMySmColor !== 'undefined') {
             var customMySmColor = options.customMySmColor;
             if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor))
                 settings.customMySmColor = customMySmColor;
             else settings.customMySmColor = defConfig.customMySmColor;
+        }
+        if (typeof options.defShowMsgDuration !== 'undefined') {
+            var defShowMsgDuration = parseInt(options.defShowMsgDuration);
+            if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
+                settings.defShowMsgDuration = defShowMsgDuration;
+            else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
         }
         return settings;
     },
@@ -679,7 +829,7 @@ var ConfigDialog = {
         var options = localStorage[ConfigDialog.configName];
         if (!options) return;
         try {
-            options = JSON.parse(localStorage[ConfigDialog.configName]);
+            options = JSON.parse(options);
         }
         catch (ex) {
             return;
@@ -1085,7 +1235,7 @@ var Item = {
                                     .replace('{0}', failNum)
                                     .replace('{1}', logStat)
                             );
-                            $result.append('<li class="pd_result_stat"><b>统计结果{0}：</b><br />{1}</li>'
+                            $result.append('<li class="pd_stat"><b>统计结果{0}：</b><br />{1}</li>'
                                     .replace('{0}', failNum > 0 ?
                                         '<span class="pd_notice">（共有{0}个道具未能统计成功）</span>'.replace('{0}', failNum)
                                         : '')
@@ -1313,7 +1463,7 @@ var Item = {
                                 });
                         }
                         if (resultStat === '') resultStat = '<i>无</i>';
-                        $('.pd_result').last().append('<li class="pd_result_stat"><b>统计结果：</b>{0}</li>'.replace('{0}', resultStat));
+                        $('.pd_result').last().append('<li class="pd_stat"><b>统计结果：</b>{0}</li>'.replace('{0}', resultStat));
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('UseItems');
@@ -1353,7 +1503,7 @@ var Item = {
                 KFOL.showWaitMsg('<strong>正在使用道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                         .replace('{0}', urlList.length)
                     , true);
-                Item.useItems({
+                KFOL.useItems({
                     type: 2,
                     urlList: urlList,
                     safeId: safeId
@@ -1375,27 +1525,7 @@ var Item = {
 /**
  * 卡片类
  */
-var Card = {
-    /**
-     * 将指定的卡片转换为VIP时间
-     * @param {number} cardId 指定的卡片ID
-     */
-    convertCardToVipTime: function (cardId) {
-        if (!cardId || cardId < 0) return;
-        var safeId = KFOL.getSafeId();
-        if (!safeId) return;
-        $.get('kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId),
-            function (html) {
-                Tools.setCookie(Config.convertCardToVipTimeCookieName, '');
-                KFOL.showFormatLog('将卡片转换为VIP时间', html);
-                var matches = /增加(\d+)小时VIP时间(?:.*?获得(\d+)点恢复能量)?/i.exec(html);
-                if (!matches) return;
-                var msg = '<strong><em>1</em>张卡片被转换为VIP时间</strong><i>VIP小时<em>+{0}</em></i>'.replace('{0}', matches[1]);
-                if (typeof matches[2] !== 'undefined') msg += '<i>能量<em>+{0}</em></i>'.replace('{0}', matches[2]);
-                KFOL.showMsg(msg);
-            }, 'html');
-    }
-};
+var Card = {};
 
 /**
  * 银行类
@@ -1541,6 +1671,11 @@ var Bank = {
                                     .replace('{1}', failNum)
                                     .replace('{2}', successMoney)
                             );
+                            $('.pd_result').last().append('<li><b>共有<em>{0}</em>名用户转账成功{1}：</b>KFB<em>-{2}</em></li>'
+                                    .replace('{0}', successNum)
+                                    .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>名用户转账失败'.replace('{0}', failNum) : '')
+                                    .replace('{2}', successMoney)
+                            );
                             KFOL.showMsg('<strong>共有<em>{0}</em>名用户转账成功{1}</strong><i>KFB<em>-{2}</em></i>'
                                     .replace('{0}', successNum)
                                     .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>名用户转账失败'.replace('{0}', failNum) : '')
@@ -1569,12 +1704,12 @@ var Bank = {
             '  <td>',
             '  <form>',
             '    <div style="display:inline-block"><label>用户列表：<br />',
-            '<textarea id="pd_bank_users" style="width:270px;height:250px;font-size:12px"></textarea></label></div>',
+            '<textarea class="pd_textarea" id="pd_bank_users" style="width:270px;height:250px"></textarea></label></div>',
             '    <div style="display:inline-block;margin-left:10px;">',
             '      <label>通用转帐金额（如所有用户都已设定单独金额则可留空）：<br />',
             '<input class="pd_input" id="pd_bank_money" type="text" style="width:220px" maxlength="15" /></label><br />',
             '      <label style="margin-top:5px">转帐附言（可留空）：<br />',
-            '<textarea id="pd_bank_msg" style="width:225px;height:206px;font-size:12px" id="pd_bank_users"></textarea></label>',
+            '<textarea class="pd_textarea" id="pd_bank_msg" style="width:225px;height:206px" id="pd_bank_users"></textarea></label>',
             '    </div>',
             '    <div><label><input class="pd_input" type="submit" value="批量转账" /></label> ',
             '（活期存款不足时，可自动进行存款；在正常情况下，批量转账金额不会从定期存款中扣除）</div>',
@@ -1648,7 +1783,7 @@ var Bank = {
                 KFOL.showWaitMsg('<strong>正在批量转账中，请耐心等待...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                         .replace('{0}', users.length)
                     , true);
-                $('#pd_bank_transfer > td:last-child').append('<ul class="pd_result pd_result_stat"><li><strong>转账结果：</strong></li></ul>');
+                $('#pd_bank_transfer > td:last-child').append('<ul class="pd_result pd_stat"><li><strong>转账结果：</strong></li></ul>');
                 Bank.batchTransfer(users, msg, isDeposited, currentDeposit);
             });
     }
@@ -1697,13 +1832,14 @@ var KFOL = {
             '}',
             '.pd_pop_tips strong { margin-right: 5px; }',
             '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
-            '.pd_pop_tips em, .pd_result_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
+            '.pd_pop_tips em, .pd_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
             '.pd_highlight { color: #FF0000 !important; }',
             '.pd_notice, .pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
-            '.pd_input, .pd_cfg_main input { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; }',
+            '.pd_input, .pd_cfg_main input, .pd_cfg_main select { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; font-size: 12px; }',
             '.pd_input[type="text"], .pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
-            '.pd_input:focus, .pd_cfg_main input[type="text"]:focus { border-color: #7EB4EA; }',
+            '.pd_input:focus, .pd_cfg_main input[type="text"]:focus, .pd_cfg_main textarea:focus, .pd_textarea:focus { border-color: #7EB4EA; }',
+            '.pd_textarea, .pd_cfg_main textarea { border: 1px solid #CCC; font-size: 12px; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
             '.pd_fast_goto_floor { margin-right: 5px; }',
@@ -1712,17 +1848,19 @@ var KFOL = {
             '.pd_item_btns { text-align: right; margin-top: 5px; }',
             '.pd_item_btns button { margin-left: 3px; }',
             '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
-            '.pd_result_stat i { font-style: normal; margin-right: 10px; }',
-            '.pd_result_stat .pd_notice { margin-left: 5px; }',
+            '.pd_stat i { font-style: normal; margin-right: 10px; }',
+            '.pd_stat .pd_notice { margin-left: 5px; }',
             '.pd_thread_page { margin-left: 5px; }',
             '.pd_thread_page a { color: #444; padding: 0 3px; }',
             '.pd_thread_page a:hover { color: #51D; }',
 
             /* 设置对话框 */
-            '#pd_cfg_box { position: fixed; width: 400px; border: 1px solid #9191FF; }',
-            '#pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }',
-            '#pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }',
-            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; max-height: 600px; overflow: auto; }',
+            '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }',
+            '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }',
+            '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }',
+            '#pd_config, #pd_im_or_ex_setting { width: 400px; }',
+            '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }',
+            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }',
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
             '.pd_cfg_main legend { font-weight: bold; }',
             '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }',
@@ -1768,8 +1906,6 @@ var KFOL = {
             if (settings.preventable) $('<div class="pd_layer"></div>').appendTo('body');
             $popBox = $('<div class="pd_pop_box"></div>').appendTo('body');
         }
-        var length = $popBox.data('length');
-        length = length ? length : 0;
         var $popTips = $('<div class="pd_pop_tips">' + settings.msg + '</div>').appendTo($popBox);
         if (settings.clickable) {
             $popTips.css('cursor', 'pointer').click(function () {
@@ -1780,7 +1916,6 @@ var KFOL = {
                 event.stopPropagation();
             });
         }
-        $popBox.data('length', length + 1);
         var popTipsHeight = $popTips.outerHeight();
         var popTipsWidth = $popTips.outerWidth();
         if (isFirst) {
@@ -1789,7 +1924,8 @@ var KFOL = {
         else {
             $popBox.animate({'top': '-=' + popTipsHeight / 1.5});
         }
-        $popTips.css('top', (popTipsHeight + 5) * length)
+        var $prev = $popTips.prev('.pd_pop_tips');
+        $popTips.css('top', $prev.length > 0 ? parseInt($prev.css('top')) + $prev.outerHeight() + 5 : 0)
             .css('left', $(window).width() / 2 - popTipsWidth / 2)
             .fadeIn('slow');
         if (settings.duration !== -1) {
@@ -2027,14 +2163,78 @@ var KFOL = {
             if (KFOL.isInHomePage) {
                 $('a[href="kf_fw_ig_one.php"].indbox5').removeClass('indbox5').addClass('indbox6');
             }
-            if (type === 2) {
-                if (!Config.autoConvertCardToVipTimeEnabled) return;
+            if (type === 1 && Config.autoUseItemEnabled) {
+                var itemMatches = /pro=(\d+)/i.exec(matches[1]);
+                if (itemMatches) {
+                    Tools.setCookie(Config.autoUseItemCookieName, itemMatches[1], Tools.getDate('+1d'));
+                    KFOL.useItem(parseInt(itemMatches[1]));
+                }
+            }
+            else if (type === 2 && Config.autoConvertCardToVipTimeEnabled) {
                 var cardMatches = /id=(\d+)/i.exec(matches[1]);
-                if (!cardMatches) return;
-                Tools.setCookie(Config.convertCardToVipTimeCookieName, cardMatches[1], Tools.getDate('+1d'));
-                Card.convertCardToVipTime(cardMatches[1]);
+                if (cardMatches) {
+                    Tools.setCookie(Config.convertCardToVipTimeCookieName, cardMatches[1], Tools.getDate('+1d'));
+                    KFOL.convertCardToVipTime(parseInt(cardMatches[1]));
+                }
             }
         }, 'html');
+    },
+
+    /**
+     * 使用指定道具
+     * @param {number} itemId 道具ID
+     */
+    useItem: function (itemId) {
+        $.get('kf_fw_ig_my.php?pro=' + itemId, function (html) {
+            var itemMatches = /道具名称：(.+?)<\/span>/i.exec(html);
+            var levelMatches = /道具等级：(\d+)级道具/i.exec(html);
+            if (itemMatches && levelMatches) {
+                if ($.inArray(itemMatches[1], Config.autoUseItemNames) > -1 && />未使用<\/span>/i.test(html)) {
+                    $.get('kf_fw_ig_doit.php?id=' + itemId, function (html) {
+                        Tools.setCookie(Config.autoUseItemCookieName, '', Tools.getDate('-1d'));
+                        var msgMatches = /<span style=".+?">(.+?)<\/span><br \/><a href=".+?">/i.exec(html);
+                        if (!msgMatches) return;
+                        console.log('道具【Lv.{0}{1}】被使用：{2}'
+                                .replace('{0}', levelMatches[1])
+                                .replace('{1}', itemMatches[1])
+                                .replace('{2}', msgMatches[1])
+                        );
+                        var msg = '道具【<b><em>Lv.{0}</em>{1}</b>】被使用：<br /><span style="font-style:italic">{2}</span>'
+                            .replace('{0}', levelMatches[1])
+                            .replace('{1}', itemMatches[1])
+                            .replace('{2}', msgMatches[1]);
+                        KFOL.showMsg(msg);
+                    }, 'html');
+                }
+                else {
+                    Tools.setCookie(Config.autoUseItemCookieName, '', Tools.getDate('-1d'));
+                }
+            }
+            else {
+                if (/提交速度过快/.test(html)) return;
+                Tools.setCookie(Config.autoUseItemCookieName, '', Tools.getDate('-1d'));
+            }
+        }, 'html');
+    },
+
+    /**
+     * 将指定的卡片转换为VIP时间
+     * @param {number} cardId 指定的卡片ID
+     */
+    convertCardToVipTime: function (cardId) {
+        if (!cardId || cardId < 0) return;
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
+        $.get('kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId),
+            function (html) {
+                Tools.setCookie(Config.convertCardToVipTimeCookieName, '', Tools.getDate('-1d'));
+                KFOL.showFormatLog('将卡片转换为VIP时间', html);
+                var matches = /增加(\d+)小时VIP时间(?:.*?获得(\d+)点恢复能量)?/i.exec(html);
+                if (!matches) return;
+                var msg = '<strong><em>1</em>张卡片被转换为VIP时间</strong><i>VIP小时<em>+{0}</em></i>'.replace('{0}', matches[1]);
+                if (typeof matches[2] !== 'undefined') msg += '<i>能量<em>+{0}</em></i>'.replace('{0}', matches[2]);
+                KFOL.showMsg(msg);
+            }, 'html');
     },
 
     /**
@@ -2262,7 +2462,7 @@ var KFOL = {
         else {
             var html = ('<div style="width:300px;"><a href="guanjianci.php?gjc={0}" target="_blank" class="indbox6">最近无人@你</a>' +
             '<br /><div class="line"></div><div class="c"></div></div><div class="line"></div>')
-                .replace('{0}', encodeURI(KFOL.userName));
+                .replace('{0}', KFOL.userName);
             $('a[href="kf_vmember.php"]:contains("VIP会员")').parent().before(html);
         }
     },
@@ -2300,7 +2500,7 @@ var KFOL = {
      * 添加快速跳转到指定楼层的输入框
      */
     addFastGotoFloorInput: function () {
-        $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:35px" type="text" maxlength="8" /> ' +
+        $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
         '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
             .submit(function (event) {
@@ -2320,7 +2520,6 @@ var KFOL = {
             .end()
             .closest('div').next()
             .css({'max-width': '530px', 'white-space': 'nowrap', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});
-
     },
 
     /**
@@ -2340,11 +2539,12 @@ var KFOL = {
      * 添加快速跳转到指定页数的输入框
      */
     addFastGotoPageInput: function () {
-        $('<li class="pd_fast_goto_page">跳至 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> <span>页</span></li>')
+        $('<form><li class="pd_fast_goto_page">跳至 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
+        '<span>页</span></li></form>')
             .appendTo('table > tbody > tr > td > div > ul.pages')
-            .find('span')
-            .click(function () {
-                var page = parseInt($.trim($(this).prev('input').val()));
+            .submit(function (event) {
+                event.preventDefault();
+                var page = parseInt($.trim($(this).find('input').val()));
                 if (!page || page <= 0) return;
                 var fpage = parseInt(Tools.getUrlParam('fpage'));
                 location.href = '{0}read.php?tid={1}&page={2}{3}'
@@ -2353,13 +2553,9 @@ var KFOL = {
                     .replace('{2}', page)
                     .replace('{3}', fpage ? '&fpage=' + fpage : '');
             })
-            .end()
-            .find('input')
-            .keydown(function (event) {
-                if (event.key === 'Enter') {
-                    $(this).next('span').click();
-                    return false;
-                }
+            .find('span')
+            .click(function () {
+                $(this).closest('form').submit();
             });
     },
 
@@ -2418,6 +2614,28 @@ var KFOL = {
     },
 
     /**
+     * 调整帖子内容宽度，使其保持一致
+     */
+    adjustThreadContentWidth: function () {
+        $('head').append(['<style type="text/css">',
+            '.readtext > table > tbody > tr > td { padding-left: 192px; }',
+            '.readidms, .readidm { margin-left: -192px !important; }',
+            '</style>'].join(''));
+    },
+
+    /**
+     * 调整帖子内容字体大小
+     */
+    adjustThreadContentFontSize: function () {
+        if (Config.threadContentFontSize > 0 && Config.threadContentFontSize !== 12) {
+            $('head').append(['<style type="text/css">',
+                '.readtext td { font-size: {0}px; line-height: 1.6em; }'.replace('{0}', Config.threadContentFontSize),
+                '.readtext td > div, .readtext td > .read_fds { font-size: 12px; }',
+                '</style>'].join(''));
+        }
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -2427,7 +2645,10 @@ var KFOL = {
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
         ConfigDialog.init();
+        KFOL.appendCss();
         if (location.pathname === '/read.php') {
+            if (Config.adjustThreadContentWidthEnabled) KFOL.adjustThreadContentWidth();
+            KFOL.adjustThreadContentFontSize();
             KFOL.fastGotoFloor();
             KFOL.addFloorGotoLink();
             KFOL.addFastGotoFloorInput();
@@ -2439,7 +2660,6 @@ var KFOL = {
         }
         KFOL.getUidAndUserName();
         if (!KFOL.uid) return;
-        KFOL.appendCss();
         KFOL.addConfigDialogLink();
 
         if (KFOL.isInHomePage) {
@@ -2466,10 +2686,15 @@ var KFOL = {
         if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
             KFOL.drawItemOrCard();
         }
-
-        if (Config.autoDrawItemOrCardEnabled && Config.autoConvertCardToVipTimeEnabled) {
-            var cardId = parseInt(Tools.getCookie(Config.convertCardToVipTimeCookieName));
-            if (cardId > 0) Card.convertCardToVipTime(cardId);
+        if (Config.autoDrawItemOrCardEnabled) {
+            if (Config.autoUseItemEnabled) {
+                var itemId = parseInt(Tools.getCookie(Config.autoUseItemCookieName));
+                if (itemId > 0) KFOL.useItem(itemId);
+            }
+            if (Config.autoConvertCardToVipTimeEnabled) {
+                var cardId = parseInt(Tools.getCookie(Config.convertCardToVipTimeCookieName));
+                if (cardId > 0) KFOL.convertCardToVipTime(cardId);
+            }
         }
 
         if (autoDonationAvailable && !isDrawSmboxStarted) {
