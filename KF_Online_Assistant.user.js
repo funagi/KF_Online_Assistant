@@ -1503,7 +1503,7 @@ var Item = {
                 KFOL.showWaitMsg('<strong>正在使用道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                         .replace('{0}', urlList.length)
                     , true);
-                KFOL.useItems({
+                Item.useItems({
                     type: 2,
                     urlList: urlList,
                     safeId: safeId
