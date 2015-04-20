@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     2.9.1
+// @version     3.0.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -274,6 +274,29 @@ var Tools = {
         var encodeStr = img.src.split('nothing?sp=').pop();
         $(img).remove();
         return encodeStr;
+    },
+
+    /**
+     * 关闭对话框
+     * @param {string} boxId 对话框ID
+     * @returns {boolean} 返回false
+     */
+    close: function (boxId) {
+        $('#' + boxId).parent('form').remove();
+        $(window).off('resize.' + boxId);
+        return false;
+    },
+
+    /**
+     * 调整对话框的位置和大小
+     * @param {string} boxId 对话框ID
+     */
+    resize: function (boxId) {
+        var $box = $('#' + boxId);
+        if ($box.length == 0) return;
+        $box.find('.pd_cfg_main').css('max-height', $(window).height() - 80);
+        $box.css('top', $(window).height() / 2 - $box.height() / 2)
+            .css('left', $(window).width() / 2 - $box.width() / 2);
     }
 };
 
@@ -298,8 +321,7 @@ var ConfigDialog = {
      * 显示设置对话框
      */
     show: function () {
-        var $configBox = $('#pd_config');
-        if ($configBox.length > 0) return;
+        if ($('#pd_config').length > 0) return;
         var html = [
             '<form>',
             '<div id="pd_config" class="pd_cfg_box">',
@@ -307,7 +329,7 @@ var ConfigDialog = {
             '  <div class="pd_cfg_main">',
             '    <div class="pd_cfg_nav"><a href="#">导入/导出设置</a></div>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</legend>',
+            '      <legend><label><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</label></legend>',
             '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" value="1" />',
             '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
             '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" value="00:05:00" />',
@@ -316,7 +338,7 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</legend>',
+            '      <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>',
             '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />',
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">',
             '[?]</a></label><br />',
@@ -324,7 +346,7 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</legend>',
+            '      <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>',
             '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
             '<option value="2">只抽道具</option></select></label><br />',
             '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ',
@@ -340,8 +362,8 @@ var ConfigDialog = {
             '<option value="消逝之药">Lv.5：消逝之药</option></select></label>',
             '    </fieldset>',
             '    <fieldset>',
-            '      <legend><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
-            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></legend>',
+            '      <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
+            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></label></legend>',
             '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>',
             '<option value="always">总是显示</option><option value="never">不显示</option></select>',
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>',
@@ -388,14 +410,14 @@ var ConfigDialog = {
             '</div>',
             '</form>'
         ].join('');
-        $configBox = $(html).appendTo('body');
-        ConfigDialog.resize('pd_config');
-        $configBox.keydown(function (event) {
+        var $dialog = $(html).appendTo('body');
+        Tools.resize('pd_config');
+        $dialog.keydown(function (event) {
             if (event.key === 'Esc' || event.key === 'Escape') {
-                return ConfigDialog.close('pd_config');
+                return Tools.close('pd_config');
             }
         }).find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
-            return ConfigDialog.close('pd_config');
+            return Tools.close('pd_config');
         }).end().find('.pd_cfg_nav > a:first-child').click(function (event) {
             event.preventDefault();
             ConfigDialog.showImportOrExportSettingDialog();
@@ -427,10 +449,10 @@ var ConfigDialog = {
             }
         });
         $(window).on('resize.pd_config', function () {
-            ConfigDialog.resize('pd_config');
+            Tools.resize('pd_config');
         });
         ConfigDialog.setValue();
-        $configBox.submit(function (event) {
+        $dialog.submit(function (event) {
             event.preventDefault();
             if (!ConfigDialog.verify()) return;
             var oriAutoRefreshEnabled = Config.autoRefreshEnabled;
@@ -438,15 +460,15 @@ var ConfigDialog = {
             options = ConfigDialog.getNormalizationConfig(options);
             Config = $.extend({}, Config, options);
             ConfigDialog.writeConfig();
-            ConfigDialog.close('pd_config');
+            Tools.close('pd_config');
             if (oriAutoRefreshEnabled !== options.autoRefreshEnabled) {
                 if (window.confirm('你已修改了定时模式的设置，需要刷新页面才能生效，是否立即刷新？')) {
                     location.reload();
                 }
             }
-        }).find('legend > input[type="checkbox"]').click(function () {
+        }).find('legend input[type="checkbox"]').click(function () {
             var checked = $(this).prop('checked');
-            $(this).parent().nextAll('label').find('input, select, textarea').prop('disabled', !checked);
+            $(this).closest('legend').nextAll('label').find('input, select, textarea').prop('disabled', !checked);
         }).each(function () {
             $(this).triggerHandler('click');
         }).end().find('input[data-disabled]').click(function () {
@@ -458,44 +480,20 @@ var ConfigDialog = {
     },
 
     /**
-     * 关闭对话框
-     * @param {string} boxId 对话框ID
-     * @returns {boolean} 返回false
-     */
-    close: function (boxId) {
-        $('#' + boxId).parent('form').remove();
-        $(window).off('resize.' + boxId);
-        return false;
-    },
-
-    /**
-     * 调整对话框的位置和大小
-     * @param {string} boxId 对话框ID
-     */
-    resize: function (boxId) {
-        var $box = $('#' + boxId);
-        if ($box.length == 0) return;
-        $box.find('.pd_cfg_main').css('max-height', $(window).height() - 80);
-        $box.css('top', $(window).height() / 2 - $box.height() / 2)
-            .css('left', $(window).width() / 2 - $box.width() / 2);
-    },
-
-    /**
      * 显示导入或导出设置对话框
      */
     showImportOrExportSettingDialog: function () {
-        var $configBox = $('#pd_im_or_ex_setting');
-        if ($configBox.length > 0) return;
+        if ($('#pd_im_or_ex_setting').length > 0) return;
         var html = [
             '<form>',
             '<div class="pd_cfg_box" id="pd_im_or_ex_setting">',
             '  <h1>导入或导出设置<span>×</span></h1>',
             '  <div class="pd_cfg_main">',
-            '    <label>',
+            '    <div>',
             '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />',
             '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可',
-            '      <textarea id="pd_cfg_setting" style="width:98%;height:200px;word-break:break-all"></textarea>',
-            '    </label>',
+            '    </div>',
+            '    <textarea id="pd_cfg_setting" style="width:420px;height:200px;word-break:break-all"></textarea>',
             '  </div>',
             '  <div class="pd_cfg_btns">',
             '    <button>保存</button><button>取消</button>',
@@ -503,10 +501,10 @@ var ConfigDialog = {
             '</div>',
             '</form>'
         ].join('');
-        $configBox = $(html).appendTo('body');
-        ConfigDialog.resize('pd_im_or_ex_setting');
-        $configBox.find('h1 > span').click(function () {
-            return ConfigDialog.close('pd_im_or_ex_setting');
+        var $dialog = $(html).appendTo('body');
+        Tools.resize('pd_im_or_ex_setting');
+        $dialog.find('h1 > span').click(function () {
+            return Tools.close('pd_im_or_ex_setting');
         }).end().find('.pd_cfg_tips').click(function () {
             return false;
         }).end().find('.pd_cfg_btns > button:eq(0)').click(function (event) {
@@ -530,10 +528,10 @@ var ConfigDialog = {
             alert('设置已导入');
             location.reload();
         }).next('button').click(function () {
-            return ConfigDialog.close('pd_im_or_ex_setting');
+            return Tools.close('pd_im_or_ex_setting');
         });
         $(window).on('resize.pd_im_or_ex_setting', function () {
-            ConfigDialog.resize('pd_im_or_ex_setting');
+            Tools.resize('pd_im_or_ex_setting');
         });
         $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
     },
@@ -1858,7 +1856,7 @@ var KFOL = {
             '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }',
             '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }',
             '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }',
-            '#pd_config, #pd_im_or_ex_setting { width: 400px; }',
+            '#pd_config { width: 400px; }',
             '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }',
             '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }',
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
@@ -2130,54 +2128,53 @@ var KFOL = {
      */
     drawItemOrCard: function () {
         console.log('抽取道具或卡片Start');
-        var param = {one: 1};
-        if (Config.autoDrawItemOrCardType === 2) param.submit2 = '未抽到道具不要给我卡片';
-        else param.submit1 = '正常抽奖20%道具80%卡片';
-        $.post('kf_fw_ig_one.php', param, function (html) {
-            Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getDate('+' + Config.defDrawItemOrCardInterval + 'm'));
-            KFOL.showFormatLog('抽取道具或卡片', html);
-            var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
-            var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
-            var msg = '<strong>抽取道具{0}</strong>'.replace('{0}', Config.autoDrawItemOrCardType === 2 ? '' : '或卡片');
-            var matches = null;
-            var type = 0;
-            if (itemRegex.test(html)) {
-                type = 1;
-                matches = itemRegex.exec(html);
-                msg += '<i>道具<em>+1</em></i><a target="_blank" href="{0}">查看道具</a>'
-                    .replace('{0}', matches[1]);
-            }
-            else if (cardRegex.test(html)) {
-                type = 2;
-                matches = cardRegex.exec(html);
-                msg += '<i>卡片<em>+1</em></i><a target="_blank" href="{0}">查看卡片</a>'
-                    .replace('{0}', matches[1]);
-            }
-            else if (/运气不太好，这次没中/i.test(html)) {
-                msg += '<i class="pd_notice">没有收获</i>';
-            }
-            else {
-                return;
-            }
-            KFOL.showMsg(msg);
-            if (KFOL.isInHomePage) {
-                $('a[href="kf_fw_ig_one.php"].indbox5').removeClass('indbox5').addClass('indbox6');
-            }
-            if (type === 1 && Config.autoUseItemEnabled) {
-                var itemMatches = /pro=(\d+)/i.exec(matches[1]);
-                if (itemMatches) {
-                    Tools.setCookie(Config.autoUseItemCookieName, itemMatches[1], Tools.getDate('+1d'));
-                    KFOL.useItem(parseInt(itemMatches[1]));
+        $.post('kf_fw_ig_one.php',
+            'one=1&' + (Config.autoDrawItemOrCardType === 2 ? 'submit2=未抽到道具不要给我卡片' : 'submit1=正常抽奖20%道具80%卡片'),
+            function (html) {
+                Tools.setCookie(Config.drawItemOrCardCookieName, 1, Tools.getDate('+' + Config.defDrawItemOrCardInterval + 'm'));
+                KFOL.showFormatLog('抽取道具或卡片', html);
+                var itemRegex = /<a href="(kf_fw_ig_my\.php\?pro=\d+)">/i;
+                var cardRegex = /<a href="(kf_fw_card_my\.php\?id=\d+)">/i;
+                var msg = '<strong>抽取道具{0}</strong>'.replace('{0}', Config.autoDrawItemOrCardType === 2 ? '' : '或卡片');
+                var matches = null;
+                var type = 0;
+                if (itemRegex.test(html)) {
+                    type = 1;
+                    matches = itemRegex.exec(html);
+                    msg += '<i>道具<em>+1</em></i><a target="_blank" href="{0}">查看道具</a>'
+                        .replace('{0}', matches[1]);
                 }
-            }
-            else if (type === 2 && Config.autoConvertCardToVipTimeEnabled) {
-                var cardMatches = /id=(\d+)/i.exec(matches[1]);
-                if (cardMatches) {
-                    Tools.setCookie(Config.convertCardToVipTimeCookieName, cardMatches[1], Tools.getDate('+1d'));
-                    KFOL.convertCardToVipTime(parseInt(cardMatches[1]));
+                else if (cardRegex.test(html)) {
+                    type = 2;
+                    matches = cardRegex.exec(html);
+                    msg += '<i>卡片<em>+1</em></i><a target="_blank" href="{0}">查看卡片</a>'
+                        .replace('{0}', matches[1]);
                 }
-            }
-        }, 'html');
+                else if (/运气不太好，这次没中/i.test(html)) {
+                    msg += '<i class="pd_notice">没有收获</i>';
+                }
+                else {
+                    return;
+                }
+                KFOL.showMsg(msg);
+                if (KFOL.isInHomePage) {
+                    $('a[href="kf_fw_ig_one.php"].indbox5').removeClass('indbox5').addClass('indbox6');
+                }
+                if (type === 1 && Config.autoUseItemEnabled) {
+                    var itemMatches = /pro=(\d+)/i.exec(matches[1]);
+                    if (itemMatches) {
+                        Tools.setCookie(Config.autoUseItemCookieName, itemMatches[1], Tools.getDate('+1d'));
+                        KFOL.useItem(parseInt(itemMatches[1]));
+                    }
+                }
+                else if (type === 2 && Config.autoConvertCardToVipTimeEnabled) {
+                    var cardMatches = /id=(\d+)/i.exec(matches[1]);
+                    if (cardMatches) {
+                        Tools.setCookie(Config.convertCardToVipTimeCookieName, cardMatches[1], Tools.getDate('+1d'));
+                        KFOL.convertCardToVipTime(parseInt(cardMatches[1]));
+                    }
+                }
+            }, 'html');
     },
 
     /**
@@ -2313,15 +2310,9 @@ var KFOL = {
                 titleInterval = window.setInterval(showIntervalTitle, Config.showRefreshModeTipsInterval * 60 * 1000);
             }
         };
-        var removeRefreshNotice = function () {
-            var $refreshNotice = $('.pd_refresh_notice').parent();
-            if ($refreshNotice.length > 0) {
-                KFOL.removePopTips($refreshNotice);
-            }
-        };
         var handleError = function (XMLHttpRequest, textStatus) {
             console.log('获取剩余抽奖时间失败，错误信息：' + textStatus);
-            removeRefreshNotice();
+            KFOL.removePopTips($('.pd_refresh_notice').parent());
             KFOL.showMsg('<span class="pd_refresh_notice">获取剩余抽奖时间失败，将在<em>{0}</em>分钟后重试...</span>'
                     .replace('{0}', Config.errorRefreshInterval)
                 , -1);
@@ -2329,13 +2320,16 @@ var KFOL = {
             showRefreshModeTips(Config.errorRefreshInterval * 60, true);
         };
         var checkRefreshInterval = function () {
-            removeRefreshNotice();
-            KFOL.showWaitMsg('<span class="pd_refresh_notice">正在获取抽奖剩余时间...</span>');
+            KFOL.removePopTips($('.pd_refresh_notice').parent());
+            var refreshNoticeTimeout = window.setTimeout(function () {
+                KFOL.showWaitMsg('<span class="pd_refresh_notice">正在获取抽奖剩余时间...</span>');
+            }, 2000);
             $.ajax({
                 url: 'index.php',
                 dataType: 'html',
                 success: function (html) {
-                    removeRefreshNotice();
+                    window.clearTimeout(refreshNoticeTimeout);
+                    KFOL.removePopTips($('.pd_refresh_notice').parent());
                     var drawSmboxInterval = -1, drawItemOrCardInterval = -1;
                     var matches = /<a href="kf_smbox\.php".+?>神秘盒子\(剩余(\d+)分钟\)<\/a>/.exec(html);
                     if (matches) {
@@ -2636,6 +2630,44 @@ var KFOL = {
     },
 
     /**
+     * 添加复制购买人名单的链接
+     */
+    addCopyBuyersListLink: function () {
+        $('<a style="margin:0 2px 0 5px" href="#">复制名单</a>').insertAfter('.readtext select[name="buyers"]').click(function (event) {
+            event.preventDefault();
+            var buyerList = [];
+            $(this).prev('select').children('option').each(function (index) {
+                var name = $(this).text();
+                if (index === 0 || name === '-----------') return;
+                buyerList.push(name);
+            });
+            if (buyerList.length == 0) {
+                alert('暂时无人购买');
+                return;
+            }
+            if ($('#pd_copy_buyer_list').length > 0) return;
+            var html = [
+                '<form>',
+                '<div class="pd_cfg_box" id="pd_copy_buyer_list">',
+                '  <h1>购买人名单<span>×</span></h1>',
+                '  <div class="pd_cfg_main">',
+                '    <textarea style="width:200px;height:300px;margin:5px 0" readonly="readonly"></textarea>',
+                '  </div>',
+                '</div>',
+                '</form>'
+            ].join('');
+            var $dialog = $(html).appendTo('body');
+            Tools.resize('pd_copy_buyer_list');
+            $dialog.find('h1 > span').click(function () {
+                return Tools.close('pd_copy_buyer_list');
+            }).end().find('textarea').val(buyerList.join('\n')).select().focus();
+            $(window).on('resize.pd_copy_buyer_list', function () {
+                Tools.resize('pd_copy_buyer_list');
+            });
+        });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -2653,6 +2685,7 @@ var KFOL = {
             KFOL.addFloorGotoLink();
             KFOL.addFastGotoFloorInput();
             //KFOL.addFastGotoPageInput();
+            KFOL.addCopyBuyersListLink();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
