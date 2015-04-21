@@ -1121,6 +1121,7 @@ var Item = {
             .insertAfter('.kf_fw_ig1:eq(1)')
             .find('button:first-child')
             .click(function () {
+                KFOL.removePopTips($('.pd_pop_tips'));
                 var urlList = [];
                 $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked').each(function () {
                     urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
@@ -1139,6 +1140,7 @@ var Item = {
             })
             .next()
             .click(function () {
+                KFOL.removePopTips($('.pd_pop_tips'));
                 var urlList = [];
                 $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked').each(function () {
                     urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
@@ -1492,6 +1494,7 @@ var Item = {
             .insertAfter('.kf_fw_ig1')
             .find('button:first-child')
             .click(function () {
+                KFOL.removePopTips($('.pd_pop_tips'));
                 var urlList = [];
                 $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
                     urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
@@ -1523,7 +1526,156 @@ var Item = {
 /**
  * 卡片类
  */
-var Card = {};
+var Card = {
+    /**
+     * 将指定的一系列卡片转换为VIP时间
+     * @param {number[]} cardList 卡片ID列表
+     * @param {string} safeId 用户的SafeID
+     */
+    convertCardsToVipTime: function (cardList, safeId) {
+        var successNum = 0, failNum = 0, totalVipTime = 0, totalEnergy = 0;
+        $(document).queue('ConvertCardsToVipTime', []);
+        $.each(cardList, function (index, cardId) {
+            var url = 'kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId);
+            $(document).queue('ConvertCardsToVipTime', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('将卡片转换为VIP时间', html);
+                    var matches = /增加(\d+)小时VIP时间(?:.*?获得(\d+)点恢复能量)?/i.exec(html);
+                    if (matches) {
+                        successNum++;
+                        totalVipTime += parseInt(matches[1]);
+                        if (typeof matches[2] !== 'undefined') totalEnergy += parseInt(matches[2]);
+                    }
+                    else failNum++;
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === cardList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        console.log('共有{0}张卡片转换成功，共有{1}张卡片转换失败，VIP小时+{2}，能量+{3}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum)
+                                .replace('{2}', totalVipTime)
+                                .replace('{3}', totalEnergy)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>张卡片转换成功{1}</strong><i>VIP小时<em>+{2}</em></i><i>能量<em>+{3}</em></i>'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>张卡片转换失败'.replace('{0}', failNum) : '')
+                                .replace('{2}', totalVipTime)
+                                .replace('{3}', totalEnergy)
+                            , duration: -1
+                        });
+                        $('.kf_fw_ig2 .pd_card_chk > input:checked')
+                            .closest('td')
+                            .hide('slow', function () {
+                                var $parent = $(this).parent();
+                                $(this).remove();
+                                if ($parent.children().length == 0) $parent.remove();
+                            });
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('ConvertCardsToVipTime');
+                    }, 500);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('ConvertCardsToVipTime');
+    },
+
+    /**
+     * 添加开启批量模式的按钮
+     */
+    addStartBatchModeButton: function () {
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
+        if ($('.kf_fw_ig2 a[href^="kf_fw_card_my.php?id="]').length == 0) return;
+        $('<div class="pd_item_btns"><button>开启批量模式</button></div>').insertAfter('.kf_fw_ig2')
+            .find('button').click(function () {
+                var $this = $(this);
+                var $cardLines = $('.kf_fw_ig2 > tbody > tr:gt(2)');
+                if ($this.text() === '开启批量模式') {
+                    $this.text('关闭批量模式');
+                    $cardLines.find('td').has('a').each(function () {
+                        var matches = /kf_fw_card_my\.php\?id=(\d+)/.exec($(this).find('a').attr('href'));
+                        if (!matches) return;
+                        $(this).css('position', 'relative')
+                            .append('<label class="pd_card_chk"><input type="checkbox" value="{0}" /></label>'
+                                .replace('{0}', matches[1])
+                        );
+                    });
+                    var playedCardList = [];
+                    $('.kf_fw_ig2 > tbody > tr:nth-child(2) > td').each(function () {
+                        var matches = /kf_fw_card_my\.php\?id=(\d+)/.exec($(this).find('a').attr('href'));
+                        if (!matches) return;
+                        playedCardList.push(parseInt(matches[1]));
+                    });
+                    var uncheckPlayedCard = function () {
+                        for (var i in playedCardList) {
+                            $cardLines.find('td').has('a[href="kf_fw_card_my.php?id={0}"]'.replace('{0}', playedCardList[i]))
+                                .find('input:checked').prop('checked', false);
+                        }
+                    };
+                    $this.before('<label><input id="uncheckPlayedCard" type="checkbox" checked="checked" /> 不选已出战的卡片</label>' +
+                    '<button>每类只保留一张</button><button>全选</button><button>反选</button><br /><button>转换为VIP时间</button>')
+                        .prev()
+                        .click(function () {
+                            KFOL.removePopTips($('.pd_pop_tips'));
+                            var cardList = [];
+                            $cardLines.find('input:checked').each(function () {
+                                cardList.push(parseInt($(this).val()));
+                            });
+                            if (cardList.length === 0) return;
+                            if (!window.confirm('共选择了{0}张卡片，是否将卡片批量转换为VIP时间？'.replace('{0}', cardList.length))) return;
+                            KFOL.showWaitMsg('<strong>正在批量转换中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                                    .replace('{0}', cardList.length)
+                                , true);
+                            Card.convertCardsToVipTime(cardList, safeId);
+                        })
+                        .prev()
+                        .prev()
+                        .click(function () {
+                            $cardLines.find('input').each(function () {
+                                $(this).prop('checked', !$(this).prop('checked'));
+                            });
+                            if ($('#uncheckPlayedCard').prop('checked')) uncheckPlayedCard();
+                        })
+                        .prev()
+                        .click(function () {
+                            $cardLines.find('input').prop('checked', true);
+                            if ($('#uncheckPlayedCard').prop('checked')) uncheckPlayedCard();
+                        })
+                        .prev()
+                        .click(function () {
+                            $cardLines.find('input').prop('checked', true);
+                            if ($('#uncheckPlayedCard').prop('checked')) uncheckPlayedCard();
+                            var cardTypeList = [];
+                            $cardLines.find('a > img').each(function () {
+                                var src = $(this).attr('src');
+                                if ($.inArray(src, cardTypeList) === -1) cardTypeList.push(src);
+                            });
+                            for (var i in cardTypeList) {
+                                var $cardElems = $cardLines.find('td').has('img[src="{0}"]'.replace('{0}', cardTypeList[i]));
+                                var totalNum = $cardElems.length;
+                                var checkedNum = $cardElems.has('input:checked').length;
+                                if (totalNum > 1) {
+                                    if (totalNum === checkedNum) {
+                                        $cardElems.eq(0).find('input:checked').prop('checked', false);
+                                    }
+                                }
+                                else {
+                                    $cardElems.find('input:checked').prop('checked', false);
+                                }
+                            }
+                        });
+                }
+                else {
+                    $this.text('开启批量模式');
+                    $cardLines.find('.pd_card_chk').remove();
+                    $this.prevAll().remove();
+                }
+            });
+    }
+};
 
 /**
  * 银行类
@@ -1705,7 +1857,7 @@ var Bank = {
             '<textarea class="pd_textarea" id="pd_bank_users" style="width:270px;height:250px"></textarea></label></div>',
             '    <div style="display:inline-block;margin-left:10px;">',
             '      <label>通用转帐金额（如所有用户都已设定单独金额则可留空）：<br />',
-            '<input class="pd_input" id="pd_bank_money" type="text" style="width:220px" maxlength="15" /></label><br />',
+            '<input class="pd_input" id="pd_bank_money" type="text" style="width:217px" maxlength="15" /></label><br />',
             '      <label style="margin-top:5px">转帐附言（可留空）：<br />',
             '<textarea class="pd_textarea" id="pd_bank_msg" style="width:225px;height:206px" id="pd_bank_users"></textarea></label>',
             '    </div>',
@@ -1817,8 +1969,8 @@ var KFOL = {
      */
     appendCss: function () {
         $('head').append(['<style type="text/css">',
-            '.pd_layer { position: fixed; width: 100%; height: 100%; left: 0; top: 0; }',
-            '.pd_pop_box { position: fixed; width: 100%; }',
+            '.pd_layer { position: fixed; width: 100%; height: 100%; left: 0; top: 0; z-index: 1000; }',
+            '.pd_pop_box { position: fixed; width: 100%; z-index: 1001; }',
             '.pd_pop_tips {',
             'border: 1px solid #6ca7c0; text-shadow: 0 0 3px rgba(0,0,0,0.1); border-radius: 3px; padding: 12px 40px; text-align: center;',
             'font-size: 14px; position: absolute; display: none; color: #333; background: #f8fcfe; background-repeat: no-repeat;',
@@ -1843,14 +1995,16 @@ var KFOL = {
             '.pd_fast_goto_floor { margin-right: 5px; }',
             '.pages .pd_fast_goto_page { margin-left: 8px; }',
             '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
-            '.pd_item_btns { text-align: right; margin-top: 5px; }',
-            '.pd_item_btns button { margin-left: 3px; }',
+            '.pd_item_btns { text-align: right; margin-top: 5px;  }',
+            '.pd_item_btns button, .pd_item_btns input { margin-left: 3px; margin-bottom: 2px; vertical-align: middle; }',
             '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
             '.pd_stat i { font-style: normal; margin-right: 10px; }',
             '.pd_stat .pd_notice { margin-left: 5px; }',
             '.pd_thread_page { margin-left: 5px; }',
             '.pd_thread_page a { color: #444; padding: 0 3px; }',
             '.pd_thread_page a:hover { color: #51D; }',
+            '.pd_card_chk { position: absolute; bottom: 0; left: 0; width: 60%; height: 60%; z-index: 100; }',
+            '.pd_card_chk > input { position: absolute; bottom: -8px; left: 1px; }',
 
             /* 设置对话框 */
             '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }',
@@ -2098,7 +2252,7 @@ var KFOL = {
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 if (isAutoDrawItemOrCard) KFOL.drawItemOrCard();
                 if (isAutoDonation) {
-                    window.setTimeout(KFOL.donation, 2000);
+                    window.setTimeout(KFOL.donation, 1000);
                 }
                 var kfbRegex = /获得了(\d+)KFB的奖励.*?(\(\d+\|\d+\))/i;
                 var smRegex = /获得本轮的头奖/i;
@@ -2751,6 +2905,9 @@ var KFOL = {
         }
         else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
             Bank.addBatchTransferButton();
+        }
+        else if (/\/kf_fw_card_my\.php$/i.test(location.href)) {
+            Card.addStartBatchModeButton();
         }
 
         if (Config.autoRefreshEnabled) {
