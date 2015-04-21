@@ -81,6 +81,8 @@ var Config = {
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
     hideMarkReadAtTipsExpires: 3,
+    // 存储多重引用数据的LocalStorage名称
+    multiQuoteStorageName: 'pd_multi_quote',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
     // 标记已抽取神秘盒子的Cookie名称
@@ -1992,7 +1994,7 @@ var KFOL = {
             '.pd_textarea, .pd_cfg_main textarea { border: 1px solid #CCC; font-size: 12px; }',
             '.readlou .pd_goto_link { color: #000; }',
             '.readlou .pd_goto_link:hover { color: #51D; }',
-            '.pd_fast_goto_floor { margin-right: 5px; }',
+            '.pd_fast_goto_floor, .pd_multi_quote_chk { margin-right: 2px; }',
             '.pages .pd_fast_goto_page { margin-left: 8px; }',
             '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
             '.pd_item_btns { text-align: right; margin-top: 5px;  }',
@@ -2822,6 +2824,83 @@ var KFOL = {
     },
 
     /**
+     * 添加多重引用的按钮
+     */
+    addMultiQuoteButton: function () {
+        var replyUrl = $('a[href^="post.php?action=reply"].b_tit2').attr('href');
+        if (!replyUrl) return;
+        $('<li class="pd_multi_quote_chk"><label><input type="checkbox" /> 引</label></li>')
+            .prependTo($('.readlou > div:first-child > ul').has('a[title="引用回复这个帖子"]'))
+            .find('input')
+            .click(function () {
+                localStorage.removeItem(Config.multiQuoteStorageName);
+                var quoteList = [];
+                $('.pd_multi_quote_chk input:checked').each(function () {
+                    var $readLou = $(this).closest('.readlou');
+                    var matches = /(\d+)楼/.exec($readLou.find('.pd_goto_link').text());
+                    var floor = matches ? parseInt(matches[1]) : 0;
+                    var spid = parseInt($readLou.prev('a').attr('name'));
+                    if (isNaN(spid)) spid = 0;
+                    var userName = $readLou.next('.readtext').find('.readidmsbottom > a, .readidmleft > a').text();
+                    if (!userName) return;
+                    quoteList.push({floor: floor, spid: spid, userName: userName});
+                });
+                if (quoteList.length > 0) {
+                    localStorage[Config.multiQuoteStorageName] = JSON.stringify({
+                        tid: parseInt(Tools.getUrlParam('tid')),
+                        quoteList: quoteList
+                    });
+                }
+            });
+        $('.readlou:last').next('div').find('table > tbody > tr > td:last-child')
+            .css('text-align', 'right')
+            .append('<span class="b_tit2" style="margin-left:5px"><a style="display:inline-block" href="{0}">多重引用</a></span>'
+                .replace('{0}', replyUrl + '&multiquote=true'))
+            .find('.b_tit2 > a').click(function () {
+                if ($('.pd_multi_quote_chk input:checked').length == 0) {
+                    localStorage.removeItem(Config.multiQuoteStorageName);
+                }
+            });
+    },
+
+    /**
+     * 处理多重引用
+     */
+    handleMultiQuote: function () {
+        var data = localStorage[Config.multiQuoteStorageName];
+        if (!data) return;
+        try {
+            data = JSON.parse(data);
+        }
+        catch (ex) {
+            return;
+        }
+        if (!data || $.type(data) !== 'object' || $.isEmptyObject(data)) return;
+        var tid = parseInt(Tools.getUrlParam('tid'));
+        if (typeof data.tid === 'undefined' || data.tid !== tid || $.type(data.quoteList) !== 'array') return;
+        var content = '', keyword = '';
+        for (var i in data.quoteList) {
+            var quote = data.quoteList[i];
+            if (typeof quote.floor === 'undefined' || typeof quote.spid === 'undefined' ||
+                typeof quote.userName === 'undefined') {
+                continue;
+            }
+            content += '[quote]回 [url={0}read.php?tid={1}{2}]{3}楼[/url]({4}) 的帖子[/quote]\n\n'
+                .replace('{0}', Tools.getHostNameUrl())
+                .replace('{1}', tid)
+                .replace('{2}', quote.spid > 0 ? '&spid=' + quote.spid : '')
+                .replace('{3}', quote.floor)
+                .replace('{4}', quote.userName);
+            keyword += quote.userName + ',';
+        }
+        $('#textarea').val(content);
+        $('input[name="diy_guanjianci"]').val(keyword);
+        $('input[type="submit"]').click(function () {
+            localStorage.removeItem(Config.multiQuoteStorageName);
+        });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -2833,13 +2912,11 @@ var KFOL = {
         ConfigDialog.init();
         KFOL.appendCss();
         if (location.pathname === '/read.php') {
+            KFOL.fastGotoFloor();
             if (Config.adjustThreadContentWidthEnabled) KFOL.adjustThreadContentWidth();
             KFOL.adjustThreadContentFontSize();
-            KFOL.fastGotoFloor();
             KFOL.addFloorGotoLink();
-            KFOL.addFastGotoFloorInput();
             //KFOL.addFastGotoPageInput();
-            KFOL.addCopyBuyersListLink();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
@@ -2902,12 +2979,18 @@ var KFOL = {
         }
         else if (location.pathname === '/read.php') {
             KFOL.customMySmColor();
+            KFOL.addMultiQuoteButton();
+            KFOL.addFastGotoFloorInput();
+            KFOL.addCopyBuyersListLink();
         }
         else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
             Bank.addBatchTransferButton();
         }
         else if (/\/kf_fw_card_my\.php$/i.test(location.href)) {
             Card.addStartBatchModeButton();
+        }
+        else if (/\/post\.php\?action=reply&fid=\d+&tid=\d+&multiquote=true/i.test(location.href)) {
+            KFOL.handleMultiQuote();
         }
 
         if (Config.autoRefreshEnabled) {
