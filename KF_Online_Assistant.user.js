@@ -81,7 +81,7 @@ var Config = {
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
     hideMarkReadAtTipsExpires: 3,
-    // 存储多重引用数据的LocalStorage名称
+    // 存储多重引用数据的SessionStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
@@ -276,6 +276,38 @@ var Tools = {
         var encodeStr = img.src.split('nothing?sp=').pop();
         $(img).remove();
         return encodeStr;
+    },
+
+    /**
+     * HTML转义编码
+     * @param {string} str 待编码的字符串
+     * @returns {string} 编码后的字符串
+     */
+    htmlEncode: function (str) {
+        if (str.length == 0) return '';
+        return str.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/ /g, '&nbsp;')
+            .replace(/\'/g, '&#39;')
+            .replace(/\"/g, '&quot;')
+            .replace(/\n/g, '<br/>');
+    },
+
+    /**
+     * HTML转义解码
+     * @param {string} str 待解码的字符串
+     * @returns {string} 解码后的字符串
+     */
+    htmlDecode: function (str) {
+        if (str.length == 0) return '';
+        return str.replace(/<br\/>/g, '\n')
+            .replace(/&quot;/g, '\"')
+            .replace(/&#39;/g, '\'')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&gt;/g, '>')
+            .replace(/&lt;/g, '<')
+            .replace(/&amp;/g, '&');
     },
 
     /**
@@ -1538,7 +1570,7 @@ var Card = {
         var successNum = 0, failNum = 0, totalVipTime = 0, totalEnergy = 0;
         $(document).queue('ConvertCardsToVipTime', []);
         $.each(cardList, function (index, cardId) {
-            var url = 'kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId);
+            var url = 'kf_fw_card_doit.php?do=recard&id=1{0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId);
             $(document).queue('ConvertCardsToVipTime', function () {
                 $.get(url, function (html) {
                     KFOL.showFormatLog('将卡片转换为VIP时间', html);
@@ -1567,7 +1599,7 @@ var Card = {
                                 .replace('{3}', totalEnergy)
                             , duration: -1
                         });
-                        $('.kf_fw_ig2 .pd_card_chk > input:checked')
+                        $('.kf_fw_ig2 .pd_card_chk:checked')
                             .closest('td')
                             .hide('slow', function () {
                                 var $parent = $(this).parent();
@@ -1601,9 +1633,12 @@ var Card = {
                         var matches = /kf_fw_card_my\.php\?id=(\d+)/.exec($(this).find('a').attr('href'));
                         if (!matches) return;
                         $(this).css('position', 'relative')
-                            .append('<label class="pd_card_chk"><input type="checkbox" value="{0}" /></label>'
-                                .replace('{0}', matches[1])
-                        );
+                            .append('<input class="pd_card_chk" type="checkbox" value="{0}" />'
+                                .replace('{0}', matches[1]))
+                            .find('a').click(function (event) {
+                                event.preventDefault();
+                                $(this).next('.pd_card_chk').click();
+                            });
                     });
                     var playedCardList = [];
                     $('.kf_fw_ig2 > tbody > tr:nth-child(2) > td').each(function () {
@@ -1672,7 +1707,7 @@ var Card = {
                 }
                 else {
                     $this.text('开启批量模式');
-                    $cardLines.find('.pd_card_chk').remove();
+                    $cardLines.find('.pd_card_chk').remove().end().find('a').off('click');
                     $this.prevAll().remove();
                 }
             });
@@ -2005,8 +2040,7 @@ var KFOL = {
             '.pd_thread_page { margin-left: 5px; }',
             '.pd_thread_page a { color: #444; padding: 0 3px; }',
             '.pd_thread_page a:hover { color: #51D; }',
-            '.pd_card_chk { position: absolute; bottom: 0; left: 0; width: 60%; height: 60%; z-index: 100; }',
-            '.pd_card_chk > input { position: absolute; bottom: -8px; left: 1px; }',
+            '.pd_card_chk { position: absolute; bottom: -8px; left: 1px; }',
 
             /* 设置对话框 */
             '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }',
@@ -2669,7 +2703,7 @@ var KFOL = {
             })
             .end()
             .closest('div').next()
-            .css({'max-width': '530px', 'white-space': 'nowrap', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});
+            .css({'max-width': '505px', 'white-space': 'nowrap', 'overflow': 'hidden', 'text-overflow': 'ellipsis'});
     },
 
     /**
@@ -2824,41 +2858,76 @@ var KFOL = {
     },
 
     /**
+     * 添加统计回帖者名单的链接
+     */
+    addStatReplyersLink: function () {
+        var page = Tools.getUrlParam('page');
+        if (page !== null && parseInt(page) !== 1) return;
+        $('<li><a href="#" title="统计回帖情况">[统计回帖]</a></li>').prependTo('.readlou:eq(1) > div > .pages')
+            .find('a').click(function (event) {
+                event.preventDefault();
+                var matches = /(\d+)页/.exec($('.pages:eq(0) > li:last-child > a').text());
+                var maxPage = matches ? parseInt(matches[1]) : 1;
+                var endFloor = parseInt(window.prompt('统计到第几楼？', maxPage * Config.perPageFloorNum - 1));
+                if (!endFloor || endFloor < 1) return;
+                var endPage = Math.floor(endFloor / Config.perPageFloorNum) + 1;
+                if (endPage > maxPage) endPage = maxPage;
+            });
+    },
+
+    /**
+     * 获取多重引用数据
+     * @returns {Object[]} 多重引用数据列表
+     */
+    getMultiQuoteData: function () {
+        var quoteList = [];
+        $('.pd_multi_quote_chk input:checked').each(function () {
+            var $readLou = $(this).closest('.readlou');
+            var matches = /(\d+)楼/.exec($readLou.find('.pd_goto_link').text());
+            var floor = matches ? parseInt(matches[1]) : 0;
+            var spid = $readLou.prev('a').attr('name');
+            var userName = $readLou.next('.readtext').find('.readidmsbottom > a, .readidmleft > a').text();
+            if (!userName) return;
+            quoteList.push({floor: floor, spid: spid, userName: userName});
+        });
+        return quoteList;
+    },
+
+    /**
      * 添加多重引用的按钮
      */
     addMultiQuoteButton: function () {
         var replyUrl = $('a[href^="post.php?action=reply"].b_tit2').attr('href');
         if (!replyUrl) return;
-        $('<li class="pd_multi_quote_chk"><label><input type="checkbox" /> 引</label></li>')
-            .prependTo($('.readlou > div:first-child > ul').has('a[title="引用回复这个帖子"]'))
-            .find('input')
-            .click(function () {
-                localStorage.removeItem(Config.multiQuoteStorageName);
-                var quoteList = [];
-                $('.pd_multi_quote_chk input:checked').each(function () {
-                    var $readLou = $(this).closest('.readlou');
-                    var matches = /(\d+)楼/.exec($readLou.find('.pd_goto_link').text());
-                    var floor = matches ? parseInt(matches[1]) : 0;
-                    var spid = parseInt($readLou.prev('a').attr('name'));
-                    if (isNaN(spid)) spid = 0;
-                    var userName = $readLou.next('.readtext').find('.readidmsbottom > a, .readidmleft > a').text();
-                    if (!userName) return;
-                    quoteList.push({floor: floor, spid: spid, userName: userName});
+        $('.readlou > div:first-child > ul').has('a[title="引用回复这个帖子"]')
+            .prepend('<li class="pd_multi_quote_chk"><label><input type="checkbox" /> 引</label></li>');
+        $('.readlou:last').next('div').find('table > tbody > tr > td:last-child')
+            .css({'text-align': 'right', 'width': '320px'})
+            .append(('<span class="b_tit2" style="margin-left:5px"><a style="display:inline-block" href="#" title="多重回复">回复</a> ' +
+            '<a style="display:inline-block" target="_blank" href="{0}" title="多重引用">引用</a></span>')
+                .replace('{0}', replyUrl + '&multiquote=true'))
+            .find('.b_tit2 > a:eq(0)').click(function (event) {
+                event.preventDefault();
+                var quoteList = KFOL.getMultiQuoteData();
+                if (quoteList.length == 0) return;
+                var content = '', keyword = '';
+                $.each(quoteList, function (index, quote) {
+                    keyword += quote.userName + ',';
+                    content += '[quote]回 {0}楼({1}) 的帖子[/quote]\n'
+                        .replace('{0}', quote.floor)
+                        .replace('{1}', quote.userName);
                 });
+                $('input[name="diy_guanjianci"]').val(keyword);
+                $('textarea[name="atc_content"]').val(content).focus();
+            })
+            .next('a').click(function () {
+                sessionStorage.removeItem(Config.multiQuoteStorageName);
+                var quoteList = KFOL.getMultiQuoteData();
                 if (quoteList.length > 0) {
-                    localStorage[Config.multiQuoteStorageName] = JSON.stringify({
+                    sessionStorage[Config.multiQuoteStorageName] = JSON.stringify({
                         tid: parseInt(Tools.getUrlParam('tid')),
                         quoteList: quoteList
                     });
-                }
-            });
-        $('.readlou:last').next('div').find('table > tbody > tr > td:last-child')
-            .css('text-align', 'right')
-            .append('<span class="b_tit2" style="margin-left:5px"><a style="display:inline-block" href="{0}">多重引用</a></span>'
-                .replace('{0}', replyUrl + '&multiquote=true'))
-            .find('.b_tit2 > a').click(function () {
-                if ($('.pd_multi_quote_chk input:checked').length == 0) {
-                    localStorage.removeItem(Config.multiQuoteStorageName);
                 }
             });
     },
@@ -2867,7 +2936,7 @@ var KFOL = {
      * 处理多重引用
      */
     handleMultiQuote: function () {
-        var data = localStorage[Config.multiQuoteStorageName];
+        var data = sessionStorage[Config.multiQuoteStorageName];
         if (!data) return;
         try {
             data = JSON.parse(data);
@@ -2876,28 +2945,45 @@ var KFOL = {
             return;
         }
         if (!data || $.type(data) !== 'object' || $.isEmptyObject(data)) return;
-        var tid = parseInt(Tools.getUrlParam('tid'));
-        if (typeof data.tid === 'undefined' || data.tid !== tid || $.type(data.quoteList) !== 'array') return;
+        var tid = Tools.getUrlParam('tid'),
+            fid = Tools.getUrlParam('fid');
+        if (!tid || !fid || typeof data.tid === 'undefined' || data.tid !== parseInt(tid) || $.type(data.quoteList) !== 'array') return;
+        KFOL.showWaitMsg('<strong>正在获取引用内容中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                .replace('{0}', data.quoteList.length)
+            , true);
         var content = '', keyword = '';
-        for (var i in data.quoteList) {
-            var quote = data.quoteList[i];
-            if (typeof quote.floor === 'undefined' || typeof quote.spid === 'undefined' ||
-                typeof quote.userName === 'undefined') {
-                continue;
-            }
-            content += '[quote]回 [url={0}read.php?tid={1}{2}]{3}楼[/url]({4}) 的帖子[/quote]\n\n'
-                .replace('{0}', Tools.getHostNameUrl())
-                .replace('{1}', tid)
-                .replace('{2}', quote.spid > 0 ? '&spid=' + quote.spid : '')
-                .replace('{3}', quote.floor)
-                .replace('{4}', quote.userName);
+        $(document).queue('MultiQuote', []);
+        $.each(data.quoteList, function (index, quote) {
+            if (typeof quote.floor === 'undefined' || typeof quote.spid === 'undefined') return;
             keyword += quote.userName + ',';
-        }
-        $('#textarea').val(content);
-        $('input[name="diy_guanjianci"]').val(keyword);
-        $('input[type="submit"]').click(function () {
-            localStorage.removeItem(Config.multiQuoteStorageName);
+            $(document).queue('MultiQuote', function () {
+                var url = 'post.php?action=quote&fid={0}&tid={1}&pid={2}&article={3}'
+                    .replace('{0}', fid)
+                    .replace('{1}', tid)
+                    .replace('{2}', quote.spid)
+                    .replace('{3}', quote.floor);
+                console.log(url);
+                $.get(url, function (html) {
+                    var matches = /<textarea id="textarea".*?>((.|\n)+?)<\/textarea>/.exec(html);
+                    console.log(matches);
+                    if (matches) content += Tools.htmlDecode(matches[1]) + '\n\n';
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === data.quoteList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        $('#textarea').val(content).focus();
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('MultiQuote');
+                    }, 200);
+                }, 'html');
+            });
         });
+        $('input[name="diy_guanjianci"]').val(keyword);
+        $('input[type="submit"][name="Submit"]').click(function () {
+            sessionStorage.removeItem(Config.multiQuoteStorageName);
+        });
+        $(document).dequeue('MultiQuote');
     },
 
     /**
@@ -2982,6 +3068,7 @@ var KFOL = {
             KFOL.addMultiQuoteButton();
             KFOL.addFastGotoFloorInput();
             KFOL.addCopyBuyersListLink();
+            KFOL.addStatReplyersLink();
         }
         else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
             Bank.addBatchTransferButton();
