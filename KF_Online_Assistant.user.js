@@ -63,6 +63,8 @@ var Config = {
     threadContentFontSize: 0,
     // 自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空
     customMySmColor: '',
+    // 是否开启多重回复和多重引用的功能，true：开启；false：关闭
+    multiQuoteEnabled: true,
     // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
 
@@ -81,6 +83,8 @@ var Config = {
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
     hideMarkReadAtTipsExpires: 3,
+    // ajax请求的默认间隔时间
+    defAjaxInterval: 500,
     // 存储多重引用数据的SessionStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
     // 标记已KFB捐款的Cookie名称
@@ -284,7 +288,7 @@ var Tools = {
      * @returns {string} 编码后的字符串
      */
     htmlEncode: function (str) {
-        if (str.length == 0) return '';
+        if (str.length === 0) return '';
         return str.replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
@@ -300,14 +304,14 @@ var Tools = {
      * @returns {string} 解码后的字符串
      */
     htmlDecode: function (str) {
-        if (str.length == 0) return '';
-        return str.replace(/<br\/>/g, '\n')
-            .replace(/&quot;/g, '\"')
-            .replace(/&#39;/g, '\'')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&gt;/g, '>')
-            .replace(/&lt;/g, '<')
-            .replace(/&amp;/g, '&');
+        if (str.length === 0) return '';
+        return str.replace(/<br\/?>/gi, '\n')
+            .replace(/&quot;/gi, '\"')
+            .replace(/&#39;/gi, '\'')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&gt;/gi, '>')
+            .replace(/&lt;/gi, '<')
+            .replace(/&amp;/gi, '&');
     },
 
     /**
@@ -327,10 +331,22 @@ var Tools = {
      */
     resize: function (boxId) {
         var $box = $('#' + boxId);
-        if ($box.length == 0) return;
+        if ($box.length === 0) return;
         $box.find('.pd_cfg_main').css('max-height', $(window).height() - 80);
         $box.css('top', $(window).height() / 2 - $box.height() / 2)
             .css('left', $(window).width() / 2 - $box.width() / 2);
+    },
+
+    /**
+     * 按Esc键关闭对话框
+     * @param {string} boxId 对话框ID
+     */
+    escKeydown: function (boxId) {
+        $('#' + boxId).keydown(function (event) {
+            if (event.key === 'Esc' || event.key === 'Escape') {
+                return Tools.close(boxId);
+            }
+        });
     }
 };
 
@@ -356,101 +372,99 @@ var ConfigDialog = {
      */
     show: function () {
         if ($('#pd_config').length > 0) return;
-        var html = [
-            '<form>',
-            '<div id="pd_config" class="pd_cfg_box">',
-            '  <h1>KF Online助手设置<span>×</span></h1>',
-            '  <div class="pd_cfg_main">',
-            '    <div class="pd_cfg_nav"><a href="#">导入/导出设置</a></div>',
-            '    <fieldset>',
-            '      <legend><label><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</label></legend>',
-            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" value="1" />',
-            '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>',
-            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" value="00:05:00" />',
-            '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />',
-            '      <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ',
-            '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>',
-            '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />',
-            '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">',
-            '[?]</a></label><br />',
-            '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ',
-            '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>',
-            '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>',
-            '<option value="2">只抽道具</option></select></label><br />',
-            '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ',
-            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />',
-            '      <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ',
-            '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />',
-            '      <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">',
-            '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>',
-            '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>',
-            '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>',
-            '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>',
-            '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>',
-            '<option value="消逝之药">Lv.5：消逝之药</option></select></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ',
-            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></label></legend>',
-            '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>',
-            '<option value="always">总是显示</option><option value="never">不显示</option></select>',
-            '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend>首页相关</legend>',
-            '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ',
-            '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>',
-            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" checked="checked" />高亮首页VIP标识 ',
-            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend>帖子列表页面相关</legend>',
-            '      <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />',
-            '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label>',
-            '      <label style="margin-left:10px">页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" value="5" />',
-            '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label><br />',
-            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>',
-            '<option value="20">20</option><option value="30">30</option></select>',
-            '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>',
-            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ',
-            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend>帖子页面相关</legend>',
-            '      <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ',
-            '<a class="pd_cfg_tips" href="#" title="调整帖子内容宽度，使其保持一致">[?]</a></label>',
-            '      <label style="margin-left:10px">帖子内容字体大小<input id="pd_cfg_thread_content_font_size" maxlength="2" style="width:20px" type="text" />px ',
-            '<a class="pd_cfg_tips" href="#" title="帖子内容字体大小，留空表示使用默认大小，推荐值：14">[?]</a></label><br />',
-            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />',
-            '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">',
-            '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label>',
-            '    </fieldset>',
-            '    <fieldset>',
-            '      <legend>其它设置</legend>',
-            '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" value="10" />秒 ',
-            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>',
-            '    </fieldset>',
-            '  </div>',
-            '  <div class="pd_cfg_btns">',
-            '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>',
-            '    <button>确定</button><button>取消</button><button>默认值</button>',
-            '  </div>',
-            '</div>',
-            '</form>'
-        ].join('');
+        var html =
+            '<form>' +
+            '<div id="pd_config" class="pd_cfg_box">' +
+            '  <h1>KF Online助手设置<span>×</span></h1>' +
+            '  <div class="pd_cfg_main">' +
+            '    <div class="pd_cfg_nav"><a href="#">导入/导出设置</a></div>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_auto_donation_enabled" type="checkbox" value="true" />自动KFB捐款</label></legend>' +
+            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" value="1" />' +
+            '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>' +
+            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" value="00:05:00" />' +
+            '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />' +
+            '      <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ' +
+            '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>' +
+            '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
+            '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">' +
+            '[?]</a></label><br />' +
+            '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
+            '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>' +
+            '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>' +
+            '<option value="2">只抽道具</option></select></label><br />' +
+            '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ' +
+            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />' +
+            '      <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ' +
+            '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />' +
+            '      <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">' +
+            '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>' +
+            '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>' +
+            '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>' +
+            '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>' +
+            '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>' +
+            '<option value="消逝之药">Lv.5：消逝之药</option></select></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
+            '<a class="pd_cfg_tips" href="#" title="开启定时模式后需停留在首页">[?]</a></label></legend>' +
+            '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
+            '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
+            '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend>首页相关</legend>' +
+            '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" checked="checked" />去除首页已读@高亮提示 ' +
+            '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>' +
+            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" checked="checked" />高亮首页VIP标识 ' +
+            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend>帖子列表页面相关</legend>' +
+            '      <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />' +
+            '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label>' +
+            '      <label style="margin-left:10px">页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" value="5" />' +
+            '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label><br />' +
+            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>' +
+            '<option value="20">20</option><option value="30">30</option></select>' +
+            '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>' +
+            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" checked="checked" />高亮今日的新帖 ' +
+            '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend>帖子页面相关</legend>' +
+            '      <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ' +
+            '<a class="pd_cfg_tips" href="#" title="调整帖子内容宽度，使其保持一致">[?]</a></label>' +
+            '      <label style="margin-left:10px">帖子内容字体大小<input id="pd_cfg_thread_content_font_size" maxlength="2" style="width:20px" type="text" />px ' +
+            '<a class="pd_cfg_tips" href="#" title="帖子内容字体大小，留空表示使用默认大小，推荐值：14">[?]</a></label><br />' +
+            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />' +
+            '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">' +
+            '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label><br />' +
+            '      <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" checked="checked" />开启多重引用功能 ' +
+            '<a class="pd_cfg_tips" href="#" title="在帖子页面开启多重回复和多重引用功能">[?]</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend>其它设置</legend>' +
+            '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" value="10" />秒 ' +
+            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>' +
+            '    </fieldset>' +
+            '  </div>' +
+            '  <div class="pd_cfg_btns">' +
+            '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>' +
+            '    <button>确定</button><button>取消</button><button>默认值</button>' +
+            '  </div>' +
+            '</div>' +
+            '</form>';
         var $dialog = $(html).appendTo('body');
         Tools.resize('pd_config');
-        $dialog.keydown(function (event) {
-            if (event.key === 'Esc' || event.key === 'Escape') {
-                return Tools.close('pd_config');
-            }
-        }).find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
+        Tools.escKeydown('pd_config');
+        $dialog.find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
             return Tools.close('pd_config');
         }).end().find('.pd_cfg_nav > a:first-child').click(function (event) {
             event.preventDefault();
@@ -518,25 +532,25 @@ var ConfigDialog = {
      */
     showImportOrExportSettingDialog: function () {
         if ($('#pd_im_or_ex_setting').length > 0) return;
-        var html = [
-            '<form>',
-            '<div class="pd_cfg_box" id="pd_im_or_ex_setting">',
-            '  <h1>导入或导出设置<span>×</span></h1>',
-            '  <div class="pd_cfg_main">',
-            '    <div>',
-            '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />',
-            '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可',
-            '    </div>',
-            '    <textarea id="pd_cfg_setting" style="width:420px;height:200px;word-break:break-all"></textarea>',
-            '  </div>',
-            '  <div class="pd_cfg_btns">',
-            '    <button>保存</button><button>取消</button>',
-            '  </div>',
-            '</div>',
-            '</form>'
-        ].join('');
+        var html =
+            '<form>' +
+            '<div class="pd_cfg_box" id="pd_im_or_ex_setting">' +
+            '  <h1>导入或导出设置<span>×</span></h1>' +
+            '  <div class="pd_cfg_main">' +
+            '    <div>' +
+            '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />' +
+            '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可' +
+            '    </div>' +
+            '    <textarea id="pd_cfg_setting" style="width:420px;height:200px;word-break:break-all"></textarea>' +
+            '  </div>' +
+            '  <div class="pd_cfg_btns">' +
+            '    <button>保存</button><button>取消</button>' +
+            '  </div>' +
+            '</div>' +
+            '</form>';
         var $dialog = $(html).appendTo('body');
         Tools.resize('pd_im_or_ex_setting');
+        Tools.escKeydown('pd_im_or_ex_setting');
         $dialog.find('h1 > span').click(function () {
             return Tools.close('pd_im_or_ex_setting');
         }).end().find('.pd_cfg_tips').click(function () {
@@ -597,6 +611,7 @@ var ConfigDialog = {
         $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked', Config.adjustThreadContentWidthEnabled);
         $('#pd_cfg_thread_content_font_size').val(Config.threadContentFontSize > 0 ? Config.threadContentFontSize : '');
         $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
+        $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
     },
@@ -631,6 +646,7 @@ var ConfigDialog = {
         options.adjustThreadContentWidthEnabled = $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked');
         options.threadContentFontSize = parseInt($.trim($('#pd_cfg_thread_content_font_size').val()));
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
+        options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         return options;
     },
@@ -845,6 +861,8 @@ var ConfigDialog = {
                 settings.customMySmColor = customMySmColor;
             else settings.customMySmColor = defConfig.customMySmColor;
         }
+        settings.multiQuoteEnabled = typeof options.multiQuoteEnabled === 'boolean' ?
+            options.multiQuoteEnabled : defConfig.multiQuoteEnabled;
         if (typeof options.defShowMsgDuration !== 'undefined') {
             var defShowMsgDuration = parseInt(options.defShowMsgDuration);
             if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
@@ -960,7 +978,7 @@ var Item = {
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('ConvertItemsToEnergy');
-                    }, 500);
+                    }, Config.defAjaxInterval);
                 }, 'html');
             });
         });
@@ -1126,7 +1144,7 @@ var Item = {
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('RestoreItems');
-                    }, 500);
+                    }, Config.defAjaxInterval);
                 }, 'html');
             });
         });
@@ -1355,7 +1373,7 @@ var Item = {
                                 }
                                 window.setTimeout(function () {
                                     $(document).dequeue('BatchDrawSm');
-                                }, 500);
+                                }, Config.defAjaxInterval);
                             }, 'html');
                     });
                 });
@@ -1501,7 +1519,7 @@ var Item = {
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('UseItems');
-                    }, 500);
+                    }, Config.defAjaxInterval);
                 }, 'html');
             });
         });
@@ -1604,12 +1622,12 @@ var Card = {
                             .hide('slow', function () {
                                 var $parent = $(this).parent();
                                 $(this).remove();
-                                if ($parent.children().length == 0) $parent.remove();
+                                if ($parent.children().length === 0) $parent.remove();
                             });
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('ConvertCardsToVipTime');
-                    }, 500);
+                    }, Config.defAjaxInterval);
                 }, 'html');
             });
         });
@@ -1622,7 +1640,7 @@ var Card = {
     addStartBatchModeButton: function () {
         var safeId = KFOL.getSafeId();
         if (!safeId) return;
-        if ($('.kf_fw_ig2 a[href^="kf_fw_card_my.php?id="]').length == 0) return;
+        if ($('.kf_fw_ig2 a[href^="kf_fw_card_my.php?id="]').length === 0) return;
         $('<div class="pd_item_btns"><button>开启批量模式</button></div>').insertAfter('.kf_fw_ig2')
             .find('button').click(function () {
                 var $this = $(this);
@@ -1884,27 +1902,25 @@ var Bank = {
      * 添加批量转账的按钮
      */
     addBatchTransferButton: function () {
-        var html = [
-            '<tr id="pd_bank_transfer">',
-            '  <td style="vertical-align:top">使用说明：<br />每行一名用户，<br />如需单独设定金额，<br />可写为“用户名:金额”<br />（注意是<b>英文冒号</b>）<br />',
-            '例子：<br /><pre style="border:1px solid #9999FF;padding:5px">张三\n李四:200\n王五:500\n信仰风</pre></td>',
-            '  <td>',
-            '  <form>',
-            '    <div style="display:inline-block"><label>用户列表：<br />',
-            '<textarea class="pd_textarea" id="pd_bank_users" style="width:270px;height:250px"></textarea></label></div>',
-            '    <div style="display:inline-block;margin-left:10px;">',
-            '      <label>通用转帐金额（如所有用户都已设定单独金额则可留空）：<br />',
-            '<input class="pd_input" id="pd_bank_money" type="text" style="width:217px" maxlength="15" /></label><br />',
-            '      <label style="margin-top:5px">转帐附言（可留空）：<br />',
-            '<textarea class="pd_textarea" id="pd_bank_msg" style="width:225px;height:206px" id="pd_bank_users"></textarea></label>',
-            '    </div>',
-            '    <div><label><input class="pd_input" type="submit" value="批量转账" /></label> ',
-            '（活期存款不足时，可自动进行存款；在正常情况下，批量转账金额不会从定期存款中扣除）</div>',
-            '  </form>',
-            '  </td>',
-            '</tr>',
-            ''
-        ].join('');
+        var html =
+            '<tr id="pd_bank_transfer">' +
+            '  <td style="vertical-align:top">使用说明：<br />每行一名用户，<br />如需单独设定金额，<br />可写为“用户名:金额”<br />（注意是<b>英文冒号</b>）<br />' +
+            '例子：<br /><pre style="border:1px solid #9999FF;padding:5px">张三\n李四:200\n王五:500\n信仰风</pre></td>' +
+            '  <td>' +
+            '  <form>' +
+            '    <div style="display:inline-block"><label>用户列表：<br />' +
+            '<textarea class="pd_textarea" id="pd_bank_users" style="width:270px;height:250px"></textarea></label></div>' +
+            '    <div style="display:inline-block;margin-left:10px;">' +
+            '      <label>通用转帐金额（如所有用户都已设定单独金额则可留空）：<br />' +
+            '<input class="pd_input" id="pd_bank_money" type="text" style="width:217px" maxlength="15" /></label><br />' +
+            '      <label style="margin-top:5px">转帐附言（可留空）：<br />' +
+            '<textarea class="pd_textarea" id="pd_bank_msg" style="width:225px;height:206px" id="pd_bank_users"></textarea></label>' +
+            '    </div>' +
+            '    <div><label><input class="pd_input" type="submit" value="批量转账" /></label> ' +
+            '（活期存款不足时，可自动进行存款；在正常情况下，批量转账金额不会从定期存款中扣除）</div>' +
+            '  </form>' +
+            '  </td>' +
+            '</tr>';
         $(html).appendTo('.bank1 > tbody')
             .find('form')
             .submit(function (event) {
@@ -1937,7 +1953,7 @@ var Bank = {
                         users.push([line, commonMoney]);
                     }
                 });
-                if (users.length == 0) return;
+                if (users.length === 0) return;
                 var totalMoney = 0;
                 for (var i in users) {
                     totalMoney += users[i][1];
@@ -2005,60 +2021,62 @@ var KFOL = {
      * 添加CSS样式
      */
     appendCss: function () {
-        $('head').append(['<style type="text/css">',
-            '.pd_layer { position: fixed; width: 100%; height: 100%; left: 0; top: 0; z-index: 1000; }',
-            '.pd_pop_box { position: fixed; width: 100%; z-index: 1001; }',
-            '.pd_pop_tips {',
-            'border: 1px solid #6ca7c0; text-shadow: 0 0 3px rgba(0,0,0,0.1); border-radius: 3px; padding: 12px 40px; text-align: center;',
-            'font-size: 14px; position: absolute; display: none; color: #333; background: #f8fcfe; background-repeat: no-repeat;',
-            'background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#f9fcfe), color-stop(25%, #f6fbfe), to(#eff7fc));',
-            'background-image: -webkit-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);',
-            'background-image: -moz-linear-gradient(top, #f9fcfe, #f6fbfe 25%, #eff7fc);',
-            'background-image: -o-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);',
-            'background-image: linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);',
-            '}',
-            '.pd_pop_tips strong { margin-right: 5px; }',
-            '.pd_pop_tips i { font-style: normal; padding-left: 10px; }',
-            '.pd_pop_tips em, .pd_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }',
-            '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }',
-            '.pd_highlight { color: #FF0000 !important; }',
-            '.pd_notice, .pd_pop_tips .pd_notice { font-style: italic; color: #666; }',
-            '.pd_input, .pd_cfg_main input, .pd_cfg_main select { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; font-size: 12px; }',
-            '.pd_input[type="text"], .pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }',
-            '.pd_input:focus, .pd_cfg_main input[type="text"]:focus, .pd_cfg_main textarea:focus, .pd_textarea:focus { border-color: #7EB4EA; }',
-            '.pd_textarea, .pd_cfg_main textarea { border: 1px solid #CCC; font-size: 12px; }',
-            '.readlou .pd_goto_link { color: #000; }',
-            '.readlou .pd_goto_link:hover { color: #51D; }',
-            '.pd_fast_goto_floor, .pd_multi_quote_chk { margin-right: 2px; }',
-            '.pages .pd_fast_goto_page { margin-left: 8px; }',
-            '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }',
-            '.pd_item_btns { text-align: right; margin-top: 5px;  }',
-            '.pd_item_btns button, .pd_item_btns input { margin-left: 3px; margin-bottom: 2px; vertical-align: middle; }',
-            '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }',
-            '.pd_stat i { font-style: normal; margin-right: 10px; }',
-            '.pd_stat .pd_notice { margin-left: 5px; }',
-            '.pd_thread_page { margin-left: 5px; }',
-            '.pd_thread_page a { color: #444; padding: 0 3px; }',
-            '.pd_thread_page a:hover { color: #51D; }',
-            '.pd_card_chk { position: absolute; bottom: -8px; left: 1px; }',
+        $('head').append(
+            '<style type="text/css">' +
+            '.pd_layer { position: fixed; width: 100%; height: 100%; left: 0; top: 0; z-index: 1000; }' +
+            '.pd_pop_box { position: fixed; width: 100%; z-index: 1001; }' +
+            '.pd_pop_tips {' +
+            'border: 1px solid #6ca7c0; text-shadow: 0 0 3px rgba(0,0,0,0.1); border-radius: 3px; padding: 12px 40px; text-align: center;' +
+            'font-size: 14px; position: absolute; display: none; color: #333; background: #f8fcfe; background-repeat: no-repeat;' +
+            'background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#f9fcfe), color-stop(25%, #f6fbfe), to(#eff7fc));' +
+            'background-image: -webkit-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
+            'background-image: -moz-linear-gradient(top, #f9fcfe, #f6fbfe 25%, #eff7fc);' +
+            'background-image: -o-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
+            'background-image: linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
+            '}' +
+            '.pd_pop_tips strong { margin-right: 5px; }' +
+            '.pd_pop_tips i { font-style: normal; padding-left: 10px; }' +
+            '.pd_pop_tips em, .pd_stat em { font-weight: 700; color:#FF6600; padding: 0 5px; }' +
+            '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }' +
+            '.pd_highlight { color: #FF0000 !important; }' +
+            '.pd_notice, .pd_pop_tips .pd_notice { font-style: italic; color: #666; }' +
+            '.pd_input, .pd_cfg_main input, .pd_cfg_main select { vertical-align: middle; height: inherit; margin-right: 0; line-height: 22px; font-size: 12px; }' +
+            '.pd_input[type="text"], .pd_cfg_main input[type="text"] { height: 18px; line-height: 18px; }' +
+            '.pd_input:focus, .pd_cfg_main input[type="text"]:focus, .pd_cfg_main textarea:focus, .pd_textarea:focus { border-color: #7EB4EA; }' +
+            '.pd_textarea, .pd_cfg_main textarea { border: 1px solid #CCC; font-size: 12px; }' +
+            '.readlou .pd_goto_link { color: #000; }' +
+            '.readlou .pd_goto_link:hover { color: #51D; }' +
+            '.pd_fast_goto_floor, .pd_multi_quote_chk { margin-right: 2px; }' +
+            '.pages .pd_fast_goto_page { margin-left: 8px; }' +
+            '.pd_fast_goto_floor span:hover, .pd_fast_goto_page span:hover { color: #51D; cursor: pointer; text-decoration: underline; }' +
+            '.pd_item_btns { text-align: right; margin-top: 5px;  }' +
+            '.pd_item_btns button, .pd_item_btns input { margin-left: 3px; margin-bottom: 2px; vertical-align: middle; }' +
+            '.pd_result { border: 1px solid #99F; padding: 5px; margin-top: 10px; line-height: 2em; }' +
+            '.pd_stat i { font-style: normal; margin-right: 10px; }' +
+            '.pd_stat .pd_notice { margin-left: 5px; }' +
+            '.pd_thread_page { margin-left: 5px; }' +
+            '.pd_thread_page a { color: #444; padding: 0 3px; }' +
+            '.pd_thread_page a:hover { color: #51D; }' +
+            '.pd_card_chk { position: absolute; bottom: -8px; left: 1px; }' +
 
-            /* 设置对话框 */
-            '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }',
-            '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }',
-            '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }',
-            '#pd_config { width: 400px; }',
-            '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }',
-            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }',
-            '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }',
-            '.pd_cfg_main legend { font-weight: bold; }',
-            '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }',
-            '.pd_cfg_main input[type="color"] { height: 18px; width: 30px; padding: 0; }',
-            '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }',
-            '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }',
-            '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }',
-            '.pd_cfg_btns button { width: 80px; margin-left: 5px; }',
-            '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }',
-            '</style>'].join(''));
+                /* 设置对话框 */
+            '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }' +
+            '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }' +
+            '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }' +
+            '#pd_config { width: 400px; }' +
+            '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }' +
+            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }' +
+            '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }' +
+            '.pd_cfg_main legend { font-weight: bold; }' +
+            '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }' +
+            '.pd_cfg_main input[type="color"] { height: 18px; width: 30px; padding: 0; }' +
+            '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }' +
+            '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }' +
+            '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }' +
+            '.pd_cfg_btns button { width: 80px; margin-left: 5px; }' +
+            '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }' +
+            '</style>'
+        );
     },
 
     /**
@@ -2089,7 +2107,7 @@ var KFOL = {
             settings.duration = typeof duration === 'undefined' ? Config.defShowMsgDuration : duration;
         }
         var $popBox = $('.pd_pop_box');
-        var isFirst = $popBox.length == 0;
+        var isFirst = $popBox.length === 0;
         if (isFirst) {
             if (settings.preventable) $('<div class="pd_layer"></div>').appendTo('body');
             $popBox = $('<div class="pd_pop_box"></div>').appendTo('body');
@@ -2141,7 +2159,7 @@ var KFOL = {
     removePopTips: function ($popTips) {
         var $parent = $popTips.parent();
         $popTips.remove();
-        if ($('.pd_pop_tips').length == 0) {
+        if ($('.pd_pop_tips').length === 0) {
             $parent.remove();
             $('.pd_layer').remove();
         }
@@ -2581,7 +2599,7 @@ var KFOL = {
      */
     addConfigDialogLink: function () {
         var $logout = $('a[href^="login.php?action=quit"]').eq(0);
-        if ($logout.length == 0) return;
+        if ($logout.length === 0) return;
         $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore($logout)
             .click(function (event) {
                 event.preventDefault();
@@ -2713,7 +2731,7 @@ var KFOL = {
         var floor = parseInt(Tools.getUrlParam('floor'));
         if (!floor || floor <= 0) return;
         var $floorNode = $('.readlou > div:nth-child(2) > span:contains("{0}楼")'.replace('{0}', floor));
-        if ($floorNode.length == 0) return;
+        if ($floorNode.length === 0) return;
         var linkName = $floorNode.closest('.readlou').prev().attr('name');
         if (!linkName || !/^\d+$/.test(linkName)) return;
         location.hash = '#' + linkName;
@@ -2762,7 +2780,7 @@ var KFOL = {
     customMySmColor: function () {
         if (!Config.customMySmColor) return;
         var my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
-        if (my.length == 0) my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
+        if (my.length === 0) my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
         else my.css('color', Config.customMySmColor);
         my.closest('.readtext').css('border-color', Config.customMySmColor)
             .prev('.readlou').css('border-color', Config.customMySmColor)
@@ -2801,10 +2819,12 @@ var KFOL = {
      * 调整帖子内容宽度，使其保持一致
      */
     adjustThreadContentWidth: function () {
-        $('head').append(['<style type="text/css">',
-            '.readtext > table > tbody > tr > td { padding-left: 192px; }',
-            '.readidms, .readidm { margin-left: -192px !important; }',
-            '</style>'].join(''));
+        $('head').append(
+            '<style type="text/css">' +
+            '.readtext > table > tbody > tr > td { padding-left: 192px; }' +
+            '.readidms, .readidm { margin-left: -192px !important; }' +
+            '</style>'
+        );
     },
 
     /**
@@ -2812,10 +2832,12 @@ var KFOL = {
      */
     adjustThreadContentFontSize: function () {
         if (Config.threadContentFontSize > 0 && Config.threadContentFontSize !== 12) {
-            $('head').append(['<style type="text/css">',
-                '.readtext td { font-size: {0}px; line-height: 1.6em; }'.replace('{0}', Config.threadContentFontSize),
-                '.readtext td > div, .readtext td > .read_fds { font-size: 12px; }',
-                '</style>'].join(''));
+            $('head').append(
+                '<style type="text/css">' +
+                '.readtext td { font-size: {0}px; line-height: 1.6em; }'.replace('{0}', Config.threadContentFontSize) +
+                '.readtext td > div, .readtext td > .read_fds { font-size: 12px; }' +
+                '</style>'
+            );
         }
     },
 
@@ -2831,23 +2853,23 @@ var KFOL = {
                 if (index === 0 || name === '-----------') return;
                 buyerList.push(name);
             });
-            if (buyerList.length == 0) {
+            if (buyerList.length === 0) {
                 alert('暂时无人购买');
                 return;
             }
             if ($('#pd_copy_buyer_list').length > 0) return;
-            var html = [
-                '<form>',
-                '<div class="pd_cfg_box" id="pd_copy_buyer_list">',
-                '  <h1>购买人名单<span>×</span></h1>',
-                '  <div class="pd_cfg_main">',
-                '    <textarea style="width:200px;height:300px;margin:5px 0" readonly="readonly"></textarea>',
-                '  </div>',
-                '</div>',
-                '</form>'
-            ].join('');
+            var html =
+                '<form>' +
+                '<div class="pd_cfg_box" id="pd_copy_buyer_list">' +
+                '  <h1>购买人名单<span>×</span></h1>' +
+                '  <div class="pd_cfg_main">' +
+                '    <textarea style="width:200px;height:300px;margin:5px 0" readonly="readonly"></textarea>' +
+                '  </div>' +
+                '</div>' +
+                '</form>';
             var $dialog = $(html).appendTo('body');
             Tools.resize('pd_copy_buyer_list');
+            Tools.escKeydown('pd_copy_buyer_list');
             $dialog.find('h1 > span').click(function () {
                 return Tools.close('pd_copy_buyer_list');
             }).end().find('textarea').val(buyerList.join('\n')).select().focus();
@@ -2858,20 +2880,133 @@ var KFOL = {
     },
 
     /**
+     * 显示统计回帖者名单对话框
+     * @param {string[]} replyerList 回帖者名单列表
+     */
+    showStatReplyersDialog: function (replyerList) {
+        var html =
+            '<form>' +
+            '<div class="pd_cfg_box" id="pd_replyer_list">' +
+            '  <h1>回帖者名单<span>×</span></h1>' +
+            '  <div class="pd_cfg_main">' +
+            '    <div id="pd_replyer_list_filter" style="margin-top:5px">' +
+            '      <label><input type="checkbox" checked="checked" />显示楼层号</label>' +
+            '      <label><input type="checkbox" />去除重复</label>' +
+            '      <label><input type="checkbox" />去除楼主</label>' +
+            '    </div>' +
+            '    <div style="color:#FF0000" id="pd_replyer_list_stat"></div>' +
+            '    <textarea style="width:250px;height:300px;margin:5px 0" readonly="readonly"></textarea>' +
+            '  </div>' +
+            '</div>' +
+            '</form>';
+        var $dialog = $(html).appendTo('body');
+        Tools.resize('pd_replyer_list');
+        Tools.escKeydown('pd_replyer_list');
+        $dialog.find('h1 > span').click(function () {
+            return Tools.close('pd_replyer_list');
+        }).end().find('textarea').data('replyer_list', JSON.stringify(replyerList)).focus(function () {
+            $(this).select();
+        });
+        $(window).on('resize.pd_replyer_list', function () {
+            Tools.resize('pd_replyer_list');
+        });
+        var filterList = function () {
+            var $filterNodes = $('#pd_replyer_list_filter input');
+            var isShowFloor = $filterNodes.eq(0).prop('checked'),
+                isDeduplication = $filterNodes.eq(1).prop('checked'),
+                isRemoveTopFloor = $filterNodes.eq(2).prop('checked');
+            var list = $dialog.find('textarea').data('replyer_list');
+            try {
+                list = JSON.parse(list);
+            }
+            catch (ex) {
+                return;
+            }
+            if (!list || $.type(list) !== 'array') return;
+            if (isDeduplication) {
+                for (var i in list) {
+                    if ($.inArray(list[i], list) !== parseInt(i))
+                        list[i] = null;
+                }
+            }
+            if (isRemoveTopFloor) {
+                var topFloor = $('.readtext:eq(0)').find('.readidmsbottom, .readidmleft').find('a').text();
+                for (var i in list) {
+                    if (list[i] === topFloor)
+                        list[i] = null;
+                }
+            }
+            var content = '';
+            var num = 0;
+            for (var i in list) {
+                if (!list[i]) continue;
+                content += (isShowFloor ? i + 'L：' : '') + list[i] + '\n';
+                num++;
+            }
+            $dialog.find('textarea').val(content);
+            $('#pd_replyer_list_stat').html('共有<b>{0}</b>条项目'.replace('{0}', num));
+        }
+        $('#pd_replyer_list_filter').find('input').click(filterList);
+        filterList();
+    },
+
+    /**
      * 添加统计回帖者名单的链接
      */
     addStatReplyersLink: function () {
         var page = Tools.getUrlParam('page');
         if (page !== null && parseInt(page) !== 1) return;
-        $('<li><a href="#" title="统计回帖情况">[统计回帖]</a></li>').prependTo('.readlou:eq(1) > div > .pages')
+        $('<li><a href="#" title="统计回帖者名单">[统计回帖]</a></li>').prependTo('.readlou:eq(1) > div > .pages')
             .find('a').click(function (event) {
                 event.preventDefault();
+                if ($('#pd_replyer_list').length > 0) return;
+                var endFloor = parseInt(window.prompt('统计到第几楼？（0表示统计所有楼层）', 0));
+                if (isNaN(endFloor) || endFloor < 0) return;
                 var matches = /(\d+)页/.exec($('.pages:eq(0) > li:last-child > a').text());
                 var maxPage = matches ? parseInt(matches[1]) : 1;
-                var endFloor = parseInt(window.prompt('统计到第几楼？', maxPage * Config.perPageFloorNum - 1));
-                if (!endFloor || endFloor < 1) return;
+                if (endFloor === 0) endFloor = maxPage * Config.perPageFloorNum - 1;
                 var endPage = Math.floor(endFloor / Config.perPageFloorNum) + 1;
                 if (endPage > maxPage) endPage = maxPage;
+                if (endPage > 100) {
+                    alert('需访问的页数过多');
+                    return;
+                }
+                var tid = Tools.getUrlParam('tid');
+                if (!tid) return;
+                KFOL.showWaitMsg('<strong>正在统计回帖名单中...</strong><i>剩余页数：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', endPage)
+                    , true);
+                $(document).queue('StatReplyers', []);
+                var replyerList = [];
+                $.each(new Array(endPage), function (index) {
+                    $(document).queue('StatReplyers', function () {
+                        var url = 'read.php?tid={0}&page={1}'.replace('{0}', tid).replace('{1}', index + 1);
+                        $.get(url, function (html) {
+                            var matches = html.match(/<span style=".+?">\d+楼<\/span> <span style=".+?">(.|\n|\r\n)+?<a href="profile\.php\?action=show&uid=\d+" target="_blank" style=".+?">.+?<\/a>/gi);
+                            var isStop = false;
+                            for (var i in matches) {
+                                var floorMatches = /<span style=".+?">(\d+)楼<\/span>(?:.|\n|\r\n)+?<a href="profile\.php\?action=show&uid=\d+".+?>(.+?)<\/a>/i.exec(matches[i]);
+                                if (!floorMatches) continue;
+                                var floor = parseInt(floorMatches[1]);
+                                if (floor > endFloor) {
+                                    isStop = true;
+                                    break;
+                                }
+                                replyerList[floor] = floorMatches[2];
+                            }
+                            var $remainingNum = $('#pd_remaining_num');
+                            $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                            if (isStop || index === endPage - 1) {
+                                KFOL.removePopTips($('.pd_pop_tips'));
+                                KFOL.showStatReplyersDialog(replyerList);
+                            }
+                            window.setTimeout(function () {
+                                $(document).dequeue('StatReplyers');
+                            }, Config.defAjaxInterval);
+                        }, 'html');
+                    });
+                });
+                $(document).dequeue('StatReplyers');
             });
     },
 
@@ -2909,7 +3044,7 @@ var KFOL = {
             .find('.b_tit2 > a:eq(0)').click(function (event) {
                 event.preventDefault();
                 var quoteList = KFOL.getMultiQuoteData();
-                if (quoteList.length == 0) return;
+                if (quoteList.length === 0) return;
                 var content = '', keyword = '';
                 $.each(quoteList, function (index, quote) {
                     keyword += quote.userName + ',';
@@ -2964,9 +3099,8 @@ var KFOL = {
                     .replace('{3}', quote.floor);
                 console.log(url);
                 $.get(url, function (html) {
-                    var matches = /<textarea id="textarea".*?>((.|\n)+?)<\/textarea>/.exec(html);
-                    console.log(matches);
-                    if (matches) content += Tools.htmlDecode(matches[1]) + '\n\n';
+                    var matches = /<textarea id="textarea".*?>((.|\n)+?)<\/textarea>/i.exec(html);
+                    if (matches) content += Tools.htmlDecode(matches[1]).replace(':\n\n', ':\n') + '\n';
                     var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === data.quoteList.length - 1) {
@@ -2980,7 +3114,7 @@ var KFOL = {
             });
         });
         $('input[name="diy_guanjianci"]').val(keyword);
-        $('input[type="submit"][name="Submit"]').click(function () {
+        $('form[name="FORM"]').submit(function () {
             sessionStorage.removeItem(Config.multiQuoteStorageName);
         });
         $(document).dequeue('MultiQuote');
@@ -3065,7 +3199,7 @@ var KFOL = {
         }
         else if (location.pathname === '/read.php') {
             KFOL.customMySmColor();
-            KFOL.addMultiQuoteButton();
+            if (Config.multiQuoteEnabled) KFOL.addMultiQuoteButton();
             KFOL.addFastGotoFloorInput();
             KFOL.addCopyBuyersListLink();
             KFOL.addStatReplyersLink();
@@ -3077,7 +3211,7 @@ var KFOL = {
             Card.addStartBatchModeButton();
         }
         else if (/\/post\.php\?action=reply&fid=\d+&tid=\d+&multiquote=true/i.test(location.href)) {
-            KFOL.handleMultiQuote();
+            if (Config.multiQuoteEnabled) KFOL.handleMultiQuote();
         }
 
         if (Config.autoRefreshEnabled) {
