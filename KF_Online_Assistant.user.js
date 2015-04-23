@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     3.0.0-dev
+// @version     3.0.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -83,7 +83,7 @@ var Config = {
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
     hideMarkReadAtTipsExpires: 3,
-    // ajax请求的默认间隔时间
+    // ajax请求的默认间隔时间（毫秒）
     defAjaxInterval: 500,
     // 存储多重引用数据的SessionStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
@@ -1588,7 +1588,7 @@ var Card = {
         var successNum = 0, failNum = 0, totalVipTime = 0, totalEnergy = 0;
         $(document).queue('ConvertCardsToVipTime', []);
         $.each(cardList, function (index, cardId) {
-            var url = 'kf_fw_card_doit.php?do=recard&id=1{0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId);
+            var url = 'kf_fw_card_doit.php?do=recard&id={0}&safeid={1}'.replace('{0}', cardId).replace('{1}', safeId);
             $(document).queue('ConvertCardsToVipTime', function () {
                 $.get(url, function (html) {
                     KFOL.showFormatLog('将卡片转换为VIP时间', html);
@@ -3100,7 +3100,7 @@ var KFOL = {
                 console.log(url);
                 $.get(url, function (html) {
                     var matches = /<textarea id="textarea".*?>((.|\n)+?)<\/textarea>/i.exec(html);
-                    if (matches) content += Tools.htmlDecode(matches[1]).replace(':\n\n', ':\n') + '\n';
+                    if (matches) content += Tools.htmlDecode(matches[1]).replace(/\n\n/g, '\n') + '\n';
                     var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === data.quoteList.length - 1) {
