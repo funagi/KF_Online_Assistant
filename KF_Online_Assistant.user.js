@@ -2904,9 +2904,7 @@ var KFOL = {
         Tools.escKeydown('pd_replyer_list');
         $dialog.find('h1 > span').click(function () {
             return Tools.close('pd_replyer_list');
-        }).end().find('textarea').data('replyer_list', JSON.stringify(replyerList)).focus(function () {
-            $(this).select();
-        });
+        }).end().find('textarea').data('replyer_list', JSON.stringify(replyerList));
         $(window).on('resize.pd_replyer_list', function () {
             Tools.resize('pd_replyer_list');
         });
@@ -3097,7 +3095,6 @@ var KFOL = {
                     .replace('{1}', tid)
                     .replace('{2}', quote.spid)
                     .replace('{3}', quote.floor);
-                console.log(url);
                 $.get(url, function (html) {
                     var matches = /<textarea id="textarea".*?>((.|\n)+?)<\/textarea>/i.exec(html);
                     if (matches) content += Tools.htmlDecode(matches[1]).replace(/\n\n/g, '\n') + '\n';
