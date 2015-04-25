@@ -7,7 +7,7 @@
 // @description KF Online必备！可在绯月Galgame上自动抽取神秘盒子、道具或卡片以及KFB捐款，并可使用各种方便的功能，更多功能开发中……
 // @include     http://2dgal.com/*
 // @include     http://*.2dgal.com/*
-// @version     3.0.0
+// @version     3.1.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -67,6 +67,8 @@ var Config = {
     multiQuoteEnabled: true,
     // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
+    // 自定义论坛背景图片的URL，留空则使用默认背景
+    backgroundImageUrl: '',
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -452,7 +454,9 @@ var ConfigDialog = {
             '    <fieldset>' +
             '      <legend>其它设置</legend>' +
             '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" value="10" />秒 ' +
-            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>' +
+            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />' +
+            '      <label>论坛背景图片<input id="pd_cfg_background_image_url" style="width:230px" type="text" />' +
+            '<a class="pd_cfg_tips" href="#" title="请填写自定义论坛背景图片的URL，留空则使用默认背景">[?]</a></label>' +
             '    </fieldset>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
@@ -614,6 +618,7 @@ var ConfigDialog = {
         $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
+        $('#pd_cfg_background_image_url').val(Config.backgroundImageUrl);
     },
 
     /**
@@ -648,6 +653,7 @@ var ConfigDialog = {
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
+        options.backgroundImageUrl = $.trim($('#pd_cfg_background_image_url').val());
         return options;
     },
 
@@ -868,6 +874,11 @@ var ConfigDialog = {
             if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
                 settings.defShowMsgDuration = defShowMsgDuration;
             else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
+        }
+        if (typeof options.backgroundImageUrl !== 'undefined') {
+            var backgroundImageUrl = options.backgroundImageUrl;
+            if (backgroundImageUrl) settings.backgroundImageUrl = backgroundImageUrl;
+            else settings.backgroundImageUrl = defConfig.backgroundImageUrl;
         }
         return settings;
     },
@@ -3033,7 +3044,7 @@ var KFOL = {
         var replyUrl = $('a[href^="post.php?action=reply"].b_tit2').attr('href');
         if (!replyUrl) return;
         $('.readlou > div:first-child > ul').has('a[title="引用回复这个帖子"]')
-            .prepend('<li class="pd_multi_quote_chk"><label><input type="checkbox" /> 引</label></li>');
+            .prepend('<li class="pd_multi_quote_chk"><label title="多重引用"><input type="checkbox" /> 引</label></li>');
         $('.readlou:last').next('div').find('table > tbody > tr > td:last-child')
             .css({'text-align': 'right', 'width': '320px'})
             .append(('<span class="b_tit2" style="margin-left:5px"><a style="display:inline-block" href="#" title="多重回复">回复</a> ' +
@@ -3118,6 +3129,19 @@ var KFOL = {
     },
 
     /**
+     * 自定义论坛背景图片
+     */
+    customBackgroundImage: function () {
+        if (!Config.backgroundImageUrl) return;
+        $('head').append(
+            '<style type="text/css">' +
+            'body { background: url("{0}") no-repeat fixed 0% 0% / cover; }'.replace('{0}', Config.backgroundImageUrl) +
+            '#alldiv { opacity: 0.85; background-color: #FFF; }' +
+            '</style>'
+        );
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -3127,26 +3151,53 @@ var KFOL = {
         if (location.pathname === '/' || location.pathname === '/index.php')
             KFOL.isInHomePage = true;
         ConfigDialog.init();
+        KFOL.getUidAndUserName();
+        if (!KFOL.uid) return;
         KFOL.appendCss();
-        if (location.pathname === '/read.php') {
+        KFOL.addConfigDialogLink();
+
+        KFOL.customBackgroundImage();
+        if (KFOL.isInHomePage) {
+            KFOL.adjustCookiesExpires();
+            if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
+            if (Config.highlightVipEnabled) KFOL.highlightVipTips();
+        }
+        else if (location.pathname === '/read.php') {
             KFOL.fastGotoFloor();
             if (Config.adjustThreadContentWidthEnabled) KFOL.adjustThreadContentWidth();
             KFOL.adjustThreadContentFontSize();
+            KFOL.customMySmColor();
+            if (Config.multiQuoteEnabled) KFOL.addMultiQuoteButton();
+            KFOL.addFastGotoFloorInput();
             KFOL.addFloorGotoLink();
             //KFOL.addFastGotoPageInput();
+            KFOL.addCopyBuyersListLink();
+            KFOL.addStatReplyersLink();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
             if (Config.showFastGotoThreadPageEnabled) KFOL.addFastGotoThreadPageLink();
         }
-        KFOL.getUidAndUserName();
-        if (!KFOL.uid) return;
-        KFOL.addConfigDialogLink();
-
-        if (KFOL.isInHomePage) {
-            KFOL.adjustCookiesExpires();
-            if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
-            if (Config.highlightVipEnabled) KFOL.highlightVipTips();
+        else if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
+            Item.addConvertAllItemsToEnergyLink();
+        }
+        else if (/\/kf_fw_ig_renew\.php\?lv=\d+$/i.test(location.href)) {
+            Item.addConvertEnergyAndRestoreItemsButton();
+        }
+        else if (/\/kf_fw_ig_my\.php\?lv=\d+$/i.test(location.href)) {
+            Item.addUseItemsButton();
+        }
+        else if (location.pathname === '/kf_fw_ig_smone.php') {
+            Item.addBatchDrawSmButton();
+        }
+        else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
+            Bank.addBatchTransferButton();
+        }
+        else if (/\/kf_fw_card_my\.php$/i.test(location.href)) {
+            Card.addStartBatchModeButton();
+        }
+        else if (/\/post\.php\?action=reply&fid=\d+&tid=\d+&multiquote=true/i.test(location.href)) {
+            if (Config.multiQuoteEnabled) KFOL.handleMultiQuote();
         }
 
         var isDrawSmboxStarted = false;
@@ -3182,38 +3233,10 @@ var KFOL = {
             KFOL.donation();
         }
 
-        if (/\/kf_fw_ig_renew\.php$/i.test(location.href)) {
-            Item.addConvertAllItemsToEnergyLink();
-        }
-        else if (/\/kf_fw_ig_renew\.php\?lv=\d+$/i.test(location.href)) {
-            Item.addConvertEnergyAndRestoreItemsButton();
-        }
-        else if (/\/kf_fw_ig_my\.php\?lv=\d+$/i.test(location.href)) {
-            Item.addUseItemsButton();
-        }
-        else if (location.pathname === '/kf_fw_ig_smone.php') {
-            Item.addBatchDrawSmButton();
-        }
-        else if (location.pathname === '/read.php') {
-            KFOL.customMySmColor();
-            if (Config.multiQuoteEnabled) KFOL.addMultiQuoteButton();
-            KFOL.addFastGotoFloorInput();
-            KFOL.addCopyBuyersListLink();
-            KFOL.addStatReplyersLink();
-        }
-        else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
-            Bank.addBatchTransferButton();
-        }
-        else if (/\/kf_fw_card_my\.php$/i.test(location.href)) {
-            Card.addStartBatchModeButton();
-        }
-        else if (/\/post\.php\?action=reply&fid=\d+&tid=\d+&multiquote=true/i.test(location.href)) {
-            if (Config.multiQuoteEnabled) KFOL.handleMultiQuote();
-        }
-
         if (Config.autoRefreshEnabled) {
             if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
         }
+
         var endDate = new Date();
         console.log('KF Online助手加载完毕，加载耗时：{0}ms'.replace('{0}', endDate - startDate));
     }
