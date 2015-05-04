@@ -67,8 +67,6 @@ var Config = {
     multiQuoteEnabled: true,
     // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
-    // 自定义论坛背景图片的URL，留空则使用默认背景
-    backgroundImageUrl: '',
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -454,9 +452,7 @@ var ConfigDialog = {
             '    <fieldset>' +
             '      <legend>其它设置</legend>' +
             '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" value="10" />秒 ' +
-            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />' +
-            '      <label>论坛背景图片<input id="pd_cfg_background_image_url" style="width:230px" type="text" />' +
-            '<a class="pd_cfg_tips" href="#" title="请填写自定义论坛背景图片的URL，留空则使用默认背景">[?]</a></label>' +
+            '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label>' +
             '    </fieldset>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
@@ -618,7 +614,6 @@ var ConfigDialog = {
         $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
-        $('#pd_cfg_background_image_url').val(Config.backgroundImageUrl);
     },
 
     /**
@@ -653,7 +648,6 @@ var ConfigDialog = {
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
-        options.backgroundImageUrl = $.trim($('#pd_cfg_background_image_url').val());
         return options;
     },
 
@@ -874,11 +868,6 @@ var ConfigDialog = {
             if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
                 settings.defShowMsgDuration = defShowMsgDuration;
             else settings.defShowMsgDuration = defConfig.defShowMsgDuration;
-        }
-        if (typeof options.backgroundImageUrl !== 'undefined') {
-            var backgroundImageUrl = options.backgroundImageUrl;
-            if (backgroundImageUrl) settings.backgroundImageUrl = backgroundImageUrl;
-            else settings.backgroundImageUrl = defConfig.backgroundImageUrl;
         }
         return settings;
     },
@@ -1789,7 +1778,7 @@ var Bank = {
     },
 
     /**
-     * 活期存款
+     * 给活期帐户存款
      * @param {number} money 存款金额（KFB）
      * @param {number} cash 现金（KFB）
      * @param {number} currentDeposit 现有活期存款（KFB）
@@ -1816,6 +1805,33 @@ var Bank = {
                 }
                 else {
                     alert('存款失败');
+                }
+            }, 'html');
+    },
+
+    /**
+     * 从活期帐户取款
+     * @param {number} money 取款金额（KFB）
+     */
+    drawCurrentDeposit: function (money) {
+        var $tips = KFOL.showWaitMsg('正在取款中...', true);
+        $.post('hack.php?H_name=bank',
+            {action: 'draw', btype: 1, drawmoney: money},
+            function (html) {
+                KFOL.removePopTips($tips);
+                if (/完成取款/.test(html)) {
+                    KFOL.showFormatLog('取款', html);
+                    console.log('从活期账户中取出了{0}KFB'.replace('{0}', money));
+                    KFOL.showMsg('从活期账户中取出了<em>{0}</em>KFB'.replace('{0}', money), -1);
+                }
+                else if (/取款金额大于您的存款金额/.test(html)) {
+                    KFOL.showMsg('取款金额大于当前活期存款金额', -1);
+                }
+                else if (/\d+秒内不允许重新交易/.test(html)) {
+                    KFOL.showMsg('提交速度过快', -1);
+                }
+                else {
+                    KFOL.showMsg('取款失败', -1);
                 }
             }, 'html');
     },
@@ -2609,10 +2625,8 @@ var KFOL = {
      * 添加设置对话框的链接
      */
     addConfigDialogLink: function () {
-        var $logout = $('a[href^="login.php?action=quit"]').eq(0);
-        if ($logout.length === 0) return;
-        $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore($logout)
-            .click(function (event) {
+        $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore('a[href^="login.php?action=quit"]:eq(0)')
+            .filter('a').click(function (event) {
                 event.preventDefault();
                 ConfigDialog.show();
             });
@@ -3129,16 +3143,43 @@ var KFOL = {
     },
 
     /**
-     * 自定义论坛背景图片
+     * 在短消息页面中添加快速取款的链接
      */
-    customBackgroundImage: function () {
-        if (!Config.backgroundImageUrl) return;
-        $('head').append(
-            '<style type="text/css">' +
-            'body { background: url("{0}") no-repeat fixed 0% 0% / cover; }'.replace('{0}', Config.backgroundImageUrl) +
-            '#alldiv { opacity: 0.85; background-color: #FFF; }' +
-            '</style>'
+    addFastDrawMoneyLink: function () {
+        if ($('td:contains("SYSTEM")').length === 0 || $('td:contains("收到了他人转账的KFB")').length === 0) return;
+        var $msg = $('.thread2 > tbody > tr:eq(-2) > td:last');
+        $msg.html($msg.html()
+                .replace(/会员\[(.+?)\]通过论坛银行/, '会员[<a target="_blank" href="profile.php?action=show&username=$1">$1</a>]通过论坛银行')
+                .replace(/给你转帐(\d+)KFB/i, '给你转帐<span class="pd_stat"><em>$1</em></span>KFB')
         );
+        $('<br /><a title="从活期存款中取出当前转账的金额" href="#">快速取款</a> | <a title="取出银行账户中的所有活期存款" href="#">取出所有存款</a>').appendTo($msg)
+            .filter('a:eq(0)').click(function (event) {
+                event.preventDefault();
+                KFOL.removePopTips($('.pd_pop_tips'));
+                var matches = /给你转帐(\d+)KFB/i.exec($msg.text());
+                if (!matches) return;
+                var money = parseInt(matches[1]);
+                Bank.drawCurrentDeposit(money);
+            })
+            .end().filter('a:eq(1)').click(function (event) {
+                event.preventDefault();
+                KFOL.removePopTips($('.pd_pop_tips'));
+                KFOL.showWaitMsg('正在获取当前活期存款金额...', true);
+                $.get('hack.php?H_name=bank', function (html) {
+                    KFOL.removePopTips($('.pd_pop_tips'));
+                    var matches = /活期存款：(\d+)KFB<br \/>/i.exec(html);
+                    if (!matches) {
+                        alert('获取当前活期存款金额失败');
+                        return;
+                    }
+                    var money = parseInt(matches[1]);
+                    if (money <= 0) {
+                        KFOL.showMsg('当前活期存款帐户为空', -1);
+                        return;
+                    }
+                    Bank.drawCurrentDeposit(money);
+                }, 'html');
+            });
     },
 
     /**
@@ -3156,7 +3197,6 @@ var KFOL = {
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
 
-        KFOL.customBackgroundImage();
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
@@ -3198,6 +3238,9 @@ var KFOL = {
         }
         else if (/\/post\.php\?action=reply&fid=\d+&tid=\d+&multiquote=true/i.test(location.href)) {
             if (Config.multiQuoteEnabled) KFOL.handleMultiQuote();
+        }
+        else if (/\/message\.php\?action=read&mid=\d+/i.test(location.href)) {
+            KFOL.addFastDrawMoneyLink();
         }
 
         var isDrawSmboxStarted = false;
