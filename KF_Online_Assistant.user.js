@@ -63,6 +63,8 @@ var Config = {
     threadContentFontSize: 0,
     // 自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空
     customMySmColor: '',
+    // 是否将帖子中的绯月其它域名的链接修改为当前域名，true：开启；false：关闭
+    modifyKFOtherDomainEnabled: false,
     // 是否开启多重回复和多重引用的功能，true：开启；false：关闭
     multiQuoteEnabled: true,
     // 默认提示消息的持续时间（秒）
@@ -446,6 +448,8 @@ var ConfigDialog = {
             '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />' +
             '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">' +
             '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label><br />' +
+            '      <label><input id="pd_cfg_modify_kf_other_domain_enabled" type="checkbox" />将绯月其它域名的链接修改为当前域名 ' +
+            '<a class="pd_cfg_tips" href="#" title="将帖子中的绯月其它域名的链接修改为当前域名">[?]</a></label><br />' +
             '      <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" checked="checked" />开启多重引用功能 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子页面开启多重回复和多重引用功能">[?]</a></label>' +
             '    </fieldset>' +
@@ -611,6 +615,7 @@ var ConfigDialog = {
         $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked', Config.adjustThreadContentWidthEnabled);
         $('#pd_cfg_thread_content_font_size').val(Config.threadContentFontSize > 0 ? Config.threadContentFontSize : '');
         $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
+        $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked', Config.modifyKFOtherDomainEnabled);
         $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
@@ -646,6 +651,7 @@ var ConfigDialog = {
         options.adjustThreadContentWidthEnabled = $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked');
         options.threadContentFontSize = parseInt($.trim($('#pd_cfg_thread_content_font_size').val()));
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
+        options.modifyKFOtherDomainEnabled = $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked');
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         return options;
@@ -861,6 +867,8 @@ var ConfigDialog = {
                 settings.customMySmColor = customMySmColor;
             else settings.customMySmColor = defConfig.customMySmColor;
         }
+        settings.modifyKFOtherDomainEnabled = typeof options.modifyKFOtherDomainEnabled === 'boolean' ?
+            options.modifyKFOtherDomainEnabled : defConfig.modifyKFOtherDomainEnabled;
         settings.multiQuoteEnabled = typeof options.multiQuoteEnabled === 'boolean' ?
             options.multiQuoteEnabled : defConfig.multiQuoteEnabled;
         if (typeof options.defShowMsgDuration !== 'undefined') {
@@ -3183,6 +3191,20 @@ var KFOL = {
     },
 
     /**
+     * 将帖子中的绯月其它域名的链接修改为当前域名
+     */
+    modifyKFOtherDomain: function () {
+        $('.readtext a').each(function () {
+            var $this = $(this);
+            var url = $this.attr('href');
+            var regex = /^http:\/\/(.+?\.)?(2dgal|9gal|9baka|9moe)\.com\//i;
+            if (regex.test(url)) {
+                $this.attr('href', url.replace(regex, Tools.getHostNameUrl()));
+            }
+        });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -3213,6 +3235,7 @@ var KFOL = {
             //KFOL.addFastGotoPageInput();
             KFOL.addCopyBuyersListLink();
             KFOL.addStatReplyersLink();
+            if (Config.modifyKFOtherDomainEnabled) KFOL.modifyKFOtherDomain();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
@@ -3230,7 +3253,7 @@ var KFOL = {
         else if (location.pathname === '/kf_fw_ig_smone.php') {
             Item.addBatchDrawSmButton();
         }
-        else if (/\/hack\.php\?H_name=bank/i.test(location.href)) {
+        else if (/\/hack\.php\?H_name=bank$/i.test(location.href)) {
             Bank.addBatchTransferButton();
         }
         else if (/\/kf_fw_card_my\.php$/i.test(location.href)) {
