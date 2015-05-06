@@ -78,7 +78,7 @@ https://greasyfork.org/zh-CN/scripts/8615
 * 其它各种功能处于计划中
 
 ## 讨论帖
-http://bbs.2dgal.com/read.php?tid=478307
+http://bbs.2dgal.com/read.php?tid=482906
 
 ## License
 [MIT](http://opensource.org/licenses/MIT)
