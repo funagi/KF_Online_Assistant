@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.2.0-dev
+// @version     3.2.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -69,10 +69,10 @@ var Config = {
     modifyKFOtherDomainEnabled: false,
     // 是否开启多重回复和多重引用的功能，true：开启；false：关闭
     multiQuoteEnabled: true,
-    // 默认提示消息的持续时间（秒），默认值：10
+    // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
-    // 日志保存天数，默认值：7
-    logSaveDays: 7,
+    // 日志保存天数
+    logSaveDays: 10,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -533,7 +533,7 @@ var ConfigDialog = {
             '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" />秒 ' +
             '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />' +
             '      <label>日志保存天数<input id="pd_cfg_log_save_days" maxlength="3" style="width:25px" type="text" />' +
-            '<a class="pd_cfg_tips" href="#" title="默认值：7">[?]</a></label>' +
+            '<a class="pd_cfg_tips" href="#" title="默认值：10">[?]</a></label>' +
             '    </fieldset>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
@@ -1058,15 +1058,15 @@ var Log = {
     deleteOverdueLog: function () {
         var dateList = Tools.getObjectKeyList(Log.log, 1);
         var overdueDate = Tools.getDateString(Tools.getDate('-' + Config.logSaveDays + 'd'));
-        var isDelete = false;
+        var isDeleted = false;
         for (var i in dateList) {
             if (dateList[i] <= overdueDate) {
                 delete Log.log[dateList[i]];
-                isDelete = true;
+                isDeleted = true;
             }
             else break;
         }
-        if (isDelete) Log.write();
+        if (isDeleted) Log.write();
     },
 
     /**
@@ -1079,28 +1079,26 @@ var Log = {
      * @param {boolean} [options.notStat=false] 是否不参与统计
      */
     push: function (type, action, options) {
-        var settings = {
+        var defaults = {
+            time: 0,
             type: '',
             action: '',
             gain: {},
             pay: {},
             notStat: false
         };
+        var settings = $.extend({}, defaults);
         if ($.type(options) === 'object') {
             $.extend(settings, options);
         }
         settings.type = type;
         settings.action = action;
-        Log.read();
         var date = new Date();
+        settings.time = date.getTime();
         var today = Tools.getDateString(date);
+        Log.read();
         if ($.type(Log.log[today]) !== 'array') Log.log[today] = [];
-        Log.log[today].push(
-            {
-                time: date.getTime(), type: settings.type, action: settings.action, gain: settings.gain,
-                pay: settings.pay, notStat: settings.notStat
-            }
-        );
+        Log.log[today].push(Tools.getDifferentValueOfObject(defaults, settings));
         Log.write();
     },
 
@@ -1220,21 +1218,26 @@ var Log = {
         if ($.type(Log.log[date]) !== 'array') return;
         var content = '';
         $.each(Log.log[date], function (index, key) {
-            if (typeof key.action === 'undefined' || typeof key.time === 'undefined') return;
+            if (typeof key.time === 'undefined' || typeof key.type === 'undefined' || typeof key.action === 'undefined') return;
             var d = new Date(key.time);
             content += '<b>{0} ({1})：</b><br />{2}'
                 .replace('{0}', Tools.getTimeString(d))
                 .replace('{1}', key.type)
                 .replace('{2}', key.action.replace(/`([^`]+?)`/g, '<b style="color:#F00">$1</b>'));
-            if ($.type(key.gain) !== 'object' || $.type(key.pay) !== 'object') return;
-            if (!$.isEmptyObject(key.gain) || !$.isEmptyObject(key.pay)) content += '，';
-            for (var k in key.gain) {
-                content += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k]);
+            var stat = '';
+            if ($.type(key.gain) === 'object' && !$.isEmptyObject(key.gain)) {
+                stat += '，';
+                for (var k in key.gain) {
+                    stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k]);
+                }
             }
-            for (var k in key.pay) {
-                content += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k]);
+            if ($.type(key.pay) === 'object' && !$.isEmptyObject(key.pay)) {
+                if (!stat) stat += '，';
+                for (var k in key.pay) {
+                    stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k]);
+                }
             }
-            content += '<br />';
+            content += stat + '<br />';
         });
         $('#pd_log_content').html(content).prev('legend').text('日志内容 (共{0}项)'.replace('{0}', Log.log[date].length));
     },
@@ -1251,12 +1254,11 @@ var Log = {
             var matches = /^(\d+)days$/i.exec(type);
             var days = parseInt(matches[1]);
             var dateList = Tools.getObjectKeyList(Log.log, 1);
-            var maxDate = new Date(date);
             var minDate = new Date(date);
             minDate.setDate(minDate.getDate() - days + 1);
+            minDate = Tools.getDateString(minDate);
             for (var k in dateList) {
-                var d = new Date(dateList[k]);
-                if (d >= minDate && d <= maxDate) {
+                if (dateList[k] >= minDate && dateList[k] <= date) {
                     log[dateList[k]] = Log.log[dateList[k]];
                 }
             }
@@ -1270,15 +1272,18 @@ var Log = {
         var income = {}, expense = {}, profit = {};
         for (var d in log) {
             $.each(log[d], function (index, key) {
-                if ($.type(key.gain) !== 'object' || $.type(key.gain) !== 'object') return;
                 if (key.notStat) return;
-                for (var k in key.gain) {
-                    if (typeof income[k] === 'undefined') income[k] = key.gain[k];
-                    else income[k] += key.gain[k];
+                if ($.type(key.gain) === 'object') {
+                    for (var k in key.gain) {
+                        if (typeof income[k] === 'undefined') income[k] = key.gain[k];
+                        else income[k] += key.gain[k];
+                    }
                 }
-                for (var k in key.pay) {
-                    if (typeof expense[k] === 'undefined') expense[k] = key.pay[k];
-                    else expense[k] += key.pay[k];
+                if ($.type(key.pay) === 'object') {
+                    for (var k in key.pay) {
+                        if (typeof expense[k] === 'undefined') expense[k] = key.pay[k];
+                        else expense[k] += key.pay[k];
+                    }
                 }
             });
         }
@@ -2483,15 +2488,14 @@ var KFOL = {
             '.pd_pop_tips {' +
             '  border: 1px solid #6ca7c0; text-shadow: 0 0 3px rgba(0,0,0,0.1); border-radius: 3px; padding: 12px 40px; text-align: center;' +
             '  font-size: 14px; position: absolute; display: none; color: #333; background: #f8fcfe; background-repeat: no-repeat;' +
-            '  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#f9fcfe), color-stop(25%, #f6fbfe), to(#eff7fc));' +
-            '  background-image: -webkit-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
-            '  background-image: -moz-linear-gradient(top, #f9fcfe, #f6fbfe 25%, #eff7fc);' +
-            '  background-image: -o-linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
-            '  background-image: linear-gradient(#f9fcfe, #f6fbfe 25%, #eff7fc);' +
+            '  background-image: -webkit-linear-gradient(#F9FCFE, #F6FBFE 25%, #EFF7FC);' +
+            '  background-image: -moz-linear-gradient(top, #F9FCFE, #F6FBFE 25%, #EFF7FC);' +
+            '  background-image: -o-linear-gradient(#F9FCFE, #F6FBFE 25%, #EFF7FC);' +
+            '  background-image: linear-gradient(#F9FCFE, #F6FBFE 25%, #EFF7FC);' +
             '}' +
             '.pd_pop_tips strong { margin-right: 5px; }' +
             '.pd_pop_tips i { font-style: normal; padding-left: 10px; }' +
-            '.pd_pop_tips em, .pd_stat em, .pd_pop_tips ins, .pd_stat ins { font-weight: 700; font-style: italic; color:#FF6600; padding: 0 5px; }' +
+            '.pd_pop_tips em, .pd_stat em, .pd_pop_tips ins, .pd_stat ins { font-weight: 700; font-style: normal; color:#FF6600; padding: 0 5px; }' +
             '.pd_pop_tips ins, .pd_stat ins { text-decoration: none; color: #339933; }' +
             '.pd_pop_tips a { font-weight: bold; margin-left: 15px; }' +
             '.pd_stat i { font-style: normal; margin-right: 5px; }' +
@@ -2536,9 +2540,9 @@ var KFOL = {
             '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }' +
 
                 /* 日志对话框 */
-            '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; }' +
+            '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; line-height: 44px; }' +
             '.pd_log_nav a { display: inline-block; }' +
-            '.pd_log_nav h2 { display: inline-block; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
+            '.pd_log_nav h2 { display: inline; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
             '#pd_log_content { height: 350px; overflow: auto; }' +
             '</style>'
         );
@@ -3788,8 +3792,7 @@ var KFOL = {
         console.log('KF Online助手启动');
         if (location.pathname === '/' || location.pathname === '/index.php') KFOL.isInHomePage = true;
         ConfigDialog.init();
-        KFOL.getUidAndUserName();
-        if (!KFOL.uid) return;
+        if (!KFOL.getUidAndUserName()) return;
         KFOL.appendCss();
         KFOL.addConfigDialogLink();
 
