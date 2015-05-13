@@ -15,9 +15,6 @@
 // @license     MIT
 // ==/UserScript==
 /**
- * @todo 统计抽取神秘盒子
- */
-/**
  * 配置类
  */
 // （注意：请到设置界面里修改相应设置，如非必要请勿在代码里修改）
@@ -77,7 +74,7 @@ var Config = {
     // 日志保存天数
     logSaveDays: 10,
     // 在页面上方显示助手日志的链接，true：开启；false：关闭
-    showLogLinkInPageEnabled: false,
+    showLogLinkInPageEnabled: true,
     // 日志内容的排序方式，time：按时间顺序排序；type：按日志类别排序
     logSortType: 'time',
     // 日志统计范围类型，cur：显示当天统计结果；custom：显示距该日N天内的统计结果；all：显示全部统计结果
@@ -1236,7 +1233,7 @@ var Log = {
             Config.logStatType = $(this).val();
             ConfigDialog.write();
             Log.showLogStat(dateList[curIndex]);
-        }).end().find('#pd_log_stat_days').change(function () {
+        }).end().find('#pd_log_stat_days').keyup(function () {
             var days = parseInt($.trim($(this).val()));
             if (days > 0) {
                 Config.logStatDays = days;
@@ -1304,13 +1301,13 @@ var Log = {
             if ($.type(key.gain) === 'object' && !$.isEmptyObject(key.gain)) {
                 stat += '，';
                 for (var k in key.gain) {
-                    stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k]);
+                    stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k].toLocaleString());
                 }
             }
             if ($.type(key.pay) === 'object' && !$.isEmptyObject(key.pay)) {
                 if (!stat) stat += '，';
                 for (var k in key.pay) {
-                    stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k]);
+                    stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k].toLocaleString());
                 }
             }
             content += stat + '</p>';
@@ -1342,14 +1339,17 @@ var Log = {
         else {
             log[date] = Log.log[date];
         }
-        var income = {}, expense = {}, profit = {};
+        var income = {}, expense = {}, profit = {}, smBox = [];
         for (var d in log) {
             $.each(log[d], function (index, key) {
-                if (key.notStat) return;
+                if (key.notStat || typeof key.type === 'undefined') return;
                 if ($.type(key.gain) === 'object') {
                     for (var k in key.gain) {
                         if (typeof income[k] === 'undefined') income[k] = key.gain[k];
                         else income[k] += key.gain[k];
+                    }
+                    if (key.type === '抽取神秘盒子' && typeof key.gain['KFB'] !== 'undefined') {
+                        smBox.push(key.gain['KFB']);
                     }
                 }
                 if ($.type(key.pay) === 'object') {
@@ -1364,18 +1364,26 @@ var Log = {
         content += '<strong>收获：</strong>';
         $.each(Tools.getObjectKeyList(income, 1), function (index, key) {
             profit[key] = income[key];
-            content += '<i>{0}<em>+{1}</em></i>'.replace('{0}', key).replace('{1}', income[key]);
+            content += '<i>{0}<em>+{1}</em></i>'.replace('{0}', key).replace('{1}', income[key].toLocaleString());
         });
         content += '<br /><strong>付出：</strong>';
         $.each(Tools.getObjectKeyList(expense, 1), function (index, key) {
             if (typeof profit[key] === 'undefined') profit[key] = expense[key];
             else profit[key] += expense[key];
-            content += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', key).replace('{1}', expense[key]);
+            content += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', key).replace('{1}', expense[key].toLocaleString());
         });
         content += '<br /><strong>结余：</strong>';
         $.each(Tools.getObjectKeyList(profit, 1), function (index, key) {
-            content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key]));
+            content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key].toLocaleString()));
         });
+        var smBoxIncome = 0;
+        $.each(smBox, function (index, kfb) {
+            smBoxIncome += kfb;
+        });
+        content += '<br /><strong>神秘盒子收获：</strong><i>抽取次数<em>+{0}</em></i><i>总共收获KFB<em>+{1}</em></i><i>平均收获KFB<em>+{2}</em></i>'
+            .replace('{0}', smBox.length.toLocaleString())
+            .replace('{1}', smBoxIncome.toLocaleString())
+            .replace('{2}', smBox.length > 0 ? (smBoxIncome / smBox.length).toFixed(2).toLocaleString() : 0);
         $('#pd_log_stat').html(content);
     }
 };
@@ -2616,7 +2624,7 @@ var KFOL = {
             '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; line-height: 44px; }' +
             '.pd_log_nav a { display: inline-block; }' +
             '.pd_log_nav h2 { display: inline; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
-            '#pd_log_content { height: 350px; overflow: auto; }' +
+            '#pd_log_content { height: 324px; overflow: auto; }' +
             '#pd_log_content h3 { display: inline-block; font-size: 12px; line-height: 22px; margin: 0; }' +
             '#pd_log_content h3:not(:first-child) { margin-top: 5px; }' +
             '#pd_log_content p { line-height: 22px; margin: 0; }' +
