@@ -9,11 +9,16 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.2.0
+// @version     3.3.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
+/**
+ * @todo 购买框提醒
+ * @todo 日志内容排序
+ * @todo 统计抽取神秘盒子
+ */
 /**
  * 配置类
  */
@@ -73,6 +78,8 @@ var Config = {
     defShowMsgDuration: 10,
     // 日志保存天数
     logSaveDays: 10,
+    // 在页面上方显示助手日志的链接，true：开启；false：关闭
+    showLogLinkInPageEnabled: false,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -90,7 +97,7 @@ var Config = {
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
     hideMarkReadAtTipsExpires: 3,
     // ajax请求的默认间隔时间（毫秒）
-    defAjaxInterval: 300,
+    defAjaxInterval: 250,
     // 存储多重引用数据的LocalStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
     // 标记已KFB捐款的Cookie名称
@@ -534,6 +541,8 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />' +
             '      <label>日志保存天数<input id="pd_cfg_log_save_days" maxlength="3" style="width:25px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="默认值：10">[?]</a></label>' +
+            '      <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
+            '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label>' +
             '    </fieldset>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
@@ -700,6 +709,7 @@ var ConfigDialog = {
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_log_save_days').val(Config.logSaveDays);
+        $('#pd_cfg_show_log_link_in_page_enabled').prop('checked', Config.showLogLinkInPageEnabled);
     },
 
     /**
@@ -736,6 +746,7 @@ var ConfigDialog = {
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.logSaveDays = parseInt($.trim($('#pd_cfg_log_save_days').val()));
+        options.showLogLinkInPageEnabled = $('#pd_cfg_show_log_link_in_page_enabled').prop('checked');
         return options;
     },
 
@@ -973,6 +984,8 @@ var ConfigDialog = {
             if (logSaveDays > 0) settings.logSaveDays = logSaveDays;
             else settings.logSaveDays = defConfig.logSaveDays;
         }
+        settings.showLogLinkInPageEnabled = typeof options.showLogLinkInPageEnabled === 'boolean' ?
+            options.showLogLinkInPageEnabled : defConfig.showLogLinkInPageEnabled;
         return settings;
     },
 
@@ -3166,14 +3179,22 @@ var KFOL = {
     },
 
     /**
-     * 添加设置对话框的链接
+     * 添加设置和日志对话框的链接
      */
-    addConfigDialogLink: function () {
-        $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore('a[href^="login.php?action=quit"]:eq(0)')
+    addConfigAndLogDialogLink: function () {
+        var $login = $('a[href^="login.php?action=quit"]:eq(0)');
+        $('<a href="#">助手设置</a><span style="margin:0 4px">|</span>').insertBefore($login)
             .filter('a').click(function (event) {
                 event.preventDefault();
                 ConfigDialog.show();
             });
+        if (Config.showLogLinkInPageEnabled) {
+            $('<a href="#">助手日志</a><span style="margin:0 4px">|</span>').insertBefore($login)
+                .filter('a').click(function (event) {
+                    event.preventDefault();
+                    Log.show();
+                });
+        }
     },
 
     /**
@@ -3784,6 +3805,31 @@ var KFOL = {
     },
 
     /**
+     * 添加购买帖子提醒
+     */
+    addBuyThreadWarning: function () {
+        $('.readtext input[type="button"][value="愿意购买,支付KFB"]').each(function () {
+            var $this = $(this);
+            var matches = /此帖售价\s*(\d+)\s*KFB/i.exec($this.closest('legend').contents().eq(0).text());
+            if (!matches) return;
+            var sell = parseInt(matches[1]);
+            if (sell <= 5) return;
+            matches = /location\.href="(.+?)"/i.exec($this.attr('onclick'));
+            if (!matches) return;
+            $this.data('sell', sell).data('url', matches[1]).removeAttr('onclick').click(function (event) {
+                event.preventDefault();
+                var $this = $(this);
+                var sell = $this.data('sell');
+                var url = $this.data('url');
+                if (!sell || !url) return;
+                if (window.confirm('此贴售价{0}KFB，是否购买？'.replace('{0}', sell))) {
+                    location.href = url;
+                }
+            });
+        });
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -3794,7 +3840,7 @@ var KFOL = {
         ConfigDialog.init();
         if (!KFOL.getUidAndUserName()) return;
         KFOL.appendCss();
-        KFOL.addConfigDialogLink();
+        KFOL.addConfigAndLogDialogLink();
 
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
@@ -3813,6 +3859,7 @@ var KFOL = {
             KFOL.addCopyBuyersListLink();
             KFOL.addStatReplyersLink();
             if (Config.modifyKFOtherDomainEnabled) KFOL.modifyKFOtherDomainLink();
+            KFOL.addBuyThreadWarning();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
