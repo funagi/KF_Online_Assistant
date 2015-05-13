@@ -15,8 +15,6 @@
 // @license     MIT
 // ==/UserScript==
 /**
- * @todo 购买框提醒
- * @todo 日志内容排序
  * @todo 统计抽取神秘盒子
  */
 /**
@@ -80,6 +78,12 @@ var Config = {
     logSaveDays: 10,
     // 在页面上方显示助手日志的链接，true：开启；false：关闭
     showLogLinkInPageEnabled: false,
+    // 日志内容的排序方式，time：按时间顺序排序；type：按日志类别排序
+    logSortType: 'time',
+    // 日志统计范围类型，cur：显示当天统计结果；custom：显示距该日N天内的统计结果；all：显示全部统计结果
+    logStatType: 'cur',
+    // 显示距该日N天内的统计结果（用于日志统计范围）
+    logStatDays: 7,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -986,6 +990,25 @@ var ConfigDialog = {
         }
         settings.showLogLinkInPageEnabled = typeof options.showLogLinkInPageEnabled === 'boolean' ?
             options.showLogLinkInPageEnabled : defConfig.showLogLinkInPageEnabled;
+        if (typeof options.logSortType !== 'undefined') {
+            var logSortType = $.trim(options.logSortType).toLowerCase();
+            var allowTypes = ['time', 'type'];
+            if (logSortType !== '' && $.inArray(logSortType, allowTypes) > -1)
+                settings.logSortType = logSortType;
+            else settings.logSortType = defConfig.logSortType;
+        }
+        if (typeof options.logSortType !== 'undefined') {
+            var logStatType = $.trim(options.logStatType).toLowerCase();
+            var allowTypes = ['cur', 'custom', 'all'];
+            if (logStatType !== '' && $.inArray(logStatType, allowTypes) > -1)
+                settings.logStatType = logStatType;
+            else settings.logStatType = defConfig.logStatType;
+        }
+        if (typeof options.logStatDays !== 'undefined') {
+            var logStatDays = parseInt(options.logStatDays);
+            if (logStatDays > 0) settings.logStatDays = logStatDays;
+            else settings.logStatDays = defConfig.logStatDays;
+        }
         return settings;
     },
 
@@ -1134,15 +1157,21 @@ var Log = {
             '    </div>' +
             '    <fieldset>' +
             '      <legend>日志内容</legend>' +
+            '      <div>' +
+            '        <strong>排序方式：</strong>' +
+            '        <label title="按时间顺序排序"><input type="radio" name="pd_log_sort_type" value="time" checked="checked" />按时间</label>' +
+            '        <label title="按日志类别排序"><input type="radio" name="pd_log_sort_type" value="type" />按类别</label>' +
+            '      </div>' +
             '      <div class="pd_stat" id="pd_log_content">暂无日志</div>' +
             '    </fieldset>' +
             '    <fieldset>' +
             '      <legend>统计结果</legend>' +
             '      <div>' +
-            '       <strong>统计范围：</strong>' +
-            '       <label title="显示当天的统计结果"><input type="radio" name="pd_log_stat_type" value="cur" checked="checked" />当天</label>' +
-            '       <label title="显示距该日7天内的统计结果"><input type="radio" name="pd_log_stat_type" value="7days" />7天内</label>' +
-            '       <label title="显示全部统计结果"><input type="radio" name="pd_log_stat_type" value="all" />全部</label>' +
+            '        <strong>统计范围：</strong>' +
+            '        <label title="显示当天的统计结果"><input type="radio" name="pd_log_stat_type" value="cur" checked="checked" />当天</label>' +
+            '        <label title="显示距该日N天内的统计结果"><input type="radio" name="pd_log_stat_type" value="custom" /></label>' +
+            '<label title="显示距该日N天内的统计结果"><input id="pd_log_stat_days" type="text" style="width:22px" maxlength="3" />天内</label>' +
+            '        <label title="显示全部统计结果"><input type="radio" name="pd_log_stat_type" value="all" />全部</label>' +
             '      </div>' +
             '      <div class="pd_stat" id="pd_log_stat">暂无日志</div>' +
             '    </fieldset>' +
@@ -1161,8 +1190,6 @@ var Log = {
             dateList = Tools.getObjectKeyList(Log.log, 1);
             curIndex = dateList.length - 1;
             $dialog.find('.pd_log_nav h2').attr('title', '总共记录了{0}天的日志'.replace('{0}', dateList.length)).text(dateList[curIndex]);
-            Log.showLogContent(dateList[curIndex]);
-            Log.showLogStat(dateList[curIndex]);
             if (dateList.length > 1) {
                 $dialog.find('.pd_log_nav > a:eq(0)').attr('title', dateList[0]).removeClass('pd_disabled_link');
                 $dialog.find('.pd_log_nav > a:eq(1)').attr('title', dateList[curIndex - 1]).removeClass('pd_disabled_link');
@@ -1201,9 +1228,25 @@ var Log = {
             else {
                 $dialog.find('.pd_log_nav > a:gt(1)').removeAttr('title').addClass('pd_disabled_link');
             }
+        }).end().find('input[name="pd_log_sort_type"]').click(function () {
+            Config.logSortType = $(this).val();
+            ConfigDialog.write();
+            Log.showLogContent(dateList[curIndex]);
         }).end().find('input[name="pd_log_stat_type"]').click(function () {
+            Config.logStatType = $(this).val();
+            ConfigDialog.write();
             Log.showLogStat(dateList[curIndex]);
-        });
+        }).end().find('#pd_log_stat_days').change(function () {
+            var days = parseInt($.trim($(this).val()));
+            if (days > 0) {
+                Config.logStatDays = days;
+                ConfigDialog.write();
+                $('input[name="pd_log_stat_type"][value="custom"]:not(:checked)').click();
+                Log.showLogStat(dateList[curIndex]);
+            }
+        }).end().find('input[name="pd_log_sort_type"][value="{0}"]'.replace('{0}', Config.logSortType)).click()
+            .end().find('input[name="pd_log_stat_type"][value="{0}"]'.replace('{0}', Config.logStatType)).click()
+            .end().find('#pd_log_stat_days').val(Config.logStatDays);
 
         Tools.resize('pd_log');
         Tools.escKeydown('pd_log');
@@ -1229,14 +1272,34 @@ var Log = {
      */
     showLogContent: function (date) {
         if ($.type(Log.log[date]) !== 'array') return;
+        var logList = Log.log[date];
+        if (Config.logSortType === 'type') {
+            var sortTypeList = ['捐款', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
+                '神秘抽奖', '统计神秘抽奖结果', '批量转账'];
+            logList.sort(function (a, b) {
+                return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
+            });
+        }
         var content = '';
-        $.each(Log.log[date], function (index, key) {
+        var curType = '';
+        $.each(logList, function (index, key) {
             if (typeof key.time === 'undefined' || typeof key.type === 'undefined' || typeof key.action === 'undefined') return;
             var d = new Date(key.time);
-            content += '<b>{0} ({1})：</b><br />{2}'
-                .replace('{0}', Tools.getTimeString(d))
-                .replace('{1}', key.type)
-                .replace('{2}', key.action.replace(/`([^`]+?)`/g, '<b style="color:#F00">$1</b>'));
+            if (Config.logSortType === 'type') {
+                if (curType !== key.type) {
+                    content += '<h3>【{0}】</h3>'.replace('{0}', key.type);
+                    curType = key.type;
+                }
+                content += '<p><b>{0}：</b>{1}'
+                    .replace('{0}', Tools.getTimeString(d))
+                    .replace('{1}', key.action.replace(/`([^`]+?)`/g, '<b style="color:#F00">$1</b>'));
+            }
+            else {
+                content += '<p><b>{0} ({1})：</b><br />{2}'
+                    .replace('{0}', Tools.getTimeString(d))
+                    .replace('{1}', key.type)
+                    .replace('{2}', key.action.replace(/`([^`]+?)`/g, '<b style="color:#F00">$1</b>'));
+            }
             var stat = '';
             if ($.type(key.gain) === 'object' && !$.isEmptyObject(key.gain)) {
                 stat += '，';
@@ -1250,7 +1313,7 @@ var Log = {
                     stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k]);
                 }
             }
-            content += stat + '<br />';
+            content += stat + '</p>';
         });
         $('#pd_log_content').html(content).prev('legend').text('日志内容 (共{0}项)'.replace('{0}', Log.log[date].length));
     },
@@ -1261,14 +1324,11 @@ var Log = {
      */
     showLogStat: function (date) {
         if ($.type(Log.log[date]) !== 'array') return;
-        var type = $('input[name="pd_log_stat_type"]:checked').val();
         var log = {};
-        if (/^\d+days$/i.test(type)) {
-            var matches = /^(\d+)days$/i.exec(type);
-            var days = parseInt(matches[1]);
+        if (Config.logStatType === 'custom') {
             var dateList = Tools.getObjectKeyList(Log.log, 1);
             var minDate = new Date(date);
-            minDate.setDate(minDate.getDate() - days + 1);
+            minDate.setDate(minDate.getDate() - Config.logStatDays + 1);
             minDate = Tools.getDateString(minDate);
             for (var k in dateList) {
                 if (dateList[k] >= minDate && dateList[k] <= date) {
@@ -1276,7 +1336,7 @@ var Log = {
                 }
             }
         }
-        else if (type === 'all') {
+        else if (Config.logStatType === 'all') {
             log = Log.log;
         }
         else {
@@ -2557,6 +2617,9 @@ var KFOL = {
             '.pd_log_nav a { display: inline-block; }' +
             '.pd_log_nav h2 { display: inline; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
             '#pd_log_content { height: 350px; overflow: auto; }' +
+            '#pd_log_content h3 { display: inline-block; font-size: 12px; line-height: 22px; margin: 0; }' +
+            '#pd_log_content h3:not(:first-child) { margin-top: 5px; }' +
+            '#pd_log_content p { line-height: 22px; margin: 0; }' +
             '</style>'
         );
     },
