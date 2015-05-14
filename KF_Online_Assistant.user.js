@@ -81,6 +81,14 @@ var Config = {
     logStatType: 'cur',
     // 显示距该日N天内的统计结果（用于日志统计范围）
     logStatDays: 7,
+    // 是否开启关注用户的功能，true：开启；false：关闭
+    followUserEnabled: false,
+    // 关注用户列表，例：['张三','李四','王五']
+    followUserList: [],
+    // 是否开启屏蔽用户的功能，true：开启；false：关闭
+    blockUserEnabled: false,
+    // 屏蔽用户列表，例：['张三','李四','王五']
+    blockUserList: [],
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -429,8 +437,8 @@ var Tools = {
      */
     getStatFormatNumber: function (num) {
         var result = '';
-        if (num >= 0) result = '<em>+{0}</em>'.replace('{0}', num);
-        else result = '<ins>{0}</ins>'.replace('{0}', num);
+        if (num >= 0) result = '<em>+{0}</em>'.replace('{0}', num.toLocaleString());
+        else result = '<ins>{0}</ins>'.replace('{0}', num.toLocaleString());
         return result;
     }
 };
@@ -448,7 +456,7 @@ var ConfigDialog = {
      * 初始化
      */
     init: function () {
-        $.extend(ConfigDialog.defConfig, Config);
+        $.extend(true, ConfigDialog.defConfig, Config);
         ConfigDialog.read();
     },
 
@@ -457,10 +465,11 @@ var ConfigDialog = {
      */
     show: function () {
         if ($('#pd_config').length > 0) return;
+        ConfigDialog.read();
         var html =
             '<form>' +
             '<div id="pd_config" class="pd_cfg_box">' +
-            '  <h1>KF Online助手设置<span>×</span></h1>' +
+            '  <h1>KF Online助手设置<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div class="pd_cfg_nav"><a href="#">查看日志</a><a href="#">导入/导出设置</a></div>' +
             '    <fieldset>' +
@@ -474,7 +483,7 @@ var ConfigDialog = {
             '    </fieldset>' +
             '    <fieldset>' +
             '      <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>' +
-            '      <label>偏好的神秘盒子数字<input id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
+            '      <label>偏好的神秘盒子数字<input placeholder="例：52,1,28,400" id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">' +
             '[?]</a></label><br />' +
             '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
@@ -545,6 +554,20 @@ var ConfigDialog = {
             '      <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
             '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label>' +
             '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_follow_user_enabled" type="checkbox" />关注用户 ' +
+            '<a class="pd_cfg_tips" href="#" title="开启关注用户的功能，所关注的用户将被加注记号，可在下方或用户信息页面中添加或删除用户">[?]</a></label></legend>' +
+            '      <div class="pd_cfg_user_list" id="pd_cfg_follow_user_list"></div>' +
+            '      <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_follow_user" type="text" />' +
+            '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
+            '    </fieldset>' +
+            '    <fieldset>' +
+            '      <legend><label><input id="pd_cfg_block_user_enabled" type="checkbox" />屏蔽用户 ' +
+            '<a class="pd_cfg_tips" href="#" title="开启屏蔽用户的功能，你将看不见所屏蔽用户的发言，可在下方或用户信息页面中添加或删除用户">[?]</a></label></legend>' +
+            '      <div class="pd_cfg_user_list" id="pd_cfg_block_user_list"></div>' +
+            '      <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_block_user" type="text" />' +
+            '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
+            '    </fieldset>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
             '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>' +
@@ -553,26 +576,26 @@ var ConfigDialog = {
             '</div>' +
             '</form>';
         var $dialog = $(html).appendTo('body');
-        Tools.resize('pd_config');
-        Tools.escKeydown('pd_config');
+
         $dialog.find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
             return Tools.close('pd_config');
-        }).end().find('.pd_cfg_nav > a:first-child').click(function (event) {
-            event.preventDefault();
-            Log.show();
-        }).next().click(function (event) {
-            event.preventDefault();
-            ConfigDialog.showImportOrExportSettingDialog();
         }).end().find('.pd_cfg_tips').click(function () {
             return false;
-        }).end().find('.pd_cfg_btns > button:last').click(function (event) {
+        }).end().find('.pd_cfg_btns > button:eq(2)').click(function (event) {
             event.preventDefault();
             if (window.confirm('是否重置所有设置？')) {
                 ConfigDialog.clear();
                 alert('设置已重置');
                 location.reload();
             }
+        }).end().find('.pd_cfg_nav > a:first-child').click(function (event) {
+            event.preventDefault();
+            Log.show();
+        }).next().click(function (event) {
+            event.preventDefault();
+            ConfigDialog.showImportOrExportSettingDialog();
         });
+
         $('#pd_cfg_auto_use_item_names').keydown(function (event) {
             if (event.ctrlKey && event.key.toLowerCase() === 'a') {
                 event.preventDefault();
@@ -581,18 +604,43 @@ var ConfigDialog = {
                 });
             }
         });
+
         $('#pd_cfg_custom_my_sm_color_select').change(function () {
             $('#pd_cfg_custom_my_sm_color').val($(this).val().toString().toUpperCase());
         });
+
         $('#pd_cfg_custom_my_sm_color').keyup(function () {
             var customMySmColor = $.trim($(this).val());
             if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
                 $('#pd_cfg_custom_my_sm_color_select').val(customMySmColor.toUpperCase());
             }
         });
-        $(window).on('resize.pd_config', function () {
-            Tools.resize('pd_config');
+
+        $('#pd_cfg_add_follow_user, #pd_cfg_add_block_user').keydown(function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                $(this).next('a').click();
+            }
+        }).next('a').click(function (event) {
+            event.preventDefault();
+            var type = 1;
+            if ($(this).prevAll().filter('#pd_cfg_add_block_user').length > 0) type = 2;
+            ConfigDialog.addUserToFollowOrBlockList(type);
+        }).next('a').click(function (event) {
+            event.preventDefault();
+            var type = 1;
+            if ($(this).prevAll().filter('#pd_cfg_add_block_user').length > 0) type = 2;
+            if (!window.confirm('是否清除所有用户？')) return;
+            if (type === 2) {
+                Config.blockUserList = [];
+                $('#pd_cfg_block_user_list').empty();
+            }
+            else {
+                Config.followUserList = [];
+                $('#pd_cfg_follow_user_list').empty();
+            }
         });
+
         ConfigDialog.setValue();
         $dialog.submit(function (event) {
             event.preventDefault();
@@ -600,7 +648,7 @@ var ConfigDialog = {
             var oriAutoRefreshEnabled = Config.autoRefreshEnabled;
             var options = ConfigDialog.getValue();
             options = ConfigDialog.getNormalizationConfig(options);
-            Config = $.extend({}, Config, options);
+            $.extend(Config, options);
             ConfigDialog.write();
             Tools.close('pd_config');
             if (oriAutoRefreshEnabled !== options.autoRefreshEnabled) {
@@ -610,7 +658,7 @@ var ConfigDialog = {
             }
         }).find('legend input[type="checkbox"]').click(function () {
             var checked = $(this).prop('checked');
-            $(this).closest('legend').nextAll('label').find('input, select, textarea').prop('disabled', !checked);
+            $(this).closest('legend').nextAll('label').find('input, select, textarea, button').prop('disabled', !checked);
         }).each(function () {
             $(this).triggerHandler('click');
         }).end().find('input[data-disabled]').click(function () {
@@ -619,6 +667,65 @@ var ConfigDialog = {
         }).each(function () {
             $(this).triggerHandler('click');
         });
+
+        Tools.resize('pd_config');
+        Tools.escKeydown('pd_config');
+        $(window).on('resize.pd_config', function () {
+            Tools.resize('pd_config');
+        });
+    },
+
+    /**
+     * 显示关注用户或屏蔽用户列表
+     * @param {number} type 显示类别，1：关注用户；2：屏蔽用户
+     */
+    showFollowOrBlockUserList: function (type) {
+        var userList = Config.followUserList;
+        var $list = $('#pd_cfg_follow_user_list');
+        if (type === 2) {
+            userList = Config.blockUserList;
+            $list = $('#pd_cfg_block_user_list');
+        }
+        $.each(userList, function (index, key) {
+            $list.append('<span data-user="{0}">{0}<a href="#">&times;</a></span>'.replace(/\{0\}/g, key));
+        });
+        $list.on('click', 'a', function (event) {
+            event.preventDefault();
+            var $parent = $(this).parent();
+            var user = $parent.data('user');
+            var index = $.inArray(user, userList);
+            $parent.fadeOut('fast', function () {
+                $(this).remove();
+            });
+            if (index > -1) {
+                userList.splice(index, 1);
+            }
+        });
+    },
+
+    /**
+     * 添加用户到关注用户或屏蔽用户列表里
+     * @param {number} type 显示类别，1：关注用户；2：屏蔽用户
+     */
+    addUserToFollowOrBlockList: function (type) {
+        var userList = Config.followUserList;
+        var $list = $('#pd_cfg_follow_user_list');
+        var $input = $('#pd_cfg_add_follow_user');
+        if (type === 2) {
+            userList = Config.blockUserList;
+            $list = $('#pd_cfg_block_user_list');
+            $input = $('#pd_cfg_add_block_user');
+        }
+        var users = $.trim($input.val()).split(',');
+        if (!users || $.trim(users[0]) === '') return;
+        for (var i in users) {
+            var user = $.trim(users[i]);
+            if ($.inArray(user, userList) === -1) {
+                userList.push(user);
+                $list.append('<span data-user="{0}">{0}<a href="#">&times;</a></span>'.replace(/\{0\}/g, user));
+            }
+        }
+        $input.val('');
     },
 
     /**
@@ -629,7 +736,7 @@ var ConfigDialog = {
         var html =
             '<form>' +
             '<div class="pd_cfg_box" id="pd_im_or_ex_setting">' +
-            '  <h1>导入或导出设置<span>×</span></h1>' +
+            '  <h1>导入或导出设置<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div>' +
             '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />' +
@@ -643,8 +750,6 @@ var ConfigDialog = {
             '</div>' +
             '</form>';
         var $dialog = $(html).appendTo('body');
-        Tools.resize('pd_im_or_ex_setting');
-        Tools.escKeydown('pd_im_or_ex_setting');
         $dialog.find('h1 > span').click(function () {
             return Tools.close('pd_im_or_ex_setting');
         }).end().find('.pd_cfg_tips').click(function () {
@@ -665,17 +770,19 @@ var ConfigDialog = {
                 return;
             }
             options = ConfigDialog.getNormalizationConfig(options);
-            Config = $.extend({}, ConfigDialog.defConfig, options);
+            Config = $.extend(true, {}, ConfigDialog.defConfig, options);
             ConfigDialog.write();
             alert('设置已导入');
             location.reload();
         }).next('button').click(function () {
             return Tools.close('pd_im_or_ex_setting');
         });
+        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
+        Tools.resize('pd_im_or_ex_setting');
+        Tools.escKeydown('pd_im_or_ex_setting');
         $(window).on('resize.pd_im_or_ex_setting', function () {
             Tools.resize('pd_im_or_ex_setting');
         });
-        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
     },
 
     /**
@@ -711,6 +818,10 @@ var ConfigDialog = {
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_log_save_days').val(Config.logSaveDays);
         $('#pd_cfg_show_log_link_in_page_enabled').prop('checked', Config.showLogLinkInPageEnabled);
+        $('#pd_cfg_follow_user_enabled').prop('checked', Config.followUserEnabled);
+        ConfigDialog.showFollowOrBlockUserList(1);
+        $('#pd_cfg_block_user_enabled').prop('checked', Config.blockUserEnabled);
+        ConfigDialog.showFollowOrBlockUserList(2);
     },
 
     /**
@@ -748,6 +859,8 @@ var ConfigDialog = {
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.logSaveDays = parseInt($.trim($('#pd_cfg_log_save_days').val()));
         options.showLogLinkInPageEnabled = $('#pd_cfg_show_log_link_in_page_enabled').prop('checked');
+        options.followUserEnabled = $('#pd_cfg_follow_user_enabled').prop('checked');
+        options.blockUserEnabled = $('#pd_cfg_block_user_enabled').prop('checked');
         return options;
     },
 
@@ -994,7 +1107,7 @@ var ConfigDialog = {
                 settings.logSortType = logSortType;
             else settings.logSortType = defConfig.logSortType;
         }
-        if (typeof options.logSortType !== 'undefined') {
+        if (typeof options.logStatType !== 'undefined') {
             var logStatType = $.trim(options.logStatType).toLowerCase();
             var allowTypes = ['cur', 'custom', 'all'];
             if (logStatType !== '' && $.inArray(logStatType, allowTypes) > -1)
@@ -1005,6 +1118,30 @@ var ConfigDialog = {
             var logStatDays = parseInt(options.logStatDays);
             if (logStatDays > 0) settings.logStatDays = logStatDays;
             else settings.logStatDays = defConfig.logStatDays;
+        }
+        settings.followUserEnabled = typeof options.followUserEnabled === 'boolean' ?
+            options.followUserEnabled : defConfig.followUserEnabled;
+        if (typeof options.followUserList !== 'undefined') {
+            if ($.isArray(options.followUserList)) {
+                settings.followUserList = [];
+                for (var i in options.followUserList) {
+                    var user = $.trim(options.followUserList[i]);
+                    if (user) settings.followUserList.push(user);
+                }
+            }
+            else settings.followUserList = defConfig.followUserList;
+        }
+        settings.blockUserEnabled = typeof options.blockUserEnabled === 'boolean' ?
+            options.blockUserEnabled : defConfig.blockUserEnabled;
+        if (typeof options.blockUserList !== 'undefined') {
+            if ($.isArray(options.blockUserList)) {
+                settings.blockUserList = [];
+                for (var i in options.blockUserList) {
+                    var user = $.trim(options.blockUserList[i]);
+                    if (user) settings.blockUserList.push(user);
+                }
+            }
+            else settings.blockUserList = defConfig.blockUserList;
         }
         return settings;
     },
@@ -1022,9 +1159,8 @@ var ConfigDialog = {
             return;
         }
         if (!options || $.type(options) !== 'object' || $.isEmptyObject(options)) return;
-        //console.log(options);
         options = ConfigDialog.getNormalizationConfig(options);
-        Config = $.extend({}, Config, options);
+        Config = $.extend(true, {}, ConfigDialog.defConfig, options);
     },
 
     /**
@@ -1033,7 +1169,6 @@ var ConfigDialog = {
     write: function () {
         var options = Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config);
         localStorage[ConfigDialog.name] = JSON.stringify(options);
-        //console.log(options);
     },
 
     /**
@@ -1140,10 +1275,11 @@ var Log = {
      */
     show: function () {
         if ($('#pd_log').length > 0) return;
+        ConfigDialog.read();
         var html =
             '<form>' +
             '<div id="pd_log" class="pd_cfg_box">' +
-            '  <h1>助手日志<span>×</span></h1>' +
+            '  <h1>KF Online助手日志<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div class="pd_log_nav">' +
             '      <a class="pd_disabled_link" href="#">&lt;&lt;</a>' +
@@ -1374,7 +1510,7 @@ var Log = {
         });
         content += '<br /><strong>结余：</strong>';
         $.each(Tools.getObjectKeyList(profit, 1), function (index, key) {
-            content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key].toLocaleString()));
+            content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key]));
         });
         var smBoxIncome = 0;
         $.each(smBox, function (index, kfb) {
@@ -1456,7 +1592,7 @@ var Item = {
                         if (settings.type === 2) {
                             $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked')
                                 .closest('tr')
-                                .hide('slow', function () {
+                                .fadeOut('normal', function () {
                                     $(this).remove();
                                 });
                         }
@@ -1640,7 +1776,7 @@ var Item = {
                         if (settings.type === 2) {
                             $('.kf_fw_ig1:eq(1) input[type="checkbox"]:checked')
                                 .closest('tr')
-                                .hide('slow', function () {
+                                .fadeOut('normal', function () {
                                     $(this).remove();
                                 });
                         }
@@ -2009,7 +2145,7 @@ var Item = {
                         if (settings.type === 2) {
                             $('.kf_fw_ig1 input[type="checkbox"]:checked')
                                 .closest('tr')
-                                .hide('slow', function () {
+                                .fadeOut('normal', function () {
                                     $(this).remove();
                                 });
                         }
@@ -2132,7 +2268,7 @@ var Card = {
                         });
                         $('.kf_fw_ig2 .pd_card_chk:checked')
                             .closest('td')
-                            .hide('slow', function () {
+                            .fadeOut('normal', function () {
                                 var $parent = $(this).parent();
                                 $(this).remove();
                                 if ($parent.children().length === 0) $parent.remove();
@@ -2160,16 +2296,15 @@ var Card = {
                 var $cardLines = $('.kf_fw_ig2 > tbody > tr:gt(2)');
                 if ($this.text() === '开启批量模式') {
                     $this.text('关闭批量模式');
-                    $cardLines.find('td').has('a').each(function () {
+                    $cardLines.on('click', 'a', function (event) {
+                        event.preventDefault();
+                        $(this).next('.pd_card_chk').click();
+                    }).find('td').has('a').each(function () {
                         var matches = /kf_fw_card_my\.php\?id=(\d+)/.exec($(this).find('a').attr('href'));
                         if (!matches) return;
                         $(this).css('position', 'relative')
                             .append('<input class="pd_card_chk" type="checkbox" value="{0}" />'
-                                .replace('{0}', matches[1]))
-                            .find('a').click(function (event) {
-                                event.preventDefault();
-                                $(this).next('.pd_card_chk').click();
-                            });
+                                .replace('{0}', matches[1]));
                     });
                     var playedCardList = [];
                     $('.kf_fw_ig2 > tbody > tr:nth-child(2) > td').each(function () {
@@ -2238,7 +2373,7 @@ var Card = {
                 }
                 else {
                     $this.text('开启批量模式');
-                    $cardLines.find('.pd_card_chk').remove().end().find('a').off('click');
+                    $cardLines.off('click').find('.pd_card_chk').remove();
                     $this.prevAll().remove();
                 }
             });
@@ -2614,11 +2749,20 @@ var KFOL = {
             '.pd_cfg_main legend { font-weight: bold; }' +
             '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }' +
             '.pd_cfg_main input[type="color"] { height: 18px; width: 30px; padding: 0; }' +
+            '.pd_cfg_main button { vertical-align: middle; }' +
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }' +
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }' +
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }' +
             '.pd_cfg_btns button { width: 80px; margin-left: 5px; }' +
             '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }' +
+            '.pd_cfg_user_list { max-height: 114px; overflow: auto; }' +
+            '.pd_cfg_user_list > span {' +
+            '  display: inline-block; background-color: #DFF0D8; border: 1px solid #D6E9C6; color: #3C763D;' +
+            '  border-radius: 8px; padding: 0 5px; margin: 2px 3px;' +
+            '}' +
+            '.pd_cfg_user_list > span > a { text-decoration: none; padding-left: 4px; color: #3C763D; }' +
+            '#pd_cfg_block_user_list > span { background-color: #F2DEDE; border: 1px solid #EBCCD1; color: #A94442; }' +
+            '#pd_cfg_block_user_list > span > a { color: #A94442; }' +
 
                 /* 日志对话框 */
             '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; line-height: 44px; }' +
@@ -2628,6 +2772,7 @@ var KFOL = {
             '#pd_log_content h3 { display: inline-block; font-size: 12px; line-height: 22px; margin: 0; }' +
             '#pd_log_content h3:not(:first-child) { margin-top: 5px; }' +
             '#pd_log_content p { line-height: 22px; margin: 0; }' +
+            '#pd_log .pd_stat i { display: inline-block; }' +
             '</style>'
         );
     },
@@ -3440,10 +3585,10 @@ var KFOL = {
      */
     customMySmColor: function () {
         if (!Config.customMySmColor) return;
-        var my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
-        if (my.length === 0) my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
-        else my.css('color', Config.customMySmColor);
-        my.closest('.readtext').css('border-color', Config.customMySmColor)
+        var $my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
+        if ($my.length === 0) $my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
+        else $my.css('color', Config.customMySmColor);
+        $my.closest('.readtext').css('border-color', Config.customMySmColor)
             .prev('.readlou').css('border-color', Config.customMySmColor)
             .next().next('.readlou').css('border-color', Config.customMySmColor);
     },
@@ -3522,7 +3667,7 @@ var KFOL = {
             var html =
                 '<form>' +
                 '<div class="pd_cfg_box" id="pd_copy_buyer_list">' +
-                '  <h1>购买人名单<span>×</span></h1>' +
+                '  <h1>购买人名单<span>&times;</span></h1>' +
                 '  <div class="pd_cfg_main">' +
                 '    <textarea style="width:200px;height:300px;margin:5px 0" readonly="readonly"></textarea>' +
                 '  </div>' +
@@ -3548,7 +3693,7 @@ var KFOL = {
         var html =
             '<form>' +
             '<div class="pd_cfg_box" id="pd_replyer_list">' +
-            '  <h1>回帖者名单<span>×</span></h1>' +
+            '  <h1>回帖者名单<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div id="pd_replyer_list_filter" style="margin-top:5px">' +
             '      <label><input type="checkbox" checked="checked" />显示楼层号</label>' +
@@ -3901,6 +4046,140 @@ var KFOL = {
     },
 
     /**
+     * 添加关注和屏蔽用户的链接
+     */
+    addFollowAndBlockUserLink: function () {
+        var matches = /(.+?)\s*详细信息/.exec($('td:contains("详细信息")').text());
+        if (!matches) return;
+        var user = $.trim(matches[1]);
+        $('<span>[<a href="#">关注用户</a>] [<a href="#">屏蔽用户</a>]</span><br />')
+            .appendTo($('a[href^="message.php?action=write&touid="]').parent())
+            .find('a').each(function () {
+                var $this = $(this);
+                var str = '关注';
+                var userList = Config.followUserList;
+                if ($this.text().indexOf('屏蔽') > -1) {
+                    str = '屏蔽';
+                    userList = Config.blockUserList;
+                }
+                if ($.inArray(user, userList) > -1) {
+                    $this.addClass('pd_highlight').text('解除' + str);
+                }
+            }).click(function (event) {
+                event.preventDefault();
+                ConfigDialog.read();
+                var $this = $(this);
+                var str = '关注';
+                var userList = Config.followUserList;
+                if ($this.text().indexOf('屏蔽') > -1) {
+                    str = '屏蔽';
+                    userList = Config.blockUserList;
+                    if (!Config.blockUserEnabled) Config.blockUserEnabled = true;
+                }
+                else {
+                    if (!Config.followUserEnabled) Config.followUserEnabled = true;
+                }
+                if ($this.text() === '解除' + str) {
+                    var index = $.inArray(user, userList);
+                    if (index > -1) {
+                        userList.splice(index, 1);
+                        ConfigDialog.write();
+                    }
+                    $this.removeClass('pd_highlight').text(str + '用户');
+                    alert('该用户已被解除' + str);
+                }
+                else {
+                    if ($.inArray(user, userList) === -1) {
+                        userList.push(user);
+                        ConfigDialog.write();
+                    }
+                    $this.addClass('pd_highlight').text('解除' + str);
+                    alert('该用户已被' + str);
+                }
+            });
+    },
+
+    /**
+     * 关注用户
+     */
+    followUsers: function () {
+        if (!Config.followUserEnabled || Config.followUserList.length === 0) return;
+        if (location.pathname === '/thread.php') {
+            $('a.bl[href^="profile.php?action=show&uid="]').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.followUserList) > -1) {
+                    $this.addClass('pd_highlight');
+                }
+            });
+        }
+        else if (location.pathname === '/read.php') {
+            $('.readidmsbottom > a, .readidmleft > a').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.followUserList) > -1) {
+                    $this.closest('.readtext').prev('.readlou').find('div:nth-child(2) > span:first-child')
+                        .find('a').addBack().addClass('pd_highlight');
+                }
+            });
+        }
+        else if (location.pathname === '/guanjianci.php') {
+            $('.kf_share1 > tbody > tr > td:last-child').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.followUserList) > -1) {
+                    $this.addClass('pd_highlight');
+                }
+            });
+        }
+        else if (location.pathname === '/search.php') {
+            $('.thread1 a[href^="profile.php?action=show&uid="]').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.followUserList) > -1) {
+                    $this.addClass('pd_highlight');
+                }
+            });
+        }
+    },
+
+    /**
+     * 屏蔽用户
+     */
+    blockUsers: function () {
+        if (!Config.blockUserEnabled || Config.blockUserList.length === 0) return;
+        if (location.pathname === '/thread.php') {
+            $('a.bl[href^="profile.php?action=show&uid="]').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.blockUserList) > -1) {
+                    $this.closest('tr').remove();
+                }
+            });
+        }
+        else if (location.pathname === '/read.php') {
+            $('.readidmsbottom > a, .readidmleft > a').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.blockUserList) > -1) {
+                    var $lou = $this.closest('.readtext');
+                    $lou.prev('.readlou').remove().end().next('.readlou').remove().end().remove();
+                }
+            });
+            $('.readtext fieldset:has(legend:contains("Quote:"))').each(function () {
+                var $this = $(this);
+                for (var i in Config.blockUserList) {
+                    if ((new RegExp('^Quote:引用(第\\d+楼|楼主)' + Config.blockUserList[i] + '于')).test($this.text())) {
+                        $this.html('<legend>Quote:</legend><mark>该用户已被屏蔽</mark>');
+                    }
+                }
+            });
+        }
+        else if (location.pathname === '/guanjianci.php') {
+            $('.kf_share1 > tbody > tr > td:last-child').each(function () {
+                var $this = $(this);
+                if ($.inArray($this.text(), Config.blockUserList) > -1) {
+                    $this.closest('tr').remove();
+                }
+            });
+        }
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -3961,6 +4240,11 @@ var KFOL = {
             KFOL.addFastDrawMoneyLink();
             if (Config.modifyKFOtherDomainEnabled) KFOL.modifyKFOtherDomainLink();
         }
+        else if (/\/profile\.php\?action=show&uid=\d+/i.test(location.href)) {
+            KFOL.addFollowAndBlockUserLink();
+        }
+        KFOL.blockUsers();
+        KFOL.followUsers();
 
         var isDrawSmboxStarted = false;
         var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled &&
