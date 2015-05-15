@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.3.0-dev
+// @version     3.3.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -404,7 +404,7 @@ var Tools = {
      */
     escKeydown: function (boxId) {
         $('#' + boxId).keydown(function (event) {
-            if (event.key === 'Esc' || event.key === 'Escape') {
+            if (event.keyCode === 27) {
                 return Tools.close(boxId);
             }
         });
@@ -440,6 +440,14 @@ var Tools = {
         if (num >= 0) result = '<em>+{0}</em>'.replace('{0}', num.toLocaleString());
         else result = '<ins>{0}</ins>'.replace('{0}', num.toLocaleString());
         return result;
+    },
+
+    /**
+     * 检测浏览器是否采用了WebKit内核
+     * @returns {boolean} 是否采用了WebKit内核
+     */
+    isWebKit: function () {
+        return typeof document.body.style.WebkitBoxShadow !== 'undefined';
     }
 };
 
@@ -472,102 +480,106 @@ var ConfigDialog = {
             '  <h1>KF Online助手设置<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div class="pd_cfg_nav"><a href="#">查看日志</a><a href="#">导入/导出设置</a></div>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_auto_donation_enabled" type="checkbox" />自动KFB捐款</label></legend>' +
-            '      <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" />' +
+            '    <div class="pd_cfg_panel">' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_donation_enabled" type="checkbox" />自动KFB捐款</label></legend>' +
+            '        <label>KFB捐款额度<input id="pd_cfg_donation_kfb" maxlength="4" style="width:32px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="取值范围在1-5000的整数之间；可设置为百分比，表示捐款额度为当前收入的百分比（最多不超过5000KFB），例：80%">[?]</a></label>' +
-            '      <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" />' +
+            '        <label style="margin-left:10px">在<input id="pd_cfg_donation_after_time" maxlength="8" style="width:55px" type="text" />' +
             '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />' +
-            '      <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ' +
+            '        <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ' +
             '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>' +
-            '      <label>偏好的神秘盒子数字<input placeholder="例：52,1,28,400" id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>' +
+            '        <label>偏好的神秘盒子数字<input placeholder="例: 52,1,28,400" id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">' +
             '[?]</a></label><br />' +
-            '      <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
+            '        <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
             '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>' +
-            '      <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>' +
+            '        <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>' +
             '<option value="2">只抽道具</option></select></label><br />' +
-            '      <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ' +
+            '        <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ' +
             '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />' +
-            '      <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ' +
+            '        <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ' +
             '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />' +
-            '      <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">' +
+            '        <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">' +
             '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>' +
             '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>' +
             '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>' +
             '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>' +
             '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>' +
             '<option value="消逝之药">Lv.5：消逝之药</option></select></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
             '<a class="pd_cfg_tips" href="#" title="可自动按时进行抽奖，开启定时模式后需停留在首页">[?]</a></label></legend>' +
-            '      <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
+            '        <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
             '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend>首页相关</legend>' +
-            '      <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" />去除首页已读@高亮提示 ' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend>首页相关</legend>' +
+            '        <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" />去除首页已读@高亮提示 ' +
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>' +
-            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" />高亮首页VIP标识 ' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" />高亮首页VIP标识 ' +
             '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend>帖子列表页面相关</legend>' +
-            '      <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend>帖子列表页面相关</legend>' +
+            '        <label><input id="pd_cfg_show_fast_goto_thread_page_enabled" type="checkbox" data-disabled="#pd_cfg_max_fast_goto_thread_page_num" />' +
             '显示帖子页数快捷链接 <a class="pd_cfg_tips" href="#" title="在帖子列表页面中显示帖子页数快捷链接">[?]</a></label>' +
-            '      <label style="margin-left:10px">页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" />' +
+            '        <label style="margin-left:10px">页数链接最大数量<input id="pd_cfg_max_fast_goto_thread_page_num" style="width:25px" maxlength="4" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="在帖子页数快捷链接中显示页数链接的最大数量">[?]</a></label><br />' +
-            '      <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>' +
+            '        <label>帖子每页楼层数量<select id="pd_cfg_per_page_floor_num"><option value="10">10</option>' +
             '<option value="20">20</option><option value="30">30</option></select>' +
             '<a class="pd_cfg_tips" href="#" title="用于电梯直达和帖子页数快捷链接功能，如果修改了KF设置里的“文章列表每页个数”，请在此修改成相同的数目">[?]</a></label>' +
-            '      <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" />高亮今日的新帖 ' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" />高亮今日的新帖 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend>帖子页面相关</legend>' +
-            '      <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ' +
+            '      </fieldset>' +
+            '    </div>' +
+            '    <div class="pd_cfg_panel">' +
+            '      <fieldset>' +
+            '        <legend>帖子页面相关</legend>' +
+            '        <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ' +
             '<a class="pd_cfg_tips" href="#" title="调整帖子内容宽度，使其保持一致">[?]</a></label>' +
-            '      <label style="margin-left:10px">帖子内容字体大小<input id="pd_cfg_thread_content_font_size" maxlength="2" style="width:20px" type="text" />px ' +
+            '        <label style="margin-left:10px">帖子内容字体大小<input id="pd_cfg_thread_content_font_size" maxlength="2" style="width:20px" type="text" />px ' +
             '<a class="pd_cfg_tips" href="#" title="帖子内容字体大小，留空表示使用默认大小，推荐值：14">[?]</a></label><br />' +
-            '      <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />' +
+            '        <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />' +
             '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">' +
             '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label><br />' +
-            '      <label><input id="pd_cfg_modify_kf_other_domain_enabled" type="checkbox" />将绯月其它域名的链接修改为当前域名 ' +
+            '        <label><input id="pd_cfg_modify_kf_other_domain_enabled" type="checkbox" />将绯月其它域名的链接修改为当前域名 ' +
             '<a class="pd_cfg_tips" href="#" title="将帖子和短消息中的绯月其它域名的链接修改为当前域名">[?]</a></label><br />' +
-            '      <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" />开启多重引用功能 ' +
+            '        <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" />开启多重引用功能 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子页面开启多重回复和多重引用功能">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend>其它设置</legend>' +
-            '      <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" />秒 ' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend>其它设置</legend>' +
+            '        <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" />秒 ' +
             '<a class="pd_cfg_tips" href="#" title="设置为-1表示永久显示，默认值：10">[?]</a></label><br />' +
-            '      <label>日志保存天数<input id="pd_cfg_log_save_days" maxlength="3" style="width:25px" type="text" />' +
+            '        <label>日志保存天数<input id="pd_cfg_log_save_days" maxlength="3" style="width:25px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="默认值：10">[?]</a></label>' +
-            '      <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
             '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_follow_user_enabled" type="checkbox" />关注用户 ' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_follow_user_enabled" type="checkbox" />关注用户 ' +
             '<a class="pd_cfg_tips" href="#" title="开启关注用户的功能，所关注的用户将被加注记号，可在下方或用户信息页面中添加或删除用户">[?]</a></label></legend>' +
-            '      <div class="pd_cfg_user_list" id="pd_cfg_follow_user_list"></div>' +
-            '      <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_follow_user" type="text" />' +
+            '        <div class="pd_cfg_user_list" id="pd_cfg_follow_user_list"></div>' +
+            '        <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_follow_user" type="text" />' +
             '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
-            '    </fieldset>' +
-            '    <fieldset>' +
-            '      <legend><label><input id="pd_cfg_block_user_enabled" type="checkbox" />屏蔽用户 ' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_block_user_enabled" type="checkbox" />屏蔽用户 ' +
             '<a class="pd_cfg_tips" href="#" title="开启屏蔽用户的功能，你将看不见所屏蔽用户的发言，可在下方或用户信息页面中添加或删除用户">[?]</a></label></legend>' +
-            '      <div class="pd_cfg_user_list" id="pd_cfg_block_user_list"></div>' +
-            '      <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_block_user" type="text" />' +
+            '        <div class="pd_cfg_user_list" id="pd_cfg_block_user_list"></div>' +
+            '        <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_block_user" type="text" />' +
             '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
-            '    </fieldset>' +
+            '      </fieldset>' +
+            '    </div>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
             '    <span class="pd_cfg_about"><a target="_blank" href="https://greasyfork.org/zh-CN/scripts/8615">By 喵拉布丁</a></span>' +
@@ -576,6 +588,7 @@ var ConfigDialog = {
             '</div>' +
             '</form>';
         var $dialog = $(html).appendTo('body');
+        if (Tools.isWebKit()) Tools.resize('pd_config');
 
         $dialog.find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
             return Tools.close('pd_config');
@@ -597,7 +610,7 @@ var ConfigDialog = {
         });
 
         $('#pd_cfg_auto_use_item_names').keydown(function (event) {
-            if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+            if (event.ctrlKey && (event.keyCode === 65 || event.keyCode === 97)) {
                 event.preventDefault();
                 $(this).children().each(function () {
                     $(this).prop('selected', true);
@@ -617,7 +630,7 @@ var ConfigDialog = {
         });
 
         $('#pd_cfg_add_follow_user, #pd_cfg_add_block_user').keydown(function (event) {
-            if (event.key === 'Enter') {
+            if (event.keyCode === 13) {
                 event.preventDefault();
                 $(this).next('a').click();
             }
@@ -658,7 +671,7 @@ var ConfigDialog = {
             }
         }).find('legend input[type="checkbox"]').click(function () {
             var checked = $(this).prop('checked');
-            $(this).closest('legend').nextAll('label').find('input, select, textarea, button').prop('disabled', !checked);
+            $(this).closest('fieldset').prop('disabled', !checked);
         }).each(function () {
             $(this).triggerHandler('click');
         }).end().find('input[data-disabled]').click(function () {
@@ -1569,16 +1582,18 @@ var Item = {
                     if (index === settings.urlList.length - 1) {
                         KFOL.removePopTips($('.pd_pop_tips'));
                         var successEnergyNum = successNum * energyNum;
-                        Log.push('将道具转换为能量',
-                            '共有`{0}`个【`Lv.{1}：{2}`】道具成功转换为能量'
-                                .replace('{0}', successNum)
-                                .replace('{1}', settings.itemLevel)
-                                .replace('{2}', settings.itemName),
-                            {
-                                gain: {'能量': successEnergyNum},
-                                pay: {'已使用道具': -successNum}
-                            }
-                        );
+                        if (successNum > 0) {
+                            Log.push('将道具转换为能量',
+                                '共有`{0}`个【`Lv.{1}：{2}`】道具成功转换为能量'
+                                    .replace('{0}', successNum)
+                                    .replace('{1}', settings.itemLevel)
+                                    .replace('{2}', settings.itemName),
+                                {
+                                    gain: {'能量': successEnergyNum},
+                                    pay: {'已使用道具': -successNum}
+                                }
+                            );
+                        }
                         console.log('共有{0}个道具成功转换为能量，能量+{1}'
                                 .replace('{0}', successNum)
                                 .replace('{1}', successEnergyNum)
@@ -2004,7 +2019,9 @@ var Item = {
                                     );
                                 }
                                 if (index === totalNum - 1) {
-                                    Log.push('神秘抽奖', '成功进行了`{0}`次神秘抽奖'.replace('{0}', successNum), {gain: {'道具': successNum}});
+                                    if (successNum > 0) {
+                                        Log.push('神秘抽奖', '成功进行了`{0}`次神秘抽奖'.replace('{0}', successNum), {gain: {'道具': successNum}});
+                                    }
                                     console.log('成功进行了{0}次神秘抽奖，道具+{1}'
                                             .replace('{0}', successNum)
                                             .replace('{1}', successNum)
@@ -2125,16 +2142,18 @@ var Item = {
                                 .replace('{1}', stat[creditsType]);
                         }
                         var resultStat = msgStat;
-                        Log.push('使用道具',
-                            '共有`{0}`个【`Lv.{1}：{2}`】道具使用成功'
-                                .replace('{0}', successNum)
-                                .replace('{1}', settings.itemLevel)
-                                .replace('{2}', settings.itemName),
-                            {
-                                gain: $.extend({}, stat, {'已使用道具': successNum}),
-                                pay: {'道具': -successNum}
-                            }
-                        );
+                        if (successNum > 0) {
+                            Log.push('使用道具',
+                                '共有`{0}`个【`Lv.{1}：{2}`】道具使用成功'
+                                    .replace('{0}', successNum)
+                                    .replace('{1}', settings.itemLevel)
+                                    .replace('{2}', settings.itemName),
+                                {
+                                    gain: $.extend({}, stat, {'已使用道具': successNum}),
+                                    pay: {'道具': -successNum}
+                                }
+                            );
+                        }
                         console.log('共有{0}个道具使用成功{1}'.replace('{0}', successNum).replace('{1}', logStat));
                         KFOL.showMsg({
                             msg: '<strong>共有<em>{0}</em>个道具使用成功{1}'
@@ -2245,12 +2264,14 @@ var Card = {
                     var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === cardList.length - 1) {
-                        Log.push('将卡片转换为VIP时间', '共有`{0}`张卡片成功为VIP时间'.replace('{0}', successNum),
-                            {
-                                gain: {'VIP小时': totalVipTime, '能量': totalEnergy},
-                                pay: {'卡片': -successNum}
-                            }
-                        );
+                        if (successNum > 0) {
+                            Log.push('将卡片转换为VIP时间', '共有`{0}`张卡片成功为VIP时间'.replace('{0}', successNum),
+                                {
+                                    gain: {'VIP小时': totalVipTime, '能量': totalEnergy},
+                                    pay: {'卡片': -successNum}
+                                }
+                            );
+                        }
                         KFOL.removePopTips($('.pd_pop_tips'));
                         console.log('共有{0}张卡片转换成功，共有{1}张卡片转换失败，VIP小时+{2}，能量+{3}'
                                 .replace('{0}', successNum)
@@ -2540,7 +2561,9 @@ var Bank = {
                         var $remainingNum = $('#pd_remaining_num');
                         $remainingNum.text(parseInt($remainingNum.text()) - 1);
                         if (index === users.length - 1) {
-                            Log.push('批量转账', '共有`{0}`名用户转账成功'.replace('{0}', successNum), {pay: {'KFB': -successMoney}});
+                            if (successNum > 0) {
+                                Log.push('批量转账', '共有`{0}`名用户转账成功'.replace('{0}', successNum), {pay: {'KFB': -successMoney}});
+                            }
                             KFOL.removePopTips($('.pd_pop_tips'));
                             var $account = $('.bank1 > tbody > tr:nth-child(2) > td:contains("活期存款：")');
                             $account.html($account.html().replace(/活期存款：-?\d+KFB/i,
@@ -2740,7 +2763,6 @@ var KFOL = {
             '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }' +
             '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }' +
             '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }' +
-            '#pd_config { width: 400px; }' +
             '#pd_log { width: 600px; }' +
             '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }' +
             '.pd_cfg_nav a { margin-left: 7px; }' +
@@ -2752,10 +2774,14 @@ var KFOL = {
             '.pd_cfg_main button { vertical-align: middle; }' +
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }' +
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }' +
+            '#pd_config .pd_cfg_main { overflow-x: hidden; white-space: nowrap; }' +
+            '.pd_cfg_panel { display: inline-block; width: 380px; vertical-align: top; margin-bottom: 5px; }' +
+            '.pd_cfg_panel + .pd_cfg_panel { margin-left: 5px; }' +
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }' +
             '.pd_cfg_btns button { width: 80px; margin-left: 5px; }' +
+            '#pd_config .pd_cfg_btns { padding-top: 0; }' +
             '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }' +
-            '.pd_cfg_user_list { max-height: 114px; overflow: auto; }' +
+            '.pd_cfg_user_list { max-width: 360px; max-height: 114px; overflow: auto; white-space: normal; }' +
             '.pd_cfg_user_list > span {' +
             '  display: inline-block; background-color: #DFF0D8; border: 1px solid #D6E9C6; color: #3C763D;' +
             '  border-radius: 8px; padding: 0 5px; margin: 2px 3px;' +
@@ -4162,9 +4188,16 @@ var KFOL = {
             });
             $('.readtext fieldset:has(legend:contains("Quote:"))').each(function () {
                 var $this = $(this);
+                var text = $this.text();
                 for (var i in Config.blockUserList) {
-                    if ((new RegExp('^Quote:引用(第\\d+楼|楼主)' + Config.blockUserList[i] + '于')).test($this.text())) {
-                        $this.html('<legend>Quote:</legend><mark>该用户已被屏蔽</mark>');
+                    try {
+                        var regex1 = new RegExp('^Quote:引用(第\\d+楼|楼主)' + Config.blockUserList[i] + '于', 'i');
+                        var regex2 = new RegExp('^Quote:回\\s*\\d+楼\\(' + Config.blockUserList[i] + '\\)\\s*的帖子', 'i');
+                        if (regex1.test(text) || regex2.test(text)) {
+                            $this.html('<legend>Quote:</legend><mark>该用户已被屏蔽</mark>');
+                        }
+                    }
+                    catch (ex) {
                     }
                 }
             });
@@ -4185,7 +4218,7 @@ var KFOL = {
     init: function () {
         if (typeof jQuery === 'undefined') return;
         var startDate = new Date();
-        console.log('KF Online助手启动');
+        //console.log('KF Online助手启动');
         if (location.pathname === '/' || location.pathname === '/index.php') KFOL.isInHomePage = true;
         ConfigDialog.init();
         if (!KFOL.getUidAndUserName()) return;
@@ -4240,7 +4273,7 @@ var KFOL = {
             KFOL.addFastDrawMoneyLink();
             if (Config.modifyKFOtherDomainEnabled) KFOL.modifyKFOtherDomainLink();
         }
-        else if (/\/profile\.php\?action=show&uid=\d+/i.test(location.href)) {
+        else if (/\/profile\.php\?action=show/i.test(location.href)) {
             KFOL.addFollowAndBlockUserLink();
         }
         KFOL.blockUsers();
