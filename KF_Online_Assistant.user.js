@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.3.0
+// @version     3.4.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -81,6 +81,8 @@ var Config = {
     logStatType: 'cur',
     // 显示距该日N天内的统计结果（用于日志统计范围）
     logStatDays: 7,
+    // 是否将侧边栏修改为手机的样式，true：开启；false：关闭
+    modifySideBarEnabled: false,
     // 是否开启关注用户的功能，true：开启；false：关闭
     followUserEnabled: false,
     // 关注用户列表，例：['张三','李四','王五']
@@ -89,6 +91,12 @@ var Config = {
     blockUserEnabled: false,
     // 屏蔽用户列表，例：['张三','李四','王五']
     blockUserList: [],
+    // 是否在当前收入满足指定额度之后自动将指定数额存入活期存款中，只会在首页触发，true：开启；false：关闭
+    autoSaveCurrentDepositEnabled: false,
+    // 在当前收入已满指定KFB额度之后自动进行活期存款，例：1000
+    saveCurrentDepositAfterKfb: 0,
+    // 将当前收入指定百分比的金额自动存入活期存款，例：99.99
+    saveCurrentDepositKfbPercent: 0,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -107,6 +115,8 @@ var Config = {
     hideMarkReadAtTipsExpires: 3,
     // ajax请求的默认间隔时间（毫秒）
     defAjaxInterval: 250,
+    // 购买帖子提醒的最低售价（KFB）
+    minBuyThreadWarningSell: 6,
     // 存储多重引用数据的LocalStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
     // 标记已KFB捐款的Cookie名称
@@ -563,7 +573,9 @@ var ConfigDialog = {
             '        <label>日志保存天数<input id="pd_cfg_log_save_days" maxlength="3" style="width:25px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="默认值：10">[?]</a></label>' +
             '        <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
-            '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label>' +
+            '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label><br />' +
+            '        <label><input id="pd_cfg_modify_side_bar_enabled" type="checkbox" />将侧边栏修改为手机浏览样式 ' +
+            '<a class="pd_cfg_tips" href="#" title="将侧边栏修改为手机浏览的样式">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_follow_user_enabled" type="checkbox" />关注用户 ' +
@@ -578,6 +590,14 @@ var ConfigDialog = {
             '        <div class="pd_cfg_user_list" id="pd_cfg_block_user_list"></div>' +
             '        <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_block_user" type="text" />' +
             '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_save_current_deposit_enabled" type="checkbox" />自动活期存款 ' +
+            '<a class="pd_cfg_tips" href="#" title="在当前收入满足指定额度之后自动将指定数额存入活期存款中，只会在首页触发">[?]</a></label></legend>' +
+            '        <label>在已满<input id="pd_cfg_save_current_deposit_after_kfb" maxlength="10" style="width:45px" type="text" />KFB之后 ' +
+            '<a class="pd_cfg_tips" href="#" title="在当前收入已满指定KFB额度之后自动进行活期存款，例：1000">[?]</a></label><br />' +
+            '        <label>将当前收入的<input id="pd_cfg_save_current_deposit_kfb_percent" maxlength="10" style="width:45px" type="text" />%存入活期存款 ' +
+            '<a class="pd_cfg_tips" href="#" title="将当前收入指定百分比的金额自动存入活期存款，例：99.99">[?]</a></label>' +
             '      </fieldset>' +
             '    </div>' +
             '  </div>' +
@@ -831,10 +851,14 @@ var ConfigDialog = {
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_log_save_days').val(Config.logSaveDays);
         $('#pd_cfg_show_log_link_in_page_enabled').prop('checked', Config.showLogLinkInPageEnabled);
+        $('#pd_cfg_modify_side_bar_enabled').prop('checked', Config.modifySideBarEnabled);
         $('#pd_cfg_follow_user_enabled').prop('checked', Config.followUserEnabled);
         ConfigDialog.showFollowOrBlockUserList(1);
         $('#pd_cfg_block_user_enabled').prop('checked', Config.blockUserEnabled);
         ConfigDialog.showFollowOrBlockUserList(2);
+        $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked', Config.autoSaveCurrentDepositEnabled);
+        if (Config.saveCurrentDepositAfterKfb > 0) $('#pd_cfg_save_current_deposit_after_kfb').val(Config.saveCurrentDepositAfterKfb);
+        if (Config.saveCurrentDepositKfbPercent) $('#pd_cfg_save_current_deposit_kfb_percent').val(Config.saveCurrentDepositKfbPercent);
     },
 
     /**
@@ -872,8 +896,12 @@ var ConfigDialog = {
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.logSaveDays = parseInt($.trim($('#pd_cfg_log_save_days').val()));
         options.showLogLinkInPageEnabled = $('#pd_cfg_show_log_link_in_page_enabled').prop('checked');
+        options.modifySideBarEnabled = $('#pd_cfg_modify_side_bar_enabled').prop('checked');
         options.followUserEnabled = $('#pd_cfg_follow_user_enabled').prop('checked');
         options.blockUserEnabled = $('#pd_cfg_block_user_enabled').prop('checked');
+        options.autoSaveCurrentDepositEnabled = $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked');
+        options.saveCurrentDepositAfterKfb = parseInt($.trim($('#pd_cfg_save_current_deposit_after_kfb').val()));
+        options.saveCurrentDepositKfbPercent = parseFloat($.trim($('#pd_cfg_save_current_deposit_kfb_percent').val()));
         return options;
     },
 
@@ -982,6 +1010,25 @@ var ConfigDialog = {
             $txtLogSaveDays.select();
             $txtLogSaveDays.focus();
             return false;
+        }
+
+        var $txtSaveCurrentDepositAfterKfb = $('#pd_cfg_save_current_deposit_after_kfb');
+        var $txtSaveCurrentDepositKfbPercent = $('#pd_cfg_save_current_deposit_kfb_percent');
+        var saveCurrentDepositAfterKfb = parseInt($.trim($txtSaveCurrentDepositAfterKfb.val()));
+        var saveCurrentDepositKfbPercent = parseFloat($.trim($txtSaveCurrentDepositKfbPercent.val()));
+        if (saveCurrentDepositAfterKfb || saveCurrentDepositKfbPercent) {
+            if (!saveCurrentDepositAfterKfb || saveCurrentDepositAfterKfb <= 0) {
+                alert('自动活期存款满足额度格式不正确');
+                $txtSaveCurrentDepositAfterKfb.select();
+                $txtSaveCurrentDepositAfterKfb.focus();
+                return false;
+            }
+            if (!saveCurrentDepositKfbPercent || saveCurrentDepositKfbPercent <= 0 || saveCurrentDepositKfbPercent > 100) {
+                alert('当前收入指定百分比格式不正确');
+                $txtSaveCurrentDepositKfbPercent.select();
+                $txtSaveCurrentDepositKfbPercent.focus();
+                return false;
+            }
         }
 
         return true;
@@ -1132,6 +1179,8 @@ var ConfigDialog = {
             if (logStatDays > 0) settings.logStatDays = logStatDays;
             else settings.logStatDays = defConfig.logStatDays;
         }
+        settings.modifySideBarEnabled = typeof options.modifySideBarEnabled === 'boolean' ?
+            options.modifySideBarEnabled : defConfig.modifySideBarEnabled;
         settings.followUserEnabled = typeof options.followUserEnabled === 'boolean' ?
             options.followUserEnabled : defConfig.followUserEnabled;
         if (typeof options.followUserList !== 'undefined') {
@@ -1155,6 +1204,19 @@ var ConfigDialog = {
                 }
             }
             else settings.blockUserList = defConfig.blockUserList;
+        }
+        settings.autoSaveCurrentDepositEnabled = typeof options.autoSaveCurrentDepositEnabled === 'boolean' ?
+            options.autoSaveCurrentDepositEnabled : defConfig.autoSaveCurrentDepositEnabled;
+        if (typeof options.saveCurrentDepositAfterKfb !== 'undefined') {
+            var saveCurrentDepositAfterKfb = parseInt(options.saveCurrentDepositAfterKfb);
+            if (saveCurrentDepositAfterKfb > 0) settings.saveCurrentDepositAfterKfb = saveCurrentDepositAfterKfb;
+            else settings.saveCurrentDepositAfterKfb = defConfig.saveCurrentDepositAfterKfb;
+        }
+        if (typeof options.saveCurrentDepositKfbPercent !== 'undefined') {
+            var saveCurrentDepositKfbPercent = parseFloat(options.saveCurrentDepositKfbPercent);
+            if (saveCurrentDepositKfbPercent > 0 || saveCurrentDepositKfbPercent <= 100)
+                settings.saveCurrentDepositKfbPercent = saveCurrentDepositKfbPercent;
+            else settings.saveCurrentDepositKfbPercent = defConfig.saveCurrentDepositKfbPercent;
         }
         return settings;
     },
@@ -1421,7 +1483,7 @@ var Log = {
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
             var sortTypeList = ['捐款', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
-                '神秘抽奖', '统计神秘抽奖结果', '批量转账'];
+                '神秘抽奖', '统计神秘抽奖结果', '批量转账', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
             });
@@ -1525,14 +1587,20 @@ var Log = {
         $.each(Tools.getObjectKeyList(profit, 1), function (index, key) {
             content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key]));
         });
-        var smBoxIncome = 0;
+        var smBoxIncome = 0, minSmBox = 0, maxSmBox = 0;
         $.each(smBox, function (index, kfb) {
             smBoxIncome += kfb;
+            if (index === 0) minSmBox = kfb;
+            if (minSmBox > kfb) minSmBox = kfb;
+            if (maxSmBox < kfb) maxSmBox = kfb;
         });
-        content += '<br /><strong>神秘盒子收获：</strong><i>抽取次数<em>+{0}</em></i><i>总共收获KFB<em>+{1}</em></i><i>平均收获KFB<em>+{2}</em></i>'
+        content += ('<br /><strong>神秘盒子收获(KFB)：</strong><i>抽取次数<em>+{0}</em></i><i>合计<em>+{1}</em></i><i>平均值<em>+{2}</em></i>' +
+        '<i>最小值<em>+{3}</em></i><i>最大值<em>+{4}</em></i>')
             .replace('{0}', smBox.length.toLocaleString())
             .replace('{1}', smBoxIncome.toLocaleString())
-            .replace('{2}', smBox.length > 0 ? (smBoxIncome / smBox.length).toFixed(2).toLocaleString() : 0);
+            .replace('{2}', smBox.length > 0 ? (smBoxIncome / smBox.length).toFixed(2).toLocaleString() : 0)
+            .replace('{3}', minSmBox.toLocaleString())
+            .replace('{4}', maxSmBox.toLocaleString());
         $('#pd_log_stat').html(content);
     }
 };
@@ -2460,7 +2528,7 @@ var Bank = {
                 if (/完成存款/.test(html)) {
                     KFOL.showFormatLog('存款', html);
                     KFOL.removePopTips($tips);
-                    console.log('共有{0}KFB存入活期账户'.replace('{0}', money));
+                    console.log('共有{0}KFB存入活期存款'.replace('{0}', money));
                     var $account = $('.bank1 > tbody > tr:nth-child(2) > td:contains("当前所持：")');
                     $account.html($account.html().replace(/当前所持：-?\d+KFB/i,
                             '当前所持：{0}KFB'.replace('{0}', cash - money)
@@ -2490,8 +2558,8 @@ var Bank = {
                 KFOL.removePopTips($tips);
                 if (/完成取款/.test(html)) {
                     KFOL.showFormatLog('取款', html);
-                    console.log('从活期账户中取出了{0}KFB'.replace('{0}', money));
-                    KFOL.showMsg('从活期账户中取出了<em>{0}</em>KFB'.replace('{0}', money), -1);
+                    console.log('从活期存款中取出了{0}KFB'.replace('{0}', money));
+                    KFOL.showMsg('从活期存款中取出了<em>{0}</em>KFB'.replace('{0}', money), -1);
                 }
                 else if (/取款金额大于您的存款金额/.test(html)) {
                     KFOL.showMsg('取款金额大于当前活期存款金额', -1);
@@ -2615,7 +2683,8 @@ var Bank = {
             '      <label style="margin-top:5px">转帐附言（可留空）：<br />' +
             '<textarea class="pd_textarea" id="pd_bank_msg" style="width:225px;height:206px" id="pd_bank_users"></textarea></label>' +
             '    </div>' +
-            '    <div><label><input class="pd_input" type="submit" value="批量转账" /></label> ' +
+            '    <div><label><input class="pd_input" type="submit" value="批量转账" /></label>' +
+            '<label><input style="margin-left:5px" class="pd_input" type="reset" value="重置" /></label> ' +
             '（活期存款不足时，可自动进行存款；在正常情况下，批量转账金额不会从定期存款中扣除）</div>' +
             '  </form>' +
             '  </td>' +
@@ -4055,7 +4124,7 @@ var KFOL = {
             var matches = /此帖售价\s*(\d+)\s*KFB/i.exec($this.closest('legend').contents().eq(0).text());
             if (!matches) return;
             var sell = parseInt(matches[1]);
-            if (sell <= 5) return;
+            if (sell < Config.minBuyThreadWarningSell) return;
             matches = /location\.href="(.+?)"/i.exec($this.attr('onclick'));
             if (!matches) return;
             $this.data('sell', sell).data('url', matches[1]).removeAttr('onclick').click(function (event) {
@@ -4147,7 +4216,7 @@ var KFOL = {
                 }
             });
         }
-        else if (location.pathname === '/guanjianci.php') {
+        else if (location.pathname === '/guanjianci.php' || location.pathname === '/kf_share.php') {
             $('.kf_share1 > tbody > tr > td:last-child').each(function () {
                 var $this = $(this);
                 if ($.inArray($this.text(), Config.followUserList) > -1) {
@@ -4213,6 +4282,60 @@ var KFOL = {
     },
 
     /**
+     * 将侧边栏修改为手机浏览的样式
+     */
+    modifySideBar: function () {
+        $('#r_menu').replaceWith(
+            '<div id="r_menu" style="width:140px;color:#9999FF;font-size:14px;line-height:24px;text-align:center;border:1px #DDDDFF solid;padding:5px;overflow:hidden;">' +
+            '	<span style="color:#ff9999;">游戏</span><br />' +
+            '	<a href="thread.php?fid=102">游戏推荐</a> | <a href="thread.php?fid=106">新作动态</a><br />' +
+            '	<a href="thread.php?fid=52">游戏讨论</a> | <a href="thread.php?fid=24">疑难互助</a><br />' +
+            '	<a href="thread.php?fid=16">种子下载</a> | <a href="thread.php?fid=41">网盘下载</a><br />' +
+            '	<a href="thread.php?fid=67">图片共享</a> | <a href="thread.php?fid=57">同人漫本</a><br />' +
+            '	<span style="color:#ff9999;">动漫音乐</span><br />' +
+            '	<a href="thread.php?fid=84">动漫讨论</a> | <a href="thread.php?fid=92">动画共享</a><br />' +
+            '	<a href="thread.php?fid=127">漫画小说</a> | <a href="thread.php?fid=68">音乐共享</a><br />' +
+            '	<a href="thread.php?fid=163">LIVE共享</a>  | <a href="thread.php?fid=182">转载资源</a><br />' +
+            '	<span style="color:#ff9999;">综合</span><br />' +
+            '	<a href="thread.php?fid=94">原创美图</a> | <a href="thread.php?fid=87">宅物交流</a><br />' +
+            '	<a href="thread.php?fid=86">电子产品</a> | <a href="thread.php?fid=115">文字作品</a><br />' +
+            '	<a href="thread.php?fid=96">出处讨论</a>  | <a href="thread.php?fid=36">寻求资源</a><br />' +
+            '	<span style="color:#ff9999;">交流</span><br />' +
+            '	<a href="thread.php?fid=5">自由讨论</a> | <a href="thread.php?fid=56">个人日记</a><br />' +
+            '	<a href="thread.php?fid=98">日本语版</a>  | <a href="thread.php?fid=9">我的关注</a><br />' +
+            '	<a href="thread.php?fid=4">站务管理</a><br />' +
+            '	<span style="color:#ff9999;">专用</span><br />' +
+            '	<a href="thread.php?fid=93">管理组区</a> | <a href="thread.php?fid=59">原创组区</a><br />' +
+            '</div>'
+        );
+    },
+
+    /**
+     * 自动活期存款
+     */
+    autoSaveCurrentDeposit: function () {
+        if (!(Config.saveCurrentDepositAfterKfb > 0 && Config.saveCurrentDepositKfbPercent > 0 && Config.saveCurrentDepositKfbPercent <= 100))
+            return;
+        var $kfb = $('a.indbox1[title="网站虚拟货币"]');
+        var matches = /拥有(\d+)KFB/i.exec($kfb.text());
+        if (!matches) return;
+        var income = parseInt(matches[1]);
+        if (income < Config.saveCurrentDepositAfterKfb) return;
+        var money = Math.floor(income * Config.saveCurrentDepositKfbPercent / 100);
+        $.post('hack.php?H_name=bank',
+            {action: 'save', btype: 1, savemoney: money},
+            function (html) {
+                if (/完成存款/.test(html)) {
+                    Log.push('自动存款', '共有`{0}`KFB已自动存入活期存款'.replace('{0}', money));
+                    KFOL.showFormatLog('自动存款', html);
+                    console.log('共有{0}KFB已自动存入活期存款'.replace('{0}', money));
+                    KFOL.showMsg('共有<em>{0}</em>KFB已自动存入活期存款'.replace('{0}', money));
+                    $kfb.text('拥有{0}KFB'.replace('{0}', income - money));
+                }
+            }, 'html');
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -4225,10 +4348,12 @@ var KFOL = {
         KFOL.appendCss();
         KFOL.addConfigAndLogDialogLink();
 
+        if (Config.modifySideBarEnabled) KFOL.modifySideBar();
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
             if (Config.highlightVipEnabled) KFOL.highlightVipTips();
+            if (Config.autoSaveCurrentDepositEnabled) KFOL.autoSaveCurrentDeposit();
         }
         else if (location.pathname === '/read.php') {
             KFOL.fastGotoFloor();
