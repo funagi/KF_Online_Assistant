@@ -51,6 +51,8 @@ var Config = {
     hideMarkReadAtTipsEnabled: true,
     // 是否高亮首页的VIP身份标识，true：开启；false：关闭
     highlightVipEnabled: true,
+    // 是否在神秘等级升级后进行提醒，只在首页生效，true：开启；false：关闭
+    smLevelUpAlertEnabled: false,
     // 是否在帖子列表页面中显示帖子页数快捷链接，true：开启；false：关闭
     showFastGotoThreadPageEnabled: false,
     // 在帖子页数快捷链接中显示页数链接的最大数量
@@ -119,6 +121,8 @@ var Config = {
     minBuyThreadWarningSell: 6,
     // 存储多重引用数据的LocalStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
+    // 存储神秘等级升级提醒数据的LocalStorage名称
+    smLevelUpStorageName: 'pd_sm_level_up',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
     // 标记已抽取神秘盒子的Cookie名称
@@ -536,7 +540,9 @@ var ConfigDialog = {
             '        <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" />去除首页已读@高亮提示 ' +
             '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>' +
             '        <label style="margin-left:10px"><input id="pd_cfg_highlight_vip_enabled" type="checkbox" />高亮首页VIP标识 ' +
-            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label>' +
+            '<a class="pd_cfg_tips" href="#" title="如获得了VIP身份，首页的VIP标识将高亮显示">[?]</a></label><br />' +
+            '        <label><input id="pd_cfg_sm_level_up_alert_enabled" type="checkbox" />神秘等级升级提醒 ' +
+            '<a class="pd_cfg_tips" href="#" title="在神秘等级升级后进行提醒，只在首页生效">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend>帖子列表页面相关</legend>' +
@@ -838,6 +844,7 @@ var ConfigDialog = {
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
         $('#pd_cfg_highlight_vip_enabled').prop('checked', Config.highlightVipEnabled);
+        $('#pd_cfg_sm_level_up_alert_enabled').prop('checked', Config.smLevelUpAlertEnabled);
         $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked', Config.showFastGotoThreadPageEnabled);
         $('#pd_cfg_max_fast_goto_thread_page_num').val(Config.maxFastGotoThreadPageNum);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
@@ -884,6 +891,7 @@ var ConfigDialog = {
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         options.highlightVipEnabled = $('#pd_cfg_highlight_vip_enabled').prop('checked');
+        options.smLevelUpAlertEnabled = $('#pd_cfg_sm_level_up_alert_enabled').prop('checked');
         options.showFastGotoThreadPageEnabled = $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked');
         options.maxFastGotoThreadPageNum = parseInt($.trim($('#pd_cfg_max_fast_goto_thread_page_num').val()));
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
@@ -1114,6 +1122,8 @@ var ConfigDialog = {
             options.hideMarkReadAtTipsEnabled : defConfig.hideMarkReadAtTipsEnabled;
         settings.highlightVipEnabled = typeof options.highlightVipEnabled === 'boolean' ?
             options.highlightVipEnabled : defConfig.highlightVipEnabled;
+        settings.smLevelUpAlertEnabled = typeof options.smLevelUpAlertEnabled === 'boolean' ?
+            options.smLevelUpAlertEnabled : defConfig.smLevelUpAlertEnabled;
         settings.showFastGotoThreadPageEnabled = typeof options.showFastGotoThreadPageEnabled === 'boolean' ?
             options.showFastGotoThreadPageEnabled : defConfig.showFastGotoThreadPageEnabled;
         if (typeof options.maxFastGotoThreadPageNum !== 'undefined') {
@@ -1483,7 +1493,7 @@ var Log = {
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
             var sortTypeList = ['捐款', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
-                '神秘抽奖', '统计神秘抽奖结果', '批量转账', '自动存款'];
+                '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
             });
@@ -2757,6 +2767,18 @@ var Bank = {
                 $('#pd_bank_transfer > td:last-child').append('<ul class="pd_result pd_stat"><li><strong>转账结果：</strong></li></ul>');
                 Bank.batchTransfer(users, msg, isDeposited, currentDeposit);
             });
+        var $account = $('.bank1 > tbody > tr:nth-child(2) > td:contains("可获利息：")');
+        var accountHtml = $account.html();
+        var matches = /可获利息：(\d+)\(/i.exec(accountHtml);
+        if (matches) {
+            var interest = parseInt(matches[1]);
+            if (interest > 0) {
+                $account.html(accountHtml.replace(/可获利息：\d+\(/i,
+                        '可获利息：<b class="pd_highlight">{0}</b>('.replace('{0}', interest)
+                    )
+                );
+            }
+        }
     }
 };
 
@@ -4336,6 +4358,48 @@ var KFOL = {
     },
 
     /**
+     * 在神秘等级升级后进行提醒
+     */
+    smLevelUpAlert: function () {
+        var matches = /神秘(\d+)级/.exec($('a.indbox1[href="kf_growup.php"]').text());
+        if (!matches) return;
+        var smLevel = parseInt(matches[1]);
+        var data = localStorage[Config.smLevelUpStorageName + '_' + KFOL.uid];
+        if (data) {
+            try {
+                data = JSON.parse(data);
+            }
+            catch (ex) {
+                data = {};
+            }
+        }
+        var writeData = function () {
+            localStorage[Config.smLevelUpStorageName + '_' + KFOL.uid] = JSON.stringify({
+                time: (new Date()).getTime(),
+                smLevel: smLevel
+            });
+        };
+        if (!data || $.type(data) !== 'object' || $.isEmptyObject(data) || $.type(data.time) !== 'number' || $.type(data.smLevel) !== 'number') {
+            writeData();
+        }
+        else if (smLevel > data.smLevel) {
+            var date = new Date(data.time);
+            Log.push('神秘等级升级', '自`{0}`以来，你的神秘等级总共上升了`{1}`级'
+                    .replace('{0}', Tools.getDateString(date))
+                    .replace('{1}', smLevel - data.smLevel)
+            );
+            KFOL.showMsg('自<em>{0}</em>以来，你的神秘等级总共上升了<em>{1}</em>级'
+                    .replace('{0}', Tools.getDateString(date))
+                    .replace('{1}', smLevel - data.smLevel)
+            );
+            writeData();
+        }
+        else if (smLevel < data.smLevel) {
+            writeData();
+        }
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -4354,6 +4418,7 @@ var KFOL = {
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
             if (Config.highlightVipEnabled) KFOL.highlightVipTips();
             if (Config.autoSaveCurrentDepositEnabled) KFOL.autoSaveCurrentDeposit();
+            if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
         }
         else if (location.pathname === '/read.php') {
             KFOL.fastGotoFloor();
