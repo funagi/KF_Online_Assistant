@@ -90,7 +90,7 @@ https://greasyfork.org/zh-CN/scripts/8615
 * 暂无
 
 ## 讨论帖
-http://bbs.2dgal.com/read.php?tid=482906
+http://bbs.2dgal.com/read.php?tid=487899
 
 ## License
 [MIT](http://opensource.org/licenses/MIT)
