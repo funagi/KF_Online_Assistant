@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.4.0-dev
+// @version     3.4.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -807,9 +807,10 @@ var ConfigDialog = {
             '<div class="pd_cfg_box" id="pd_custom_sm_color_config">' +
             '  <h1>自定义各等级神秘颜色<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
-            '    <div style="border-bottom:1px solid #9191FF;margin-bottom:7px;padding-bottom:5px"><strong>示例：</strong><br />' +
-            '<b>等级范围：</b>4-4 <b>颜色：</b><span style="color:#0000FF">#0000FF</span><br /><b>等级范围：</b>10-49 <b>颜色：</b>' +
-            '<span style="color:#00FF00">#00FF00</span><br /><b>等级范围：</b>900-MAX <b>颜色：</b><span style="color:#FF0000">#FF0000</span></div>' +
+            '    <div style="border-bottom:1px solid #9191FF;margin-bottom:7px;padding-bottom:5px"><strong>示例' +
+            '（<a target="_blank" href="http://www.35ui.cn/jsnote/peise.html">常用配色表</a>）：</strong><br /><b>等级范围：</b>4-4 <b>颜色：</b>' +
+            '<span style="color:#0000FF">#0000FF</span><br /><b>等级范围：</b>10-49 <b>颜色：</b><span style="color:#00FF00">#00FF00</span><br />' +
+            '<b>等级范围：</b>900-MAX <b>颜色：</b><span style="color:#FF0000">#FF0000</span></div>' +
             '    <ul id="pd_cfg_custom_sm_color_list"></ul>' +
             '    <div style="margin-top:5px" id="pd_cfg_custom_sm_color_add_btns"><a href="#">增加1个</a><a href="#" style="margin-left:7px">增加5个</a>' +
             '<a href="#" style="margin-left:7px">清除所有</a></div>' +
