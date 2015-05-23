@@ -67,6 +67,10 @@ var Config = {
     threadContentFontSize: 0,
     // 自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空
     customMySmColor: '',
+    // 是否开启自定义各等级神秘颜色的功能，（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），true：开启；false：关闭
+    customSmColorEnabled: false,
+    // 自定义各等级神秘颜色的设置列表，例：[{min:'50',max:'100',color:'#009CFF'},{min:'800',max:'MAX',color:'#FF0000'}]
+    customSmColorConfigList: [],
     // 是否将帖子中的绯月其它域名的链接修改为当前域名，true：开启；false：关闭
     modifyKFOtherDomainEnabled: false,
     // 是否开启多重回复和多重引用的功能，true：开启；false：关闭
@@ -83,7 +87,9 @@ var Config = {
     logStatType: 'cur',
     // 显示距该日N天内的统计结果（用于日志统计范围）
     logStatDays: 7,
-    // 是否将侧边栏修改为手机的样式，true：开启；false：关闭
+    // 是否为侧边栏添加快捷导航的链接，true：开启；false：关闭
+    addSideBarFastNavEnabled: false,
+    // 是否将侧边栏修改为和手机相同的平铺样式，true：开启；false：关闭
     modifySideBarEnabled: false,
     // 是否开启关注用户的功能，true：开启；false：关闭
     followUserEnabled: false,
@@ -462,6 +468,20 @@ var Tools = {
      */
     isWebKit: function () {
         return typeof document.body.style.WebkitBoxShadow !== 'undefined';
+    },
+
+    /**
+     * 比较神秘等级高低
+     * @param {string} a
+     * @param {string} b
+     * @returns {number} 比较结果，-1：a小于b；0：a等于b；1：a大于b
+     */
+    compareSmLevel: function (a, b) {
+        var x = a.toUpperCase() === 'MAX' ? 99999999 : parseInt(a);
+        var y = b.toUpperCase() === 'MAX' ? 99999999 : parseInt(b);
+        if (x > y) return 1;
+        else if (x < y) return -1;
+        else return 0;
     }
 };
 
@@ -530,7 +550,7 @@ var ConfigDialog = {
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
-            '<a class="pd_cfg_tips" href="#" title="可自动按时进行抽奖，开启定时模式后需停留在首页">[?]</a></label></legend>' +
+            '<a class="pd_cfg_tips" href="#" title="可自动按时进行抽奖（包括捐款、抽取神秘盒子、抽取道具或卡片），只在首页生效">[?]</a></label></legend>' +
             '        <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
             '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
             '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
@@ -567,6 +587,9 @@ var ConfigDialog = {
             '        <label>自定义本人的神秘颜色<input id="pd_cfg_custom_my_sm_color" maxlength="7" style="width:50px" type="text" />' +
             '<input style="margin-left:0" type="color" id="pd_cfg_custom_my_sm_color_select">' +
             '<a class="pd_cfg_tips" href="#" title="自定义本人的神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），例：#009CFF，如无需求可留空">[?]</a></label><br />' +
+            '        <label><input id="pd_cfg_custom_sm_color_enabled" type="checkbox" />自定义各等级神秘颜色 ' +
+            '<a class="pd_cfg_tips" href="#" title="自定义各等级神秘颜色（包括帖子页面的ID显示颜色和楼层边框颜色，仅自己可见），请点击详细设置自定义各等级颜色">[?]</a></label>' +
+            '<a style="margin-left:10px" id="pd_cfg_custom_sm_color_config" href="#">详细设置&raquo;</a><br />' +
             '        <label><input id="pd_cfg_modify_kf_other_domain_enabled" type="checkbox" />将绯月其它域名的链接修改为当前域名 ' +
             '<a class="pd_cfg_tips" href="#" title="将帖子和短消息中的绯月其它域名的链接修改为当前域名">[?]</a></label><br />' +
             '        <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" />开启多重引用功能 ' +
@@ -580,8 +603,10 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="默认值：10">[?]</a></label>' +
             '        <label style="margin-left:10px"><input id="pd_cfg_show_log_link_in_page_enabled" type="checkbox" />在页面上方显示日志链接 ' +
             '<a class="pd_cfg_tips" href="#" title="在论坛页面上方显示助手日志的链接">[?]</a></label><br />' +
-            '        <label><input id="pd_cfg_modify_side_bar_enabled" type="checkbox" />将侧边栏修改为手机浏览样式 ' +
-            '<a class="pd_cfg_tips" href="#" title="将侧边栏修改为手机浏览的样式">[?]</a></label>' +
+            '        <label><input id="pd_cfg_add_side_bar_fast_nav_enabled" type="checkbox" />为侧边栏添加快捷导航 ' +
+            '<a class="pd_cfg_tips" href="#" title="为侧边栏添加快捷导航的链接">[?]</a></label>' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_modify_side_bar_enabled" type="checkbox" />将侧边栏修改为平铺样式 ' +
+            '<a class="pd_cfg_tips" href="#" title="将侧边栏修改为和手机相同的平铺样式">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_follow_user_enabled" type="checkbox" />关注用户 ' +
@@ -653,6 +678,11 @@ var ConfigDialog = {
             if (/^#[0-9a-fA-F]{6}$/.test(customMySmColor)) {
                 $('#pd_cfg_custom_my_sm_color_select').val(customMySmColor.toUpperCase());
             }
+        });
+
+        $('#pd_cfg_custom_sm_color_config').click(function (event) {
+            event.preventDefault();
+            ConfigDialog.showCustomSmColorConfigDialog();
         });
 
         $('#pd_cfg_add_follow_user, #pd_cfg_add_block_user').keydown(function (event) {
@@ -768,6 +798,146 @@ var ConfigDialog = {
     },
 
     /**
+     * 显示自定义各等级神秘颜色设置对话框
+     */
+    showCustomSmColorConfigDialog: function () {
+        if ($('#pd_custom_sm_color_config').length > 0) return;
+        var html =
+            '<form>' +
+            '<div class="pd_cfg_box" id="pd_custom_sm_color_config">' +
+            '  <h1>自定义各等级神秘颜色<span>&times;</span></h1>' +
+            '  <div class="pd_cfg_main">' +
+            '    <div style="border-bottom:1px solid #9191FF;margin-bottom:7px;padding-bottom:5px"><strong>示例：</strong><br />' +
+            '<b>等级范围：</b>4-4 <b>颜色：</b><span style="color:#0000FF">#0000FF</span><br /><b>等级范围：</b>10-49 <b>颜色：</b>' +
+            '<span style="color:#00FF00">#00FF00</span><br /><b>等级范围：</b>900-MAX <b>颜色：</b><span style="color:#FF0000">#FF0000</span></div>' +
+            '    <ul id="pd_cfg_custom_sm_color_list"></ul>' +
+            '    <div style="margin-top:5px" id="pd_cfg_custom_sm_color_add_btns"><a href="#">增加1个</a><a href="#" style="margin-left:7px">增加5个</a>' +
+            '<a href="#" style="margin-left:7px">清除所有</a></div>' +
+            '  </div>' +
+            '  <div class="pd_cfg_btns">' +
+            '    <button>确定</button><button>取消</button>' +
+            '  </div>' +
+            '</div>' +
+            '</form>';
+        var $dialog = $(html).appendTo('body');
+        $dialog.find('h1 > span').click(function () {
+            return Tools.close('pd_custom_sm_color_config');
+        }).end().find('.pd_cfg_tips').click(function () {
+            return false;
+        }).end().find('.pd_cfg_btns > button:last').click(function () {
+            return Tools.close('pd_custom_sm_color_config');
+        });
+
+        $('#pd_cfg_custom_sm_color_list').on('keyup', '.pd_cfg_sm_color', function () {
+            var $this = $(this);
+            var color = $.trim($this.val());
+            if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+                $this.next('input[type="color"]').val(color.toUpperCase());
+            }
+        }).on('change', 'input[type="color"]', function () {
+            var $this = $(this);
+            $this.prev('input').val($this.val().toString().toUpperCase());
+        }).on('click', 'a', function (event) {
+            event.preventDefault();
+            $(this).closest('li').remove();
+        });
+
+        var getSmColorListLine = function (data) {
+            if (!data) data = {};
+            return ('<li><label>等级范围<input class="pd_cfg_sm_min" type="text" maxlength="5" style="width:30px" value="{0}" /></label>' +
+            '<label>-<input class="pd_cfg_sm_max" type="text" maxlength="5" style="width:30px" value="{1}" /></label>' +
+            '<label>颜色<input class="pd_cfg_sm_color" type="text" maxlength="7" style="width:50px" value="{2}" />' +
+            '<input style="margin-left:0" type="color" value="{2}"></label> <a href="#">删除</a></li>')
+                .replace('{0}', typeof data.min === 'undefined' ? '' : data.min)
+                .replace('{1}', typeof data.max === 'undefined' ? '' : data.max)
+                .replace(/\{2\}/g, typeof data.color === 'undefined' ? '' : data.color);
+        };
+
+        $('#pd_cfg_custom_sm_color_add_btns').find('a:lt(2)').click(function (event) {
+            event.preventDefault();
+            var num = 1;
+            if ($(this).is('#pd_cfg_custom_sm_color_add_btns > a:eq(1)')) num = 5;
+            for (var i = 1; i <= num; i++) {
+                $('#pd_cfg_custom_sm_color_list').append(getSmColorListLine());
+            }
+            Tools.resize('pd_custom_sm_color_config');
+        }).end().find('a:last').click(function (event) {
+            event.preventDefault();
+            if (window.confirm('是否清除所有设置？')) {
+                $('#pd_cfg_custom_sm_color_list').empty();
+                Tools.resize('pd_custom_sm_color_config');
+            }
+        });
+
+        var smColorHtml = '';
+        $.each(Config.customSmColorConfigList, function (index, data) {
+            smColorHtml += getSmColorListLine(data);
+        });
+        $('#pd_cfg_custom_sm_color_list').html(smColorHtml);
+
+        $dialog.submit(function (event) {
+            event.preventDefault();
+            var list = [];
+            var verification = true;
+            $('#pd_cfg_custom_sm_color_list > li').each(function () {
+                var $this = $(this);
+                var $txtSmMin = $this.find('.pd_cfg_sm_min');
+                var smMin = $.trim($txtSmMin.val()).toUpperCase();
+                if (smMin === '') return;
+                if (!/^(-?\d+|MAX)$/i.test(smMin)) {
+                    verification = false;
+                    $txtSmMin.select();
+                    $txtSmMin.focus();
+                    alert('等级范围格式不正确');
+                    return false;
+                }
+                var $txtSmMax = $this.find('.pd_cfg_sm_max');
+                var smMax = $.trim($txtSmMax.val()).toUpperCase();
+                if (smMax === '') return;
+                if (!/^(-?\d+|MAX)$/i.test(smMax)) {
+                    verification = false;
+                    $txtSmMax.select();
+                    $txtSmMax.focus();
+                    alert('等级范围格式不正确');
+                    return false;
+                }
+                if (Tools.compareSmLevel(smMax, smMin) < 0) {
+                    verification = false;
+                    $txtSmMin.select();
+                    $txtSmMin.focus();
+                    alert('等级范围格式不正确');
+                    return false;
+                }
+                var $txtSmColor = $this.find('.pd_cfg_sm_color');
+                var smColor = $.trim($txtSmColor.val()).toUpperCase();
+                if (smColor === '') return;
+                if (!/^#[0-9a-fA-F]{6}$/.test(smColor)) {
+                    verification = false;
+                    $txtSmColor.select();
+                    $txtSmColor.focus();
+                    alert('颜色格式不正确');
+                    return false;
+                }
+                list.push({min: smMin, max: smMax, color: smColor});
+            });
+            if (verification) {
+                list.sort(function (a, b) {
+                    return Tools.compareSmLevel(a.min, b.min) > 0;
+                });
+                Config.customSmColorConfigList = list;
+                ConfigDialog.write();
+                Tools.close('pd_custom_sm_color_config');
+            }
+        });
+
+        Tools.resize('pd_custom_sm_color_config');
+        Tools.escKeydown('pd_custom_sm_color_config');
+        $(window).on('resize.pd_custom_sm_color_config', function () {
+            Tools.resize('pd_custom_sm_color_config');
+        });
+    },
+
+    /**
      * 显示导入或导出设置对话框
      */
     showImportOrExportSettingDialog: function () {
@@ -793,7 +963,7 @@ var ConfigDialog = {
             return Tools.close('pd_im_or_ex_setting');
         }).end().find('.pd_cfg_tips').click(function () {
             return false;
-        }).end().find('.pd_cfg_btns > button:eq(0)').click(function (event) {
+        }).end().find('.pd_cfg_btns > button:first').click(function (event) {
             event.preventDefault();
             var options = $.trim($('#pd_cfg_setting').val());
             if (!options) return;
@@ -852,12 +1022,14 @@ var ConfigDialog = {
         $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked', Config.adjustThreadContentWidthEnabled);
         $('#pd_cfg_thread_content_font_size').val(Config.threadContentFontSize > 0 ? Config.threadContentFontSize : '');
         $('#pd_cfg_custom_my_sm_color').val(Config.customMySmColor);
+        $('#pd_cfg_custom_sm_color_enabled').prop('checked', Config.customSmColorEnabled);
         $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked', Config.modifyKFOtherDomainEnabled);
         $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_log_save_days').val(Config.logSaveDays);
         $('#pd_cfg_show_log_link_in_page_enabled').prop('checked', Config.showLogLinkInPageEnabled);
+        $('#pd_cfg_add_side_bar_fast_nav_enabled').prop('checked', Config.addSideBarFastNavEnabled);
         $('#pd_cfg_modify_side_bar_enabled').prop('checked', Config.modifySideBarEnabled);
         $('#pd_cfg_follow_user_enabled').prop('checked', Config.followUserEnabled);
         ConfigDialog.showFollowOrBlockUserList(1);
@@ -899,11 +1071,13 @@ var ConfigDialog = {
         options.adjustThreadContentWidthEnabled = $('#pd_cfg_adjust_thread_content_width_enabled').prop('checked');
         options.threadContentFontSize = parseInt($.trim($('#pd_cfg_thread_content_font_size').val()));
         options.customMySmColor = $.trim($('#pd_cfg_custom_my_sm_color').val()).toUpperCase();
+        options.customSmColorEnabled = $('#pd_cfg_custom_sm_color_enabled').prop('checked');
         options.modifyKFOtherDomainEnabled = $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked');
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.logSaveDays = parseInt($.trim($('#pd_cfg_log_save_days').val()));
         options.showLogLinkInPageEnabled = $('#pd_cfg_show_log_link_in_page_enabled').prop('checked');
+        options.addSideBarFastNavEnabled = $('#pd_cfg_add_side_bar_fast_nav_enabled').prop('checked');
         options.modifySideBarEnabled = $('#pd_cfg_modify_side_bar_enabled').prop('checked');
         options.followUserEnabled = $('#pd_cfg_follow_user_enabled').prop('checked');
         options.blockUserEnabled = $('#pd_cfg_block_user_enabled').prop('checked');
@@ -1153,6 +1327,22 @@ var ConfigDialog = {
                 settings.customMySmColor = customMySmColor;
             else settings.customMySmColor = defConfig.customMySmColor;
         }
+        settings.customSmColorEnabled = typeof options.customSmColorEnabled === 'boolean' ?
+            options.customSmColorEnabled : defConfig.customSmColorEnabled;
+        if (typeof options.customSmColorConfigList !== 'undefined') {
+            var customSmColorConfigList = options.customSmColorConfigList
+            if ($.isArray(customSmColorConfigList)) {
+                settings.customSmColorConfigList = [];
+                $.each(customSmColorConfigList, function (index, data) {
+                    if ($.type(data) === 'object' && $.type(data.min) === 'string' && $.type(data.max) === 'string' && $.type(data.color) === 'string' &&
+                        /^(-?\d+|MAX)$/i.test(data.min) && /^(-?\d+|MAX)$/i.test(data.max) && /^#[0-9a-fA-F]{6}$/.test(data.color) &&
+                        Tools.compareSmLevel(data.min, data.max) <= 0) {
+                        settings.customSmColorConfigList.push(data);
+                    }
+                });
+            }
+            else settings.customSmColorConfigList = defConfig.customSmColorConfigList;
+        }
         settings.modifyKFOtherDomainEnabled = typeof options.modifyKFOtherDomainEnabled === 'boolean' ?
             options.modifyKFOtherDomainEnabled : defConfig.modifyKFOtherDomainEnabled;
         settings.multiQuoteEnabled = typeof options.multiQuoteEnabled === 'boolean' ?
@@ -1189,6 +1379,8 @@ var ConfigDialog = {
             if (logStatDays > 0) settings.logStatDays = logStatDays;
             else settings.logStatDays = defConfig.logStatDays;
         }
+        settings.addSideBarFastNavEnabled = typeof options.addSideBarFastNavEnabled === 'boolean' ?
+            options.addSideBarFastNavEnabled : defConfig.addSideBarFastNavEnabled;
         settings.modifySideBarEnabled = typeof options.modifySideBarEnabled === 'boolean' ?
             options.modifySideBarEnabled : defConfig.modifySideBarEnabled;
         settings.followUserEnabled = typeof options.followUserEnabled === 'boolean' ?
@@ -1468,9 +1660,9 @@ var Log = {
 
         Tools.resize('pd_log');
         Tools.escKeydown('pd_log');
-        $dialog.find('h1 > span, .pd_cfg_btns > button:eq(0)').focus().click(function () {
+        $dialog.find('h1 > span, .pd_cfg_btns > button:first').focus().click(function () {
             return Tools.close('pd_log');
-        }).end().find('.pd_cfg_btns > button:last').click(function (event) {
+        }).next('button').click(function (event) {
             event.preventDefault();
             if (window.confirm('是否清除所有日志？')) {
                 Log.clear();
@@ -1979,7 +2171,7 @@ var Item = {
     statBatchDrawSmResult: function ($result) {
         var totalNum = $result.children().length;
         KFOL.removePopTips($('.pd_pop_tips'));
-        KFOL.showWaitMsg('<strong>正在统计数据中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+        KFOL.showWaitMsg('<strong>正在统计收获情况中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                 .replace('{0}', totalNum - 1)
             , true);
         var stat = {};
@@ -2111,7 +2303,7 @@ var Item = {
                                         , -1);
                                     $maxDrawNumNode.text('我可用的神秘抽奖次数：{0}次'.replace('{0}', maxDrawNum - successNum));
                                     if (successNum > 0) {
-                                        $('<li><a href="#">统计数据</a></li>').appendTo($('.pd_result').last())
+                                        $('<li><a href="#">统计收获情况</a></li>').appendTo($('.pd_result').last())
                                             .find('a')
                                             .click(function (event) {
                                                 event.preventDefault();
@@ -2798,7 +2990,7 @@ var KFOL = {
      * @returns {boolean} 是否获取成功
      */
     getUidAndUserName: function () {
-        var $user = $('a[href^="profile.php?action=show&uid="]');
+        var $user = $('.topright a[href^="profile.php?action=show&uid="]').eq(0);
         if ($user.length === 0) return false;
         KFOL.userName = $user.text();
         var matches = /&uid=(\d+)/.exec($user.attr('href'));
@@ -2855,6 +3047,7 @@ var KFOL = {
             '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }' +
             '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }' +
             '#pd_log { width: 600px; }' +
+            '#pd_custom_sm_color_config { width: 350px; }' +
             '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }' +
             '.pd_cfg_nav a { margin-left: 7px; }' +
             '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }' +
@@ -2885,7 +3078,7 @@ var KFOL = {
             '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; line-height: 44px; }' +
             '.pd_log_nav a { display: inline-block; }' +
             '.pd_log_nav h2 { display: inline; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
-            '#pd_log_content { height: 324px; overflow: auto; }' +
+            '#pd_log_content { height: 302px; overflow: auto; }' +
             '#pd_log_content h3 { display: inline-block; font-size: 12px; line-height: 22px; margin: 0; }' +
             '#pd_log_content h3:not(:first-child) { margin-top: 5px; }' +
             '#pd_log_content p { line-height: 22px; margin: 0; }' +
@@ -3698,16 +3891,50 @@ var KFOL = {
     },
 
     /**
-     * 自定义本人的神秘颜色
+     * 修改指定楼层的神秘颜色
+     * @param {jQuery} $element 指定楼层的发帖者的用户名链接的jQuery对象
+     * @param {string} color 神秘颜色
      */
-    customMySmColor: function () {
-        if (!Config.customMySmColor) return;
+    modifyFloorSmColor: function ($element, color) {
+        if ($element.is('.readidmsbottom > a')) $element.css('color', color);
+        $element.closest('.readtext').css('border-color', color)
+            .prev('.readlou').css('border-color', color)
+            .next().next('.readlou').css('border-color', color);
+    },
+
+    /**
+     * 修改本人的神秘颜色
+     */
+    modifyMySmColor: function () {
         var $my = $('.readidmsbottom > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
         if ($my.length === 0) $my = $('.readidmleft > a[href="profile.php?action=show&uid={0}"]'.replace('{0}', KFOL.uid));
-        else $my.css('color', Config.customMySmColor);
-        $my.closest('.readtext').css('border-color', Config.customMySmColor)
-            .prev('.readlou').css('border-color', Config.customMySmColor)
-            .next().next('.readlou').css('border-color', Config.customMySmColor);
+        if ($my.length > 0) KFOL.modifyFloorSmColor($my, Config.customMySmColor);
+    },
+
+    /**
+     * 修改各等级神秘颜色
+     */
+    modifySmColor: function () {
+        if (Config.customSmColorConfigList.length === 0) return;
+        $('.readidmsbottom > a[href^="profile.php?action=show&uid="], .readidmleft > a').each(function () {
+            var $this = $(this);
+            var smLevel = '';
+            if ($this.is('.readidmleft > a')) {
+                smLevel = $this.parent().next('.readidmright').text().toUpperCase();
+                if (!/(-?\d+|MAX)/i.test(smLevel)) return;
+            }
+            else {
+                var matches = /(-?\d+|MAX)级神秘/i.exec($this.parent().contents().last().text());
+                if (!matches) return;
+                smLevel = matches[1].toUpperCase();
+            }
+            $.each(Config.customSmColorConfigList, function (index, data) {
+                if (Tools.compareSmLevel(smLevel, data.min) >= 0 && Tools.compareSmLevel(smLevel, data.max) <= 0) {
+                    KFOL.modifyFloorSmColor($this, data.color);
+                    return false;
+                }
+            });
+        });
     },
 
     /**
@@ -4115,7 +4342,7 @@ var KFOL = {
                     }
                     var money = parseInt(matches[1]);
                     if (money <= 0) {
-                        KFOL.showMsg('当前活期存款帐户为空', -1);
+                        KFOL.showMsg('当前活期存款余额为零', -1);
                         return;
                     }
                     Bank.drawCurrentDeposit(money);
@@ -4304,7 +4531,7 @@ var KFOL = {
     },
 
     /**
-     * 将侧边栏修改为手机浏览的样式
+     * 将侧边栏修改为和手机相同的平铺样式
      */
     modifySideBar: function () {
         $('#r_menu').replaceWith(
@@ -4328,8 +4555,38 @@ var KFOL = {
             '	<a href="thread.php?fid=4">站务管理</a><br />' +
             '	<span style="color:#ff9999;">专用</span><br />' +
             '	<a href="thread.php?fid=93">管理组区</a> | <a href="thread.php?fid=59">原创组区</a><br />' +
+            '	<a href="/">论坛首页</a><br />' +
             '</div>'
         );
+    },
+
+    /**
+     * 为侧边栏添加快捷导航的链接
+     */
+    addFastNavForSideBar: function () {
+        if (Config.modifySideBarEnabled) {
+            $('#r_menu > a:last').before(
+                '<span style="color:#ff9999;">快捷导航</span><br />' +
+                '<a href="guanjianci.php?gjc={0}">@提醒</a> | <a href="kf_growup.php">神秘等级</a><br />'.replace('{0}', KFOL.userName) +
+                '<a href="kf_smbox.php">神秘盒子</a> | <a href="kf_fw_ig_one.php">道具卡片</a><br />' +
+                '<a href="profile.php?action=modify">设置</a> | <a href="hack.php?H_name=bank">银行</a> | <a href="profile.php?action=favor">收藏</a><br />'
+            );
+        }
+        else {
+            $('#r_menu > ul > li:last-child').before(
+                '<li class="r_cmenuho"><a href="JavaScript:;">快捷导航</a>' +
+                '  <ul class="r_cmenu2">' +
+                '    <li><a href="guanjianci.php?gjc={0}">@提醒</a></li>'.replace('{0}', KFOL.userName) +
+                '    <li><a href="kf_growup.php">神秘等级</a></li>' +
+                '    <li><a href="kf_smbox.php">神秘盒子</a></li>' +
+                '    <li><a href="kf_fw_ig_one.php">道具卡片</a></li>' +
+                '    <li><a href="profile.php?action=modify">设置</a></li>' +
+                '    <li><a href="hack.php?H_name=bank">银行</a></li>' +
+                '    <li><a href="profile.php?action=favor">收藏</a></li>' +
+                '  </ul>' +
+                '</li>'
+            );
+        }
     },
 
     /**
@@ -4413,6 +4670,7 @@ var KFOL = {
         KFOL.addConfigAndLogDialogLink();
 
         if (Config.modifySideBarEnabled) KFOL.modifySideBar();
+        if (Config.addSideBarFastNavEnabled) KFOL.addFastNavForSideBar();
         if (KFOL.isInHomePage) {
             KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
@@ -4424,7 +4682,8 @@ var KFOL = {
             KFOL.fastGotoFloor();
             if (Config.adjustThreadContentWidthEnabled) KFOL.adjustThreadContentWidth();
             KFOL.adjustThreadContentFontSize();
-            KFOL.customMySmColor();
+            if (Config.customSmColorEnabled) KFOL.modifySmColor();
+            if (Config.customMySmColor) KFOL.modifyMySmColor();
             if (Config.multiQuoteEnabled) KFOL.addMultiQuoteButton();
             KFOL.addFastGotoFloorInput();
             KFOL.addFloorGotoLink();
