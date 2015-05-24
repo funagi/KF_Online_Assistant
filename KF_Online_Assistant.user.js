@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.4.1-dev
+// @version     3.4.1
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -1019,7 +1019,7 @@ var ConfigDialog = {
             '    <textarea id="pd_cfg_sm_color_config" style="width:420px;height:200px;word-break:break-all"></textarea>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
-            '    <span class="pd_cfg_about"><a target="_blank" href="#">其他人分享的配色方案</a></span>' +
+            '    <span class="pd_cfg_about"><a target="_blank" href="read.php?tid=488016">其他人分享的配色方案</a></span>' +
             '    <button>保存</button><button>取消</button>' +
             '  </div>' +
             '</div>' +
