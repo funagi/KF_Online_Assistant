@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.4.0
+// @version     3.4.1-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -103,8 +103,8 @@ var Config = {
     autoSaveCurrentDepositEnabled: false,
     // 在当前收入已满指定KFB额度之后自动进行活期存款，例：1000
     saveCurrentDepositAfterKfb: 0,
-    // 将当前收入指定百分比的金额自动存入活期存款，例：99.99
-    saveCurrentDepositKfbPercent: 0,
+    // 将指定额度N倍的KFB存入活期存款中（N为指定额度与当前收入的最大可能倍数），例：900；举例：设定已满1000存900，当前收入为2015，则自动存入金额为1800
+    saveCurrentDepositKfb: 0,
 
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
@@ -625,10 +625,11 @@ var ConfigDialog = {
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_auto_save_current_deposit_enabled" type="checkbox" />自动活期存款 ' +
             '<a class="pd_cfg_tips" href="#" title="在当前收入满足指定额度之后自动将指定数额存入活期存款中，只会在首页触发">[?]</a></label></legend>' +
-            '        <label>在已满<input id="pd_cfg_save_current_deposit_after_kfb" maxlength="10" style="width:45px" type="text" />KFB之后 ' +
+            '        <label>在当前收入已满<input id="pd_cfg_save_current_deposit_after_kfb" maxlength="10" style="width:45px" type="text" />KFB之后 ' +
             '<a class="pd_cfg_tips" href="#" title="在当前收入已满指定KFB额度之后自动进行活期存款，例：1000">[?]</a></label><br />' +
-            '        <label>将当前收入的<input id="pd_cfg_save_current_deposit_kfb_percent" maxlength="10" style="width:45px" type="text" />%存入活期存款 ' +
-            '<a class="pd_cfg_tips" href="#" title="将当前收入指定百分比的金额自动存入活期存款，例：99.99">[?]</a></label>' +
+            '        <label>将N&times;<input id="pd_cfg_save_current_deposit_kfb" maxlength="10" style="width:45px" type="text" />KFB存入活期存款 ' +
+            '<a class="pd_cfg_tips" href="#" title="将指定额度N倍的KFB存入活期存款中（N为指定额度与当前收入的最大可能倍数），例：900；' +
+            '举例：设定已满1000存900，当前收入为2015，则自动存入金额为1800">[?]</a></label>' +
             '      </fieldset>' +
             '    </div>' +
             '  </div>' +
@@ -745,6 +746,63 @@ var ConfigDialog = {
     },
 
     /**
+     * 显示导入或导出设置对话框
+     */
+    showImportOrExportSettingDialog: function () {
+        if ($('#pd_im_or_ex_setting').length > 0) return;
+        var html =
+            '<form>' +
+            '<div class="pd_cfg_box" id="pd_im_or_ex_setting">' +
+            '  <h1>导入或导出设置<span>&times;</span></h1>' +
+            '  <div class="pd_cfg_main">' +
+            '    <div>' +
+            '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />' +
+            '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可' +
+            '    </div>' +
+            '    <textarea id="pd_cfg_setting" style="width:420px;height:200px;word-break:break-all"></textarea>' +
+            '  </div>' +
+            '  <div class="pd_cfg_btns">' +
+            '    <button>保存</button><button>取消</button>' +
+            '  </div>' +
+            '</div>' +
+            '</form>';
+        var $dialog = $(html).appendTo('body');
+        $dialog.find('h1 > span').click(function () {
+            return Tools.close('pd_im_or_ex_setting');
+        }).end().find('.pd_cfg_tips').click(function () {
+            return false;
+        }).end().find('.pd_cfg_btns > button:first').click(function (event) {
+            event.preventDefault();
+            var options = $.trim($('#pd_cfg_setting').val());
+            if (!options) return;
+            try {
+                options = JSON.parse(options);
+            }
+            catch (ex) {
+                alert('设置有错误');
+                return;
+            }
+            if (!options || $.type(options) !== 'object') {
+                alert('设置有错误');
+                return;
+            }
+            options = ConfigDialog.getNormalizationConfig(options);
+            Config = $.extend(true, {}, ConfigDialog.defConfig, options);
+            ConfigDialog.write();
+            alert('设置已导入');
+            location.reload();
+        }).next('button').click(function () {
+            return Tools.close('pd_im_or_ex_setting');
+        });
+        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
+        Tools.resize('pd_im_or_ex_setting');
+        Tools.escKeydown('pd_im_or_ex_setting');
+        $(window).on('resize.pd_im_or_ex_setting', function () {
+            Tools.resize('pd_im_or_ex_setting');
+        });
+    },
+
+    /**
      * 显示关注用户或屏蔽用户列表
      * @param {number} type 显示类别，1：关注用户；2：屏蔽用户
      */
@@ -816,6 +874,7 @@ var ConfigDialog = {
             '<a href="#" style="margin-left:7px">清除所有</a></div>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
+            '    <span class="pd_cfg_about"><a href="#">导入/导出配色方案</a></span>' +
             '    <button>确定</button><button>取消</button>' +
             '  </div>' +
             '</div>' +
@@ -868,6 +927,11 @@ var ConfigDialog = {
                 $('#pd_cfg_custom_sm_color_list').empty();
                 Tools.resize('pd_custom_sm_color_config');
             }
+        });
+
+        $('.pd_cfg_about a').click(function (event) {
+            event.preventDefault();
+            ConfigDialog.showImportOrExportSmColorConfigDialog();
         });
 
         var smColorHtml = '';
@@ -939,59 +1003,59 @@ var ConfigDialog = {
     },
 
     /**
-     * 显示导入或导出设置对话框
+     * 显示导入或导出配色方案对话框
      */
-    showImportOrExportSettingDialog: function () {
-        if ($('#pd_im_or_ex_setting').length > 0) return;
+    showImportOrExportSmColorConfigDialog: function () {
+        if ($('#pd_im_or_ex_sm_color_config').length > 0) return;
         var html =
             '<form>' +
-            '<div class="pd_cfg_box" id="pd_im_or_ex_setting">' +
-            '  <h1>导入或导出设置<span>&times;</span></h1>' +
+            '<div class="pd_cfg_box" id="pd_im_or_ex_sm_color_config">' +
+            '  <h1>导入或导出配色方案<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div>' +
-            '      <strong>导入设置：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />' +
-            '      <strong>导出设置：</strong>复制文本框里的内容并粘贴到文本文件里即可' +
+            '      <strong>导入配色方案：</strong>将设置内容粘贴到文本框中并点击保存按钮即可<br />' +
+            '      <strong>导出配色方案：</strong>复制文本框里的内容并粘贴到文本文件里即可' +
             '    </div>' +
-            '    <textarea id="pd_cfg_setting" style="width:420px;height:200px;word-break:break-all"></textarea>' +
+            '    <textarea id="pd_cfg_sm_color_config" style="width:420px;height:200px;word-break:break-all"></textarea>' +
             '  </div>' +
             '  <div class="pd_cfg_btns">' +
+            '    <span class="pd_cfg_about"><a target="_blank" href="#">其他人分享的配色方案</a></span>' +
             '    <button>保存</button><button>取消</button>' +
             '  </div>' +
             '</div>' +
             '</form>';
         var $dialog = $(html).appendTo('body');
         $dialog.find('h1 > span').click(function () {
-            return Tools.close('pd_im_or_ex_setting');
+            return Tools.close('pd_im_or_ex_sm_color_config');
         }).end().find('.pd_cfg_tips').click(function () {
             return false;
         }).end().find('.pd_cfg_btns > button:first').click(function (event) {
             event.preventDefault();
-            var options = $.trim($('#pd_cfg_setting').val());
+            var options = $.trim($('#pd_cfg_sm_color_config').val());
             if (!options) return;
             try {
                 options = JSON.parse(options);
             }
             catch (ex) {
-                alert('设置有错误');
+                alert('配色方案有错误');
                 return;
             }
-            if (!options || $.type(options) !== 'object') {
-                alert('设置有错误');
+            if (!options || $.type(options) !== 'array') {
+                alert('配色方案有错误');
                 return;
             }
-            options = ConfigDialog.getNormalizationConfig(options);
-            Config = $.extend(true, {}, ConfigDialog.defConfig, options);
+            Config.customSmColorConfigList = options;
             ConfigDialog.write();
-            alert('设置已导入');
+            alert('配色方案已导入');
             location.reload();
         }).next('button').click(function () {
-            return Tools.close('pd_im_or_ex_setting');
+            return Tools.close('pd_im_or_ex_sm_color_config');
         });
-        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
-        Tools.resize('pd_im_or_ex_setting');
-        Tools.escKeydown('pd_im_or_ex_setting');
-        $(window).on('resize.pd_im_or_ex_setting', function () {
-            Tools.resize('pd_im_or_ex_setting');
+        $('#pd_cfg_sm_color_config').val(JSON.stringify(Config.customSmColorConfigList)).select();
+        Tools.resize('pd_im_or_ex_sm_color_config');
+        Tools.escKeydown('pd_im_or_ex_sm_color_config');
+        $(window).on('resize.pd_im_or_ex_sm_color_config', function () {
+            Tools.resize('pd_im_or_ex_sm_color_config');
         });
     },
 
@@ -1038,7 +1102,7 @@ var ConfigDialog = {
         ConfigDialog.showFollowOrBlockUserList(2);
         $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked', Config.autoSaveCurrentDepositEnabled);
         if (Config.saveCurrentDepositAfterKfb > 0) $('#pd_cfg_save_current_deposit_after_kfb').val(Config.saveCurrentDepositAfterKfb);
-        if (Config.saveCurrentDepositKfbPercent) $('#pd_cfg_save_current_deposit_kfb_percent').val(Config.saveCurrentDepositKfbPercent);
+        if (Config.saveCurrentDepositKfb > 0) $('#pd_cfg_save_current_deposit_kfb').val(Config.saveCurrentDepositKfb);
     },
 
     /**
@@ -1084,7 +1148,7 @@ var ConfigDialog = {
         options.blockUserEnabled = $('#pd_cfg_block_user_enabled').prop('checked');
         options.autoSaveCurrentDepositEnabled = $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked');
         options.saveCurrentDepositAfterKfb = parseInt($.trim($('#pd_cfg_save_current_deposit_after_kfb').val()));
-        options.saveCurrentDepositKfbPercent = parseFloat($.trim($('#pd_cfg_save_current_deposit_kfb_percent').val()));
+        options.saveCurrentDepositKfb = parseInt($.trim($('#pd_cfg_save_current_deposit_kfb').val()));
         return options;
     },
 
@@ -1196,20 +1260,20 @@ var ConfigDialog = {
         }
 
         var $txtSaveCurrentDepositAfterKfb = $('#pd_cfg_save_current_deposit_after_kfb');
-        var $txtSaveCurrentDepositKfbPercent = $('#pd_cfg_save_current_deposit_kfb_percent');
+        var $txtSaveCurrentDepositKfb = $('#pd_cfg_save_current_deposit_kfb');
         var saveCurrentDepositAfterKfb = parseInt($.trim($txtSaveCurrentDepositAfterKfb.val()));
-        var saveCurrentDepositKfbPercent = parseFloat($.trim($txtSaveCurrentDepositKfbPercent.val()));
-        if (saveCurrentDepositAfterKfb || saveCurrentDepositKfbPercent) {
+        var saveCurrentDepositKfb = parseInt($.trim($txtSaveCurrentDepositKfb.val()));
+        if (saveCurrentDepositAfterKfb || saveCurrentDepositKfb) {
             if (!saveCurrentDepositAfterKfb || saveCurrentDepositAfterKfb <= 0) {
                 alert('自动活期存款满足额度格式不正确');
                 $txtSaveCurrentDepositAfterKfb.select();
                 $txtSaveCurrentDepositAfterKfb.focus();
                 return false;
             }
-            if (!saveCurrentDepositKfbPercent || saveCurrentDepositKfbPercent <= 0 || saveCurrentDepositKfbPercent > 100) {
-                alert('当前收入指定百分比格式不正确');
-                $txtSaveCurrentDepositKfbPercent.select();
-                $txtSaveCurrentDepositKfbPercent.focus();
+            if (!saveCurrentDepositKfb || saveCurrentDepositKfb <= 0 || saveCurrentDepositKfb > saveCurrentDepositAfterKfb) {
+                alert('想要存款的金额格式不正确');
+                $txtSaveCurrentDepositKfb.select();
+                $txtSaveCurrentDepositKfb.focus();
                 return false;
             }
         }
@@ -1415,11 +1479,11 @@ var ConfigDialog = {
             if (saveCurrentDepositAfterKfb > 0) settings.saveCurrentDepositAfterKfb = saveCurrentDepositAfterKfb;
             else settings.saveCurrentDepositAfterKfb = defConfig.saveCurrentDepositAfterKfb;
         }
-        if (typeof options.saveCurrentDepositKfbPercent !== 'undefined') {
-            var saveCurrentDepositKfbPercent = parseFloat(options.saveCurrentDepositKfbPercent);
-            if (saveCurrentDepositKfbPercent > 0 || saveCurrentDepositKfbPercent <= 100)
-                settings.saveCurrentDepositKfbPercent = saveCurrentDepositKfbPercent;
-            else settings.saveCurrentDepositKfbPercent = defConfig.saveCurrentDepositKfbPercent;
+        if (typeof options.saveCurrentDepositKfb !== 'undefined') {
+            var saveCurrentDepositKfb = parseInt(options.saveCurrentDepositKfb);
+            if (saveCurrentDepositKfb > 0 && saveCurrentDepositKfb <= settings.saveCurrentDepositAfterKfb)
+                settings.saveCurrentDepositKfb = saveCurrentDepositKfb;
+            else settings.saveCurrentDepositKfb = defConfig.saveCurrentDepositKfb;
         }
         return settings;
     },
@@ -4570,7 +4634,8 @@ var KFOL = {
                 '<span style="color:#ff9999;">快捷导航</span><br />' +
                 '<a href="guanjianci.php?gjc={0}">@提醒</a> | <a href="kf_growup.php">神秘等级</a><br />'.replace('{0}', KFOL.userName) +
                 '<a href="kf_smbox.php">神秘盒子</a> | <a href="kf_fw_ig_one.php">道具卡片</a><br />' +
-                '<a href="profile.php?action=modify">设置</a> | <a href="hack.php?H_name=bank">银行</a> | <a href="profile.php?action=favor">收藏</a><br />'
+                '<a href="profile.php?action=modify">设置</a> | <a href="hack.php?H_name=bank">银行</a> | <a href="profile.php?action=favor">收藏</a><br />' +
+                '<a href="personal.php?action=post">我的回复</a> | '
             );
         }
         else {
@@ -4584,6 +4649,7 @@ var KFOL = {
                 '    <li><a href="profile.php?action=modify">设置</a></li>' +
                 '    <li><a href="hack.php?H_name=bank">银行</a></li>' +
                 '    <li><a href="profile.php?action=favor">收藏</a></li>' +
+                '    <li><a href="personal.php?action=post">我的回复</a></li>' +
                 '  </ul>' +
                 '</li>'
             );
@@ -4594,14 +4660,18 @@ var KFOL = {
      * 自动活期存款
      */
     autoSaveCurrentDeposit: function () {
-        if (!(Config.saveCurrentDepositAfterKfb > 0 && Config.saveCurrentDepositKfbPercent > 0 && Config.saveCurrentDepositKfbPercent <= 100))
+        if (!(Config.saveCurrentDepositAfterKfb > 0 && Config.saveCurrentDepositKfb > 0 && Config.saveCurrentDepositKfb <= Config.saveCurrentDepositAfterKfb))
             return;
         var $kfb = $('a.indbox1[title="网站虚拟货币"]');
         var matches = /拥有(\d+)KFB/i.exec($kfb.text());
         if (!matches) return;
         var income = parseInt(matches[1]);
         if (income < Config.saveCurrentDepositAfterKfb) return;
-        var money = Math.floor(income * Config.saveCurrentDepositKfbPercent / 100);
+        var multiple = Math.floor(income / Config.saveCurrentDepositKfb);
+        if (income - Config.saveCurrentDepositKfb * multiple < Config.saveCurrentDepositAfterKfb - Config.saveCurrentDepositKfb)
+            multiple--;
+        var money = Config.saveCurrentDepositKfb * multiple;
+        if (money <= 0) return;
         $.post('hack.php?H_name=bank',
             {action: 'save', btype: 1, savemoney: money},
             function (html) {
@@ -4655,6 +4725,16 @@ var KFOL = {
         else if (smLevel < data.smLevel) {
             writeData();
         }
+    },
+
+    /**
+     * 修改我的回复页面里的帖子链接
+     */
+    modifyMyPostLink: function () {
+        $('.t a[href^="read.php?tid="]').each(function () {
+            var $this = $(this);
+            $this.attr('href', $this.attr('href').replace(/&uid=\d+#(\d+)/i, '&spid=$1'));
+        });
     },
 
     /**
@@ -4725,6 +4805,9 @@ var KFOL = {
         }
         else if (/\/profile\.php\?action=show/i.test(location.href)) {
             KFOL.addFollowAndBlockUserLink();
+        }
+        else if (/\/personal\.php\?action=post/i.test(location.href)) {
+            KFOL.modifyMyPostLink();
         }
         KFOL.blockUsers();
         KFOL.followUsers();
