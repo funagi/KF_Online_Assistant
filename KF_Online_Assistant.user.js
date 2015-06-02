@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.4.1
+// @version     3.4.2-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -116,7 +116,7 @@ var Config = {
     // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
     drawSmboxCompleteRefreshInterval: 20,
     // 获取剩余抽奖时间失败后的重试间隔（分钟），用于定时模式
-    errorRefreshInterval: 15,
+    errorRefreshInterval: 1,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
     showRefreshModeTipsInterval: 1,
     // 标记已去除首页已读at高亮提示的Cookie有效期（天）
@@ -401,7 +401,9 @@ var Tools = {
      * @returns {boolean} 返回false
      */
     close: function (boxId) {
-        $('#' + boxId).parent('form').remove();
+        $('#' + boxId).fadeOut('fast', function () {
+            $(this).parent('form').remove();
+        });
         $(window).off('resize.' + boxId);
         return false;
     },
@@ -415,7 +417,8 @@ var Tools = {
         if ($box.length === 0) return;
         $box.find('.pd_cfg_main').css('max-height', $(window).height() - 80);
         $box.css('top', $(window).height() / 2 - $box.height() / 2)
-            .css('left', $(window).width() / 2 - $box.width() / 2);
+            .css('left', $(window).width() / 2 - $box.width() / 2)
+            .fadeIn('fast');
     },
 
     /**
@@ -463,11 +466,11 @@ var Tools = {
     },
 
     /**
-     * 检测浏览器是否采用了WebKit内核
-     * @returns {boolean} 是否采用了WebKit内核
+     * 检测浏览器是否为Opera
+     * @returns {boolean} 是否为Opera
      */
-    isWebKit: function () {
-        return typeof document.body.style.WebkitBoxShadow !== 'undefined';
+    isOpera: function () {
+        return typeof window.opera !== 'undefined';
     },
 
     /**
@@ -640,7 +643,6 @@ var ConfigDialog = {
             '</div>' +
             '</form>';
         var $dialog = $(html).appendTo('body');
-        if (Tools.isWebKit()) Tools.resize('pd_config');
 
         $dialog.find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
             return Tools.close('pd_config');
@@ -728,7 +730,10 @@ var ConfigDialog = {
             }
         }).find('legend input[type="checkbox"]').click(function () {
             var checked = $(this).prop('checked');
-            $(this).closest('fieldset').prop('disabled', !checked);
+            if (Tools.isOpera())
+                $(this).closest('fieldset').find('input, select, textarea, button').not('legend input').prop('disabled', !checked);
+            else
+                $(this).closest('fieldset').prop('disabled', !checked);
         }).each(function () {
             $(this).triggerHandler('click');
         }).end().find('input[data-disabled]').click(function () {
@@ -1838,20 +1843,29 @@ var Log = {
                 }
             });
         }
+        var sortStatItemList = function (obj) {
+            var sortTypeList = ['KFB', '经验值', '神秘', '能量', 'VIP小时', '贡献', '道具', '已使用道具', '卡片'];
+            var list = Tools.getObjectKeyList(obj, 0);
+            list.sort(function (a, b) {
+                return $.inArray(a, sortTypeList) > $.inArray(b, sortTypeList);
+            });
+            return list;
+        };
         var content = '';
         content += '<strong>收获：</strong>';
-        $.each(Tools.getObjectKeyList(income, 1), function (index, key) {
+        sortStatItemList(income);
+        $.each(sortStatItemList(income), function (index, key) {
             profit[key] = income[key];
             content += '<i>{0}<em>+{1}</em></i>'.replace('{0}', key).replace('{1}', income[key].toLocaleString());
         });
         content += '<br /><strong>付出：</strong>';
-        $.each(Tools.getObjectKeyList(expense, 1), function (index, key) {
+        $.each(sortStatItemList(expense), function (index, key) {
             if (typeof profit[key] === 'undefined') profit[key] = expense[key];
             else profit[key] += expense[key];
             content += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', key).replace('{1}', expense[key].toLocaleString());
         });
         content += '<br /><strong>结余：</strong>';
-        $.each(Tools.getObjectKeyList(profit, 1), function (index, key) {
+        $.each(sortStatItemList(profit), function (index, key) {
             content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key]));
         });
         var smBoxIncome = 0, minSmBox = 0, maxSmBox = 0;
@@ -3058,6 +3072,7 @@ var KFOL = {
         var $user = $('.topright a[href^="profile.php?action=show&uid="]').eq(0);
         if ($user.length === 0) return false;
         KFOL.userName = $user.text();
+        if (!KFOL.userName) return false;
         var matches = /&uid=(\d+)/.exec($user.attr('href'));
         if (!matches) return false;
         KFOL.uid = matches[1];
@@ -3108,14 +3123,18 @@ var KFOL = {
             '.pd_disabled_link { color: #999 !important; text-decoration: none !important; cursor: default; }' +
 
                 /* 设置对话框 */
-            '.pd_cfg_box { position: fixed; border: 1px solid #9191FF; }' +
+            '.pd_cfg_box {' +
+            '  position: fixed; border: 1px solid #9191FF; display: none; -webkit-box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.5);' +
+            '  -moz-box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.5); -o-box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.5);' +
+            '  box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.5);' +
+            '}' +
             '.pd_cfg_box h1 {text-align: center; font-size: 14px; background-color: #9191FF; color: #FFF; line-height: 2em; margin: 0; padding-left: 20px; }' +
             '.pd_cfg_box h1 span { float: right; cursor: pointer; padding: 0 10px; }' +
             '#pd_log { width: 600px; }' +
-            '#pd_custom_sm_color_config { width: 350px; }' +
+            '#pd_custom_sm_color_config { width: 360px; }' +
             '.pd_cfg_nav { text-align: right; margin-top: 5px; margin-bottom: -5px; }' +
             '.pd_cfg_nav a { margin-left: 7px; }' +
-            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 5px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }' +
+            '.pd_cfg_main { background-color: #FCFCFC; padding: 0 10px; font-size: 12px; line-height: 22px; min-height: 180px; overflow: auto; }' +
             '.pd_cfg_main fieldset { border: 1px solid #CCCCFF; }' +
             '.pd_cfg_main legend { font-weight: bold; }' +
             '.pd_cfg_main label input, .pd_cfg_main legend input, .pd_cfg_main label select { margin: 0 5px; }' +
@@ -3124,11 +3143,10 @@ var KFOL = {
             '.pd_cfg_main .pd_cfg_tips { text-decoration: none; cursor: help; }' +
             '.pd_cfg_main .pd_cfg_tips:hover { color: #FF0000; }' +
             '#pd_config .pd_cfg_main { overflow-x: hidden; white-space: nowrap; }' +
-            '.pd_cfg_panel { display: inline-block; width: 380px; vertical-align: top; margin-bottom: 5px; }' +
+            '.pd_cfg_panel { display: inline-block; width: 380px; vertical-align: top; }' +
             '.pd_cfg_panel + .pd_cfg_panel { margin-left: 5px; }' +
             '.pd_cfg_btns { background-color: #FCFCFC; text-align: right; padding: 5px; }' +
             '.pd_cfg_btns button { width: 80px; margin-left: 5px; }' +
-            '#pd_config .pd_cfg_btns { padding-top: 0; }' +
             '.pd_cfg_about { float: left; line-height: 24px; margin-left: 5px; }' +
             '.pd_cfg_user_list { max-width: 360px; max-height: 114px; overflow: auto; white-space: normal; }' +
             '.pd_cfg_user_list > span {' +
@@ -3143,7 +3161,7 @@ var KFOL = {
             '.pd_log_nav { text-align: center; margin: -5px 0 -12px; font-size: 14px; line-height: 44px; }' +
             '.pd_log_nav a { display: inline-block; }' +
             '.pd_log_nav h2 { display: inline; font-size: 14px; margin-left: 7px; margin-right: 7px; }' +
-            '#pd_log_content { height: 302px; overflow: auto; }' +
+            '#pd_log_content { height: 308px; overflow: auto; }' +
             '#pd_log_content h3 { display: inline-block; font-size: 12px; line-height: 22px; margin: 0; }' +
             '#pd_log_content h3:not(:first-child) { margin-top: 5px; }' +
             '#pd_log_content p { line-height: 22px; margin: 0; }' +
@@ -3693,14 +3711,14 @@ var KFOL = {
                 titleInterval = window.setInterval(showIntervalTitle, Config.showRefreshModeTipsInterval * 60 * 1000);
             }
         };
-        var handleError = function (XMLHttpRequest, textStatus) {
+        var handleError = function (interval, textStatus) {
             console.log('获取剩余抽奖时间失败，错误信息：' + textStatus);
             KFOL.removePopTips($('.pd_refresh_notice').parent());
             KFOL.showMsg('<span class="pd_refresh_notice">获取剩余抽奖时间失败，将在<em>{0}</em>分钟后重试...</span>'
-                    .replace('{0}', Config.errorRefreshInterval)
+                    .replace('{0}', interval)
                 , -1);
-            window.setTimeout(checkRefreshInterval, Config.errorRefreshInterval * 60 * 1000);
-            showRefreshModeTips(Config.errorRefreshInterval * 60, true);
+            window.setTimeout(checkRefreshInterval, interval * 60 * 1000);
+            showRefreshModeTips(interval * 60, true);
         };
         var checkRefreshInterval = function () {
             KFOL.removePopTips($('.pd_refresh_notice').parent());
@@ -3729,7 +3747,7 @@ var KFOL = {
                         drawItemOrCardInterval = 0;
                     }
                     if (drawSmboxInterval === -1 || drawItemOrCardInterval === -1) {
-                        handleError();
+                        handleError(5, '遇到论坛维护或其它未知情况');
                         return;
                     }
                     var isDrawSmboxStarted = false;
@@ -3753,7 +3771,9 @@ var KFOL = {
                     window.setTimeout(checkRefreshInterval, interval * 1000);
                     showRefreshModeTips(interval, true);
                 },
-                error: handleError
+                error: function (XMLHttpRequest, textStatus) {
+                    handleError(Config.errorRefreshInterval, textStatus);
+                }
             });
         };
         window.setTimeout(checkRefreshInterval, interval * 1000);
