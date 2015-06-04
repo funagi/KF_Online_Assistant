@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.4.2-dev
+// @version     3.4.2
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -528,36 +528,37 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
-            '        <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子</label></legend>' +
+            '        <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子 ' +
+            '<a class="pd_cfg_tips" href="#" title="注意：抽取神秘盒子将延长争夺奖励的领取时间">[?]</a></label></legend>' +
             '        <label>偏好的神秘盒子数字<input placeholder="例: 52,1,28,400" id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">' +
-            '[?]</a></label><br />' +
-            '        <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
-            '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>' +
+            '[?]</a></label>' +
+                /*'        <label><input id="pd_cfg_draw_non_winning_smbox_enabled" type="checkbox" />不抽取会中头奖的神秘盒子 ' +
+                 '<a class="pd_cfg_tips" href="#" title="抽取神秘盒子时，只抽取当前已被人点过的盒子（用于卡级，尚未验证是否确实可行）">[?]</a></label>' +*/
             '      </fieldset>' +
-            '      <fieldset>' +
-            '        <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>' +
-            '        <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>' +
-            '<option value="2">只抽道具</option></select></label><br />' +
-            '        <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ' +
-            '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />' +
-            '        <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ' +
-            '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />' +
-            '        <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">' +
-            '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>' +
-            '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>' +
-            '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>' +
-            '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>' +
-            '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>' +
-            '<option value="消逝之药">Lv.5：消逝之药</option></select></label>' +
-            '      </fieldset>' +
-            '      <fieldset>' +
-            '        <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
-            '<a class="pd_cfg_tips" href="#" title="可自动按时进行抽奖（包括捐款、抽取神秘盒子、抽取道具或卡片），只在首页生效">[?]</a></label></legend>' +
-            '        <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
-            '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
-            '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
-            '      </fieldset>' +
+                /*'      <fieldset>' +
+                 '        <legend><label><input id="pd_cfg_auto_draw_item_or_card_enabled" type="checkbox" />自动抽取道具或卡片</label></legend>' +
+                 '        <label>抽取方式<select id="pd_cfg_auto_draw_item_or_card_type"><option value="1">抽道具或卡片</option>' +
+                 '<option value="2">只抽道具</option></select></label><br />' +
+                 '        <label><input id="pd_convert_card_to_vip_time_enabled" type="checkbox" />将抽到的卡片自动转换为VIP时间 ' +
+                 '<a class="pd_cfg_tips" href="#" title="将在自动抽取中获得的卡片转换为VIP时间">[?]</a></label><br />' +
+                 '        <label><input id="pd_cfg_auto_use_item_enabled" type="checkbox" data-disabled="#pd_cfg_auto_use_item_names" />自动使用刚抽到的道具 ' +
+                 '<a class="pd_cfg_tips" href="#" title="自动使用刚抽到的道具，需指定自动使用的道具名称，按Shift或Ctrl键可多选">[?]</a></label><br />' +
+                 '        <label><select id="pd_cfg_auto_use_item_names" multiple="multiple" size="4">' +
+                 '<option value="被遗弃的告白信">Lv.1：被遗弃的告白信</option><option value="学校天台的钥匙">Lv.1：学校天台的钥匙</option>' +
+                 '<option value="TMA最新作压缩包">Lv.1：TMA最新作压缩包</option><option value="LOLI的钱包">Lv.2：LOLI的钱包</option>' +
+                 '<option value="棒棒糖">Lv.2：棒棒糖</option><option value="蕾米莉亚同人漫画">Lv.3：蕾米莉亚同人漫画</option>' +
+                 '<option value="十六夜同人漫画">Lv.3：十六夜同人漫画</option><option value="档案室钥匙">Lv.4：档案室钥匙</option>' +
+                 '<option value="傲娇LOLI娇蛮音CD">Lv.4：傲娇LOLI娇蛮音CD</option><option value="整形优惠卷">Lv.5：整形优惠卷</option>' +
+                 '<option value="消逝之药">Lv.5：消逝之药</option></select></label>' +
+                 '      </fieldset>' +
+                 '      <fieldset>' +
+                 '        <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
+                 '<a class="pd_cfg_tips" href="#" title="可自动按时进行抽奖（包括捐款、抽取神秘盒子、抽取道具或卡片），只在首页生效">[?]</a></label></legend>' +
+                 '        <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
+                 '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
+                 '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
+                 '      </fieldset>' +*/
             '      <fieldset>' +
             '        <legend>首页相关</legend>' +
             '        <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" />去除首页已读@高亮提示 ' +
@@ -579,8 +580,6 @@ var ConfigDialog = {
             '        <label style="margin-left:10px"><input id="pd_cfg_highlight_new_post_enabled" type="checkbox" />高亮今日的新帖 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子列表中高亮今日新发表帖子的发表时间">[?]</a></label>' +
             '      </fieldset>' +
-            '    </div>' +
-            '    <div class="pd_cfg_panel">' +
             '      <fieldset>' +
             '        <legend>帖子页面相关</legend>' +
             '        <label><input id="pd_cfg_adjust_thread_content_width_enabled" type="checkbox" />调整帖子内容宽度 ' +
@@ -598,6 +597,8 @@ var ConfigDialog = {
             '        <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" />开启多重引用功能 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子页面开启多重回复和多重引用功能">[?]</a></label>' +
             '      </fieldset>' +
+            '    </div>' +
+            '    <div class="pd_cfg_panel">' +
             '      <fieldset>' +
             '        <legend>其它设置</legend>' +
             '        <label>默认提示消息的持续时间<input id="pd_cfg_def_show_msg_duration" maxlength="5" style="width:32px" type="text" />秒 ' +
@@ -799,12 +800,12 @@ var ConfigDialog = {
         }).next('button').click(function () {
             return Tools.close('pd_im_or_ex_setting');
         });
-        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
         Tools.resize('pd_im_or_ex_setting');
         Tools.escKeydown('pd_im_or_ex_setting');
         $(window).on('resize.pd_im_or_ex_setting', function () {
             Tools.resize('pd_im_or_ex_setting');
         });
+        $('#pd_cfg_setting').val(JSON.stringify(Tools.getDifferentValueOfObject(ConfigDialog.defConfig, Config))).select();
     },
 
     /**
@@ -871,9 +872,9 @@ var ConfigDialog = {
             '  <h1>自定义各等级神秘颜色<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
             '    <div style="border-bottom:1px solid #9191FF;margin-bottom:7px;padding-bottom:5px"><strong>示例' +
-            '（<a target="_blank" href="http://www.35ui.cn/jsnote/peise.html">常用配色表</a>）：</strong><br /><b>等级范围：</b>4-4 <b>颜色：</b>' +
-            '<span style="color:#0000FF">#0000FF</span><br /><b>等级范围：</b>10-49 <b>颜色：</b><span style="color:#00FF00">#00FF00</span><br />' +
-            '<b>等级范围：</b>900-MAX <b>颜色：</b><span style="color:#FF0000">#FF0000</span></div>' +
+            '（<a target="_blank" href="http://www.35ui.cn/jsnote/peise.html">常用配色表</a> / <a target="_blank" href="read.php?tid=488016">其他人分享的配色方案</a>）：' +
+            '</strong><br /><b>等级范围：</b>4-4 <b>颜色：</b><span style="color:#0000FF">#0000FF</span><br /><b>等级范围：</b>10-49 <b>颜色：</b>' +
+            '<span style="color:#00FF00">#00FF00</span><br /><b>等级范围：</b>900-MAX <b>颜色：</b><span style="color:#FF0000">#FF0000</span></div>' +
             '    <ul id="pd_cfg_custom_sm_color_list"></ul>' +
             '    <div style="margin-top:5px" id="pd_cfg_custom_sm_color_add_btns"><a href="#">增加1个</a><a href="#" style="margin-left:7px">增加5个</a>' +
             '<a href="#" style="margin-left:7px">清除所有</a></div>' +
@@ -1056,12 +1057,12 @@ var ConfigDialog = {
         }).next('button').click(function () {
             return Tools.close('pd_im_or_ex_sm_color_config');
         });
-        $('#pd_cfg_sm_color_config').val(JSON.stringify(Config.customSmColorConfigList)).select();
         Tools.resize('pd_im_or_ex_sm_color_config');
         Tools.escKeydown('pd_im_or_ex_sm_color_config');
         $(window).on('resize.pd_im_or_ex_sm_color_config', function () {
             Tools.resize('pd_im_or_ex_sm_color_config');
         });
+        $('#pd_cfg_sm_color_config').val(JSON.stringify(Config.customSmColorConfigList)).select();
     },
 
     /**
@@ -1622,6 +1623,7 @@ var Log = {
      */
     show: function () {
         if ($('#pd_log').length > 0) return;
+        Tools.close('pd_config');
         ConfigDialog.read();
         var html =
             '<form>' +
@@ -1743,7 +1745,6 @@ var Log = {
         $(window).on('resize.pd_log', function () {
             Tools.resize('pd_log');
         });
-        Tools.close('pd_config');
     },
 
     /**
@@ -1844,7 +1845,8 @@ var Log = {
             });
         }
         var sortStatItemList = function (obj) {
-            var sortTypeList = ['KFB', '经验值', '神秘', '能量', 'VIP小时', '贡献', '道具', '已使用道具', '卡片'];
+            var sortTypeList = ['KFB', '经验值', '能量', 'VIP小时', '贡献', '神秘', '燃烧伤害', '命中', '闪避', '暴击比例', '暴击几率',
+                '防御', '道具', '已使用道具', '有效道具', '无效道具', '卡片'];
             var list = Tools.getObjectKeyList(obj, 0);
             list.sort(function (a, b) {
                 return $.inArray(a, sortTypeList) > $.inArray(b, sortTypeList);
@@ -2405,25 +2407,40 @@ var Item = {
     /**
      * 从使用道具的回应消息中获取积分数据
      * @param {string} response 使用道具的回应消息
-     * @returns {Array} 积分数据，[0]：积分类别；[1]：积分值
+     * @param {number} itemTypeId 道具种类ID
+     * @returns {Object} 积分对象
      */
-    getCreditsViaResponse: function (response) {
-        var matches = null;
-        matches = /恢复能量增加了\s*(\d+)\s*点/i.exec(response);
-        if (matches) return ['能量', parseInt(matches[1])];
-        matches = /(\d+)KFB/i.exec(response);
-        if (matches) return ['KFB', parseInt(matches[1])];
-        matches = /(\d+)点?贡献/i.exec(response);
-        if (matches) return ['贡献', parseInt(matches[1])];
-        matches = /贡献\+(\d+)/i.exec(response);
-        if (matches) return ['贡献', parseInt(matches[1])];
-        matches = /神秘提升了(\d+)级/i.exec(response);
-        if (matches) return ['神秘', parseInt(matches[1])];
-        matches = /神秘等级\+(\d+)/i.exec(response);
-        if (matches) return ['神秘', parseInt(matches[1])];
-        matches = /(\d+)级神秘/i.exec(response);
-        if (matches) return ['神秘', parseInt(matches[1])];
-        return [];
+    getCreditsViaResponse: function (response, itemTypeId) {
+        if (itemTypeId >= 7 && itemTypeId <= 12) {
+            if (/成功！/.test(response)) {
+                switch (itemTypeId) {
+                    case 11:
+                        return {'燃烧伤害': 1};
+                    case 7:
+                        return {'命中': 3, '闪避': 1};
+                    case 8:
+                        return {'暴击比例': 10};
+                    case 12:
+                        return {'命中': 1, '闪避': 3};
+                    case 9:
+                        return {'暴击几率': 3};
+                    case 10:
+                        return {'防御': 7};
+                }
+            }
+        }
+        else {
+            var matches = null;
+            matches = /恢复能量增加了\s*(\d+)\s*点/i.exec(response);
+            if (matches) return {'能量': parseInt(matches[1])};
+            matches = /(\d+)KFB/i.exec(response);
+            if (matches) return {'KFB': parseInt(matches[1])};
+            matches = /(\d+)点?贡献/i.exec(response);
+            if (matches) return {'贡献': parseInt(matches[1])};
+            matches = /贡献\+(\d+)/i.exec(response);
+            if (matches) return {'贡献': parseInt(matches[1])};
+        }
+        return {};
     },
 
     /**
@@ -2433,6 +2450,7 @@ var Item = {
      * @param {string[]} options.urlList 指定的道具Url列表
      * @param {string} options.safeId 用户的SafeID
      * @param {number} options.itemLevel 道具等级
+     * @param {number} options.itemTypeId 道具种类ID
      * @param {string} options.itemName 道具名称
      * @param {jQuery} [options.$itemLine] 当前恢复道具所在的表格行（用于使用类型1）
      */
@@ -2442,6 +2460,7 @@ var Item = {
             urlList: [],
             safeId: '',
             itemLevel: 0,
+            itemTypeId: 0,
             itemName: '',
             $itemLine: null
         };
@@ -2469,28 +2488,20 @@ var Item = {
                     );
                     if (index === settings.urlList.length - 1) {
                         KFOL.removePopTips($('.pd_pop_tips'));
-                        var typeId = parseInt(Tools.getUrlParam('lv'));
-                        if (!typeId) return;
-                        var stat = {};
+                        var stat = {'有效道具': 0, '无效道具': 0};
                         $('.pd_result').last().find('li').not(':first-child').each(function () {
-                            var credits = Item.getCreditsViaResponse($(this).text());
-                            if (credits.length > 0) {
-                                if (typeof stat[credits[0]] === 'undefined')
-                                    stat[credits[0]] = credits[1];
+                            var credits = Item.getCreditsViaResponse($(this).text(), settings.itemTypeId);
+                            if ($.isEmptyObject(credits)) stat['无效道具']++;
+                            else stat['有效道具']++;
+                            $.each(credits, function (index, credit) {
+                                if (typeof stat[index] === 'undefined')
+                                    stat[index] = credit;
                                 else
-                                    stat[credits[0]] += credits[1];
-                            }
+                                    stat[index] += credit;
+                            });
                         });
-                        var logStat = '', msgStat = '';
-                        for (var creditsType in stat) {
-                            logStat += '，{0}+{1}'
-                                .replace('{0}', creditsType)
-                                .replace('{1}', stat[creditsType]);
-                            msgStat += '<i>{0}<em>+{1}</em></i>'
-                                .replace('{0}', creditsType)
-                                .replace('{1}', stat[creditsType]);
-                        }
-                        var resultStat = msgStat;
+                        if (stat['有效道具'] === 0) delete stat['有效道具'];
+                        else if (stat['无效道具'] === 0) delete stat['无效道具'];
                         if (successNum > 0) {
                             Log.push('使用道具',
                                 '共有`{0}`个【`Lv.{1}：{2}`】道具使用成功'
@@ -2503,6 +2514,16 @@ var Item = {
                                 }
                             );
                         }
+                        var logStat = '', msgStat = '';
+                        for (var creditsType in stat) {
+                            logStat += '，{0}+{1}'
+                                .replace('{0}', creditsType)
+                                .replace('{1}', stat[creditsType]);
+                            msgStat += '<i>{0}<em>+{1}</em></i>'
+                                .replace('{0}', creditsType)
+                                .replace('{1}', stat[creditsType]);
+                        }
+                        var resultStat = msgStat;
                         console.log('共有{0}个道具使用成功{1}'.replace('{0}', successNum).replace('{1}', logStat));
                         KFOL.showMsg({
                             msg: '<strong>共有<em>{0}</em>个道具使用成功{1}'
@@ -2517,7 +2538,6 @@ var Item = {
                                     $(this).remove();
                                 });
                         }
-                        if (resultStat === '') resultStat = '<i>无</i>';
                         $('.pd_result').last().append('<li class="pd_stat"><b>统计结果：</b>{0}</li>'.replace('{0}', resultStat));
                     }
                     window.setTimeout(function () {
@@ -2541,6 +2561,8 @@ var Item = {
         var matches = /(\d+)级道具/.exec($lastLine.find('td:nth-child(2)').text());
         if (!matches) return;
         var itemLevel = parseInt(matches[1]);
+        var itemTypeId = parseInt(Tools.getUrlParam('lv'));
+        if (!itemTypeId) return;
         $('.kf_fw_ig1 > tbody > tr > td:last-child').each(function () {
             var matches = /kf_fw_ig_my\.php\?pro=(\d+)/.exec($(this).find('a').attr('href'));
             if (!matches) return;
@@ -2570,6 +2592,7 @@ var Item = {
                     urlList: urlList,
                     safeId: safeId,
                     itemLevel: itemLevel,
+                    itemTypeId: itemTypeId,
                     itemName: itemName
                 });
             })
@@ -2888,6 +2911,9 @@ var Bank = {
                             }
                             else if (/您的存款不够支付转帐/.test(html)) {
                                 statMsg = '存款不足';
+                            }
+                            else if (/转账额度不足/.test(html)) {
+                                statMsg = '转账额度不足';
                             }
                             else if (/当前等级无法使用该功能/.test(html)) {
                                 statMsg = '当前等级无法使用转账功能';
@@ -3350,6 +3376,7 @@ var KFOL = {
             }
             var smboxNumber = 0;
             var url = '';
+            Config.drawNonWinningSmboxEnabled = false;
             if (Config.drawNonWinningSmboxEnabled) {
                 var nonWinningMatches = html.match(/\d+(?=&safeid=)/gi);
                 var nonWinningArr = [];
@@ -3417,8 +3444,8 @@ var KFOL = {
                     action += ' ' + matches[2];
                 }
                 else if (smRegex.test(html)) {
-                    msg += '<i class="pd_highlight" style="font-weight:bold">神秘<em>+1</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
-                    gain['神秘'] = 1;
+                    msg += '<i class="pd_highlight" style="font-weight:bold">KFB<em>+2000</em></i><a target="_blank" href="kf_smbox.php">查看头奖</a>';
+                    gain['KFB'] = 2000;
                 }
                 else {
                     return;
@@ -3747,7 +3774,7 @@ var KFOL = {
                         drawItemOrCardInterval = 0;
                     }
                     if (drawSmboxInterval === -1 || drawItemOrCardInterval === -1) {
-                        handleError(5, '遇到论坛维护或其它未知情况');
+                        handleError(10, '遇到论坛维护或其它未知情况');
                         return;
                     }
                     var isDrawSmboxStarted = false;
@@ -4652,10 +4679,10 @@ var KFOL = {
         if (Config.modifySideBarEnabled) {
             $('#r_menu > a:last').before(
                 '<span style="color:#ff9999;">快捷导航</span><br />' +
-                '<a href="guanjianci.php?gjc={0}">@提醒</a> | <a href="kf_growup.php">神秘等级</a><br />'.replace('{0}', KFOL.userName) +
-                '<a href="kf_smbox.php">神秘盒子</a> | <a href="kf_fw_ig_one.php">道具卡片</a><br />' +
-                '<a href="profile.php?action=modify">设置</a> | <a href="hack.php?H_name=bank">银行</a> | <a href="profile.php?action=favor">收藏</a><br />' +
-                '<a href="personal.php?action=post">我的回复</a> | '
+                '<a href="guanjianci.php?gjc={0}">@提醒</a> | <a href="personal.php?action=post">回复</a> | <a href="kf_growup.php">神秘</a><br />'
+                    .replace('{0}', KFOL.userName) +
+                '<a href="kf_fw_ig_index.php">争夺</a> | <a href="kf_fw_ig_my.php">道具</a> | <a href="kf_smbox.php">盒子</a><br />' +
+                '<a href="profile.php?action=modify">设置</a> | <a href="hack.php?H_name=bank">银行</a> | <a href="profile.php?action=favor">收藏</a><br />'
             );
         }
         else {
@@ -4664,8 +4691,9 @@ var KFOL = {
                 '  <ul class="r_cmenu2">' +
                 '    <li><a href="guanjianci.php?gjc={0}">@提醒</a></li>'.replace('{0}', KFOL.userName) +
                 '    <li><a href="kf_growup.php">神秘等级</a></li>' +
+                '    <li><a href="kf_fw_ig_index.php">争夺奖励</a></li>' +
+                '    <li><a href="kf_fw_ig_my.php">我的道具</a></li>' +
                 '    <li><a href="kf_smbox.php">神秘盒子</a></li>' +
-                '    <li><a href="kf_fw_ig_one.php">道具卡片</a></li>' +
                 '    <li><a href="profile.php?action=modify">设置</a></li>' +
                 '    <li><a href="hack.php?H_name=bank">银行</a></li>' +
                 '    <li><a href="profile.php?action=favor">收藏</a></li>' +
@@ -4773,7 +4801,7 @@ var KFOL = {
         if (Config.modifySideBarEnabled) KFOL.modifySideBar();
         if (Config.addSideBarFastNavEnabled) KFOL.addFastNavForSideBar();
         if (KFOL.isInHomePage) {
-            KFOL.adjustCookiesExpires();
+            //KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
             if (Config.highlightVipEnabled) KFOL.highlightVipTips();
             if (Config.autoSaveCurrentDepositEnabled) KFOL.autoSaveCurrentDeposit();
@@ -4807,9 +4835,9 @@ var KFOL = {
         else if (/\/kf_fw_ig_my\.php\?lv=\d+$/i.test(location.href)) {
             Item.addUseItemsButton();
         }
-        else if (location.pathname === '/kf_fw_ig_smone.php') {
-            Item.addBatchDrawSmButton();
-        }
+        /*else if (location.pathname === '/kf_fw_ig_smone.php') {
+         Item.addBatchDrawSmButton();
+         }*/
         else if (/\/hack\.php\?H_name=bank$/i.test(location.href)) {
             Bank.addBatchTransferButton();
         }
@@ -4833,32 +4861,28 @@ var KFOL = {
         KFOL.followUsers();
 
         var isDrawSmboxStarted = false;
-        var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled &&
-            (KFOL.isInHomePage ? $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0 :
-                !Tools.getCookie(Config.drawItemOrCardCookieName)
-            );
+        /*var autoDrawItemOrCardAvailable = Config.autoDrawItemOrCardEnabled &&
+         (KFOL.isInHomePage ? $('a[href="kf_fw_ig_one.php"]:contains("道具卡片(现在可以抽取)")').length > 0 :
+         !Tools.getCookie(Config.drawItemOrCardCookieName)
+         );*/
         var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
-        if (Config.autoDrawSmboxEnabled) {
-            if (KFOL.isInHomePage ? $('a[href="kf_smbox.php"]:contains("神秘盒子(现在可以抽取)")').length > 0 :
-                    !Tools.getCookie(Config.drawSmboxCookieName)
-            ) {
-                isDrawSmboxStarted = true;
-                KFOL.drawSmbox(autoDrawItemOrCardAvailable, autoDonationAvailable);
-            }
+        if (Config.autoDrawSmboxEnabled && !Tools.getCookie(Config.drawSmboxCookieName)) {
+            isDrawSmboxStarted = true;
+            KFOL.drawSmbox(false, autoDonationAvailable);
         }
 
-        if (Config.autoDrawItemOrCardEnabled) KFOL.checkUndoneItemOrCardTask();
-        if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
-            KFOL.drawItemOrCard();
-        }
+        /*if (Config.autoDrawItemOrCardEnabled) KFOL.checkUndoneItemOrCardTask();
+         if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
+         KFOL.drawItemOrCard();
+         }*/
 
         if (autoDonationAvailable && !isDrawSmboxStarted) {
             KFOL.donation();
         }
 
-        if (Config.autoRefreshEnabled) {
-            if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
-        }
+        /*if (Config.autoRefreshEnabled) {
+         if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
+         }*/
 
         var endDate = new Date();
         console.log('KF Online助手加载完毕，加载耗时：{0}ms'.replace('{0}', endDate - startDate));
