@@ -43,6 +43,8 @@ var Config = {
     hideNoneVipEnabled: true,
     // 是否在神秘等级升级后进行提醒，只在首页生效，true：开启；false：关闭
     smLevelUpAlertEnabled: false,
+    // 在首页帖子链接旁显示快速跳转至页末的链接，true：开启；false：关闭
+    homePageThreadFastGotoLinkEnabled: true,
     // 是否在帖子列表页面中显示帖子页数快捷链接，true：开启；false：关闭
     showFastGotoThreadPageEnabled: false,
     // 在帖子页数快捷链接中显示页数链接的最大数量
@@ -520,6 +522,8 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="在无VIP时去除首页的VIP标识高亮">[?]</a></label><br />' +
             '        <label><input id="pd_cfg_sm_level_up_alert_enabled" type="checkbox" />神秘等级升级提醒 ' +
             '<a class="pd_cfg_tips" href="#" title="在神秘等级升级后进行提醒，只在首页生效">[?]</a></label>' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_home_page_thread_fast_goto_link_enabled" type="checkbox" />在首页帖子旁显示跳转链接 ' +
+            '<a class="pd_cfg_tips" href="#" title="在首页帖子链接旁显示快速跳转至页末的链接">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend>帖子列表页面相关</legend>' +
@@ -1033,6 +1037,7 @@ var ConfigDialog = {
         $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
         $('#pd_cfg_hide_none_vip_enabled').prop('checked', Config.hideNoneVipEnabled);
         $('#pd_cfg_sm_level_up_alert_enabled').prop('checked', Config.smLevelUpAlertEnabled);
+        $('#pd_cfg_home_page_thread_fast_goto_link_enabled').prop('checked', Config.homePageThreadFastGotoLinkEnabled);
         $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked', Config.showFastGotoThreadPageEnabled);
         $('#pd_cfg_max_fast_goto_thread_page_num').val(Config.maxFastGotoThreadPageNum);
         $('#pd_cfg_per_page_floor_num').val(Config.perPageFloorNum);
@@ -1076,6 +1081,7 @@ var ConfigDialog = {
         options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
         options.hideNoneVipEnabled = $('#pd_cfg_hide_none_vip_enabled').prop('checked');
         options.smLevelUpAlertEnabled = $('#pd_cfg_sm_level_up_alert_enabled').prop('checked');
+        options.homePageThreadFastGotoLinkEnabled = $('#pd_cfg_home_page_thread_fast_goto_link_enabled').prop('checked');
         options.showFastGotoThreadPageEnabled = $('#pd_cfg_show_fast_goto_thread_page_enabled').prop('checked');
         options.maxFastGotoThreadPageNum = parseInt($.trim($('#pd_cfg_max_fast_goto_thread_page_num').val()));
         options.perPageFloorNum = $('#pd_cfg_per_page_floor_num').val();
@@ -1282,6 +1288,8 @@ var ConfigDialog = {
             options.hideNoneVipEnabled : defConfig.hideNoneVipEnabled;
         settings.smLevelUpAlertEnabled = typeof options.smLevelUpAlertEnabled === 'boolean' ?
             options.smLevelUpAlertEnabled : defConfig.smLevelUpAlertEnabled;
+        settings.homePageThreadFastGotoLinkEnabled = typeof options.homePageThreadFastGotoLinkEnabled === 'boolean' ?
+            options.homePageThreadFastGotoLinkEnabled : defConfig.homePageThreadFastGotoLinkEnabled;
         settings.showFastGotoThreadPageEnabled = typeof options.showFastGotoThreadPageEnabled === 'boolean' ?
             options.showFastGotoThreadPageEnabled : defConfig.showFastGotoThreadPageEnabled;
         if (typeof options.maxFastGotoThreadPageNum !== 'undefined') {
@@ -2996,6 +3004,8 @@ var KFOL = {
             '.pd_thread_page a:hover { color: #51D; }' +
             '.pd_card_chk { position: absolute; bottom: -8px; left: 1px; }' +
             '.pd_disabled_link { color: #999 !important; text-decoration: none !important; cursor: default; }' +
+            '.b_tit4 .pd_thread_goto, .b_tit4_1 .pd_thread_goto { float: right; padding: 0 10px; }' +
+            '.b_tit4 .pd_thread_goto:hover, .b_tit4_1 .pd_thread_goto:hover { padding-left: 10px; }' +
 
                 /* 设置对话框 */
             '.pd_cfg_box {' +
@@ -4409,7 +4419,7 @@ var KFOL = {
      * 在短消息页面添加选择指定短消息的按钮
      */
     addMsgSelectButton: function () {
-        $('<input value="自定义" type="button" style="margin-right:2px">').insertBefore('input[type="button"][value="全选"]')
+        $('<input value="自定义" type="button" style="margin-right:3px">').insertBefore('input[type="button"][value="全选"]')
             .click(function (event) {
                 event.preventDefault();
                 var title = $.trim(window.prompt('请填写所要选择的短消息标题（可用|符号分隔多个标题）', '收到了他人转账的KFB|银行汇款通知|您的文章被评分|您的文章被删除'));
@@ -4423,7 +4433,28 @@ var KFOL = {
                         });
                     });
                 }
+            }).parent().attr('colspan', 4)
+            .prev('td').attr('colspan', 3);
+        $('<input value="反选" type="button" style="margin-left:5px;margin-right:1px">').insertAfter('input[type="button"][value="全选"]')
+            .click(function (event) {
+                event.preventDefault();
+                $('.thread1 > tbody > tr > td:last-child > input[type="checkbox"]').each(function () {
+                    var $this = $(this);
+                    $this.prop('checked', !$this.prop('checked'));
+                });
             });
+    },
+
+    /**
+     * 在首页帖子链接旁添加快速跳转至页末的链接
+     */
+    addHomePageThreadFastGotoLink: function () {
+        $('li.b_tit4:has("a"), li.b_tit4_1:has("a")').mouseenter(function () {
+            var $this = $(this);
+            $this.prepend('<a class="pd_thread_goto" href="{0}&page=e#a">&raquo;</a>'.replace('{0}', $this.find('a').attr('href')));
+        }).mouseleave(function () {
+            $(this).find('.pd_thread_goto').remove();
+        });
     },
 
     /**
@@ -4447,6 +4478,7 @@ var KFOL = {
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
             if (Config.autoSaveCurrentDepositEnabled) KFOL.autoSaveCurrentDeposit();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
+            if (Config.homePageThreadFastGotoLinkEnabled) KFOL.addHomePageThreadFastGotoLink();
         }
         else if (location.pathname === '/read.php') {
             KFOL.fastGotoFloor();
