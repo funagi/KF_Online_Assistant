@@ -15,7 +15,7 @@
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.4.2';
+var version = '3.5.0';
 /**
  * 配置类
  */
@@ -2474,7 +2474,7 @@ var Card = {
                         }
                     };
                     $this.before('<label><input id="uncheckPlayedCard" type="checkbox" checked="checked" /> 不选已出战的卡片</label>' +
-                    '<button>每类只保留一张</button><button>全选</button><button>反选</button><br /><button>转换为VIP时间</button>')
+                        '<button>每类只保留一张</button><button>全选</button><button>反选</button><br /><button>转换为VIP时间</button>')
                         .prev()
                         .click(function () {
                             KFOL.removePopTips($('.pd_pop_tips'));
@@ -2897,7 +2897,7 @@ var Loot = {
             );
         });
         $('<div style="margin-top:5px;border:1px solid #99F;padding:5px;"><strong>使用方法：</strong><br />勾选要攻击目标的复选框，并填写攻击次数（留空表示使用剩余次数），' +
-        '再点击批量攻击按钮即可开始批量攻击。<br />可点击保存设置按钮保存当前设定，在以后访问本页时，可自动载入所保存的设定。</div>')
+            '再点击批量攻击按钮即可开始批量攻击。<br />可点击保存设置按钮保存当前设定，在以后访问本页时，可自动载入所保存的设定。</div>')
             .insertAfter('.kf_fw_ig1');
         $('<div class="pd_item_btns"><button>保存设置</button><button>清除设置</button><button><b>批量攻击</b></button><button>全选</button><button>反选</button></div>')
             .insertAfter('.kf_fw_ig1')
@@ -3004,7 +3004,7 @@ var KFOL = {
             '.pd_thread_page a:hover { color: #51D; }' +
             '.pd_card_chk { position: absolute; bottom: -8px; left: 1px; }' +
             '.pd_disabled_link { color: #999 !important; text-decoration: none !important; cursor: default; }' +
-            '.b_tit4 .pd_thread_goto, .b_tit4_1 .pd_thread_goto { float: right; padding: 0 10px; }' +
+            '.b_tit4 .pd_thread_goto, .b_tit4_1 .pd_thread_goto { position: absolute; top: 0; right: 0; padding: 0 10px; }' +
             '.b_tit4 .pd_thread_goto:hover, .b_tit4_1 .pd_thread_goto:hover { padding-left: 10px; }' +
 
                 /* 设置对话框 */
@@ -3164,8 +3164,9 @@ var KFOL = {
 
     /**
      * KFB捐款
+     * @param {boolean} isAutoSaveCurrentDeposit 是否在捐款完毕之后自动活期存款
      */
-    donation: function () {
+    donation: function (isAutoSaveCurrentDeposit) {
         if (Config.donationAfterVipEnabled) {
             if (!KFOL.isInHomePage) return;
             if ($('a[href="kf_vmember.php"]:contains("VIP会员(参与论坛获得的额外权限)")').length > 0) return;
@@ -3201,6 +3202,7 @@ var KFOL = {
                     Log.push('捐款', '捐款`{0}`KFB'.replace('{0}', kfb), {gain: gain, pay: {'KFB': -kfb}});
                 }
                 KFOL.showMsg(msg);
+                if (isAutoSaveCurrentDeposit) KFOL.autoSaveCurrentDeposit();
             }, 'html');
         };
         var donationKfb = Config.donationKfb;
@@ -3549,7 +3551,7 @@ var KFOL = {
      */
     addFastGotoFloorInput: function () {
         $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
-        '<span>楼</span></li></form>')
+            '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
             .submit(function (event) {
                 event.preventDefault();
@@ -3588,7 +3590,7 @@ var KFOL = {
      */
     addFastGotoPageInput: function () {
         $('<form><li class="pd_fast_goto_page">跳至 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
-        '<span>页</span></li></form>')
+            '<span>页</span></li></form>')
             .appendTo('table > tbody > tr > td > div > ul.pages')
             .submit(function (event) {
                 event.preventDefault();
@@ -4449,11 +4451,12 @@ var KFOL = {
      * 在首页帖子链接旁添加快速跳转至页末的链接
      */
     addHomePageThreadFastGotoLink: function () {
-        $('li.b_tit4:has("a"), li.b_tit4_1:has("a")').mouseenter(function () {
+        $('.index1').on('mouseenter', 'li.b_tit4:has("a"), li.b_tit4_1:has("a")', function () {
             var $this = $(this);
-            $this.prepend('<a class="pd_thread_goto" href="{0}&page=e#a">&raquo;</a>'.replace('{0}', $this.find('a').attr('href')));
-        }).mouseleave(function () {
-            $(this).find('.pd_thread_goto').remove();
+            $this.css('position', 'relative')
+                .prepend('<a class="pd_thread_goto" href="{0}&page=e#a">&raquo;</a>'.replace('{0}', $this.find('a').attr('href')));
+        }).on('mouseleave', 'li.b_tit4:has("a"), li.b_tit4_1:has("a")', function () {
+            $(this).css('position', 'static').find('.pd_thread_goto').remove();
         });
     },
 
@@ -4476,7 +4479,6 @@ var KFOL = {
             //KFOL.adjustCookiesExpires();
             if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
-            if (Config.autoSaveCurrentDepositEnabled) KFOL.autoSaveCurrentDeposit();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
             if (Config.homePageThreadFastGotoLinkEnabled) KFOL.addHomePageThreadFastGotoLink();
         }
@@ -4530,15 +4532,15 @@ var KFOL = {
         else if (location.pathname === '/kf_growup.php') {
             KFOL.addCustomSmColorTips();
         }
-        else if (location.pathname === '/kf_fw_ig_index.php') {
-            Loot.statLootGain();
-        }
-        else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
-            Loot.addBatchAttackButton();
-        }
         else if (/\/message\.php($|\?action=receivebox)/i.test(location.href)) {
             KFOL.addMsgSelectButton();
         }
+        else if (location.pathname === '/kf_fw_ig_index.php') {
+            Loot.statLootGain();
+        }
+        /*else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
+         Loot.addBatchAttackButton();
+         }*/
         KFOL.blockUsers();
         KFOL.followUsers();
 
@@ -4549,9 +4551,14 @@ var KFOL = {
             KFOL.drawSmbox(autoDonationAvailable);
         }
 
+        var isDonationStarted = false;
+        var autoSaveCurrentDepositAvailable = Config.autoSaveCurrentDepositEnabled && KFOL.isInHomePage;
         if (autoDonationAvailable && !isDrawSmboxStarted) {
-            KFOL.donation();
+            isDonationStarted = true;
+            KFOL.donation(autoSaveCurrentDepositAvailable);
         }
+
+        if (autoSaveCurrentDepositAvailable && !isDonationStarted) KFOL.autoSaveCurrentDeposit();
 
         /*if (Config.autoRefreshEnabled) {
          if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
