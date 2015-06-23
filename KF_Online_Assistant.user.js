@@ -87,6 +87,8 @@ var Config = {
     followUserEnabled: false,
     // 关注用户列表，例：['张三','李四','王五']
     followUserList: [],
+    // 是否高亮所关注用户的首页帖子链接，true：开启；false：关闭
+    highlightFollowUserThreadInHPEnabled: true,
     // 是否开启屏蔽用户的功能，true：开启；false：关闭
     blockUserEnabled: false,
     // 屏蔽用户列表，例：['张三','李四','王五']
@@ -574,7 +576,9 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="开启关注用户的功能，所关注的用户将被加注记号，可在下方或用户信息页面中添加或删除用户">[?]</a></label></legend>' +
             '        <div class="pd_cfg_user_list" id="pd_cfg_follow_user_list"></div>' +
             '        <label title="添加多个用户请用英文逗号分隔"><input style="width:200px" id="pd_cfg_add_follow_user" type="text" />' +
-            '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label>' +
+            '<a href="#">添加</a><a href="#" style="margin-left:7px">清除所有</a></label><br />' +
+            '        <label><input id="pd_cfg_highlight_follow_user_thread_in_hp_enabled" type="checkbox" />高亮所关注用户的首页帖子链接 ' +
+            '<a class="pd_cfg_tips" href="#" title="高亮所关注用户的首页帖子链接">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_block_user_enabled" type="checkbox" />屏蔽用户 ' +
@@ -1056,6 +1060,7 @@ var ConfigDialog = {
         $('#pd_cfg_modify_side_bar_enabled').prop('checked', Config.modifySideBarEnabled);
         $('#pd_cfg_follow_user_enabled').prop('checked', Config.followUserEnabled);
         ConfigDialog.showFollowOrBlockUserList(1);
+        $('#pd_cfg_highlight_follow_user_thread_in_hp_enabled').prop('checked', Config.highlightFollowUserThreadInHPEnabled);
         $('#pd_cfg_block_user_enabled').prop('checked', Config.blockUserEnabled);
         ConfigDialog.showFollowOrBlockUserList(2);
         $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked', Config.autoSaveCurrentDepositEnabled);
@@ -1098,6 +1103,7 @@ var ConfigDialog = {
         options.addSideBarFastNavEnabled = $('#pd_cfg_add_side_bar_fast_nav_enabled').prop('checked');
         options.modifySideBarEnabled = $('#pd_cfg_modify_side_bar_enabled').prop('checked');
         options.followUserEnabled = $('#pd_cfg_follow_user_enabled').prop('checked');
+        options.highlightFollowUserThreadInHPEnabled = $('#pd_cfg_highlight_follow_user_thread_in_hp_enabled').prop('checked');
         options.blockUserEnabled = $('#pd_cfg_block_user_enabled').prop('checked');
         options.autoSaveCurrentDepositEnabled = $('#pd_cfg_auto_save_current_deposit_enabled').prop('checked');
         options.saveCurrentDepositAfterKfb = parseInt($.trim($('#pd_cfg_save_current_deposit_after_kfb').val()));
@@ -1387,6 +1393,8 @@ var ConfigDialog = {
             }
             else settings.followUserList = defConfig.followUserList;
         }
+        settings.highlightFollowUserThreadInHPEnabled = typeof options.highlightFollowUserThreadInHPEnabled === 'boolean' ?
+            options.highlightFollowUserThreadInHPEnabled : defConfig.highlightFollowUserThreadInHPEnabled;
         settings.blockUserEnabled = typeof options.blockUserEnabled === 'boolean' ?
             options.blockUserEnabled : defConfig.blockUserEnabled;
         if (typeof options.blockUserList !== 'undefined') {
@@ -2170,9 +2178,12 @@ var Item = {
      * 从使用道具的回应消息中获取积分数据
      * @param {string} response 使用道具的回应消息
      * @param {number} itemTypeId 道具种类ID
-     * @returns {Object} 积分对象
+     * @returns {Object|number} 积分对象，-1表示使用失败
      */
     getCreditsViaResponse: function (response, itemTypeId) {
+        if (/错误的物品编号/.test(response) || /无法再使用/.test(response)) {
+            return -1;
+        }
         if (itemTypeId >= 7 && itemTypeId <= 12) {
             if (/成功！/.test(response)) {
                 switch (itemTypeId) {
@@ -2228,7 +2239,7 @@ var Item = {
         };
         $.extend(settings, options);
         $('.kf_fw_ig1').parent().append('<ul class="pd_result"><li><strong>使用结果：</strong></li></ul>');
-        var successNum = 0;
+        var successNum = 0, failNum = 0;
         $(document).queue('UseItems', []);
         $.each(settings.urlList, function (index, key) {
             var id = /pro=(\d+)/i.exec(key);
@@ -2239,9 +2250,8 @@ var Item = {
                 $.get(url, function (html) {
                     KFOL.showFormatLog('使用道具', html);
                     var matches = /<span style=".+?">(.+?)<\/span><br \/><a href=".+?">/i.exec(html);
-                    if (matches && !/错误的物品编号/i.test(html)) {
-                        successNum++;
-                    }
+                    if (matches && !/错误的物品编号/i.test(html) && !/无法再使用/i.test(html)) successNum++;
+                    else failNum++;
                     var $remainingNum = $('#pd_remaining_num');
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     $('.pd_result').last().append('<li><b>第{0}次：</b>{1}</li>'
@@ -2253,23 +2263,26 @@ var Item = {
                         var stat = {'有效道具': 0, '无效道具': 0};
                         $('.pd_result').last().find('li').not(':first-child').each(function () {
                             var credits = Item.getCreditsViaResponse($(this).text(), settings.itemTypeId);
-                            if ($.isEmptyObject(credits)) stat['无效道具']++;
-                            else stat['有效道具']++;
-                            $.each(credits, function (index, credit) {
-                                if (typeof stat[index] === 'undefined')
-                                    stat[index] = credit;
-                                else
-                                    stat[index] += credit;
-                            });
+                            if (credits !== -1) {
+                                if ($.isEmptyObject(credits)) stat['无效道具']++;
+                                else stat['有效道具']++;
+                                $.each(credits, function (index, credit) {
+                                    if (typeof stat[index] === 'undefined')
+                                        stat[index] = credit;
+                                    else
+                                        stat[index] += credit;
+                                });
+                            }
                         });
                         if (stat['有效道具'] === 0) delete stat['有效道具'];
                         else if (stat['无效道具'] === 0) delete stat['无效道具'];
                         if (successNum > 0) {
                             Log.push('使用道具',
-                                '共有`{0}`个【`Lv.{1}：{2}`】道具使用成功'
+                                '共有`{0}`个【`Lv.{1}：{2}`】道具使用成功{3}'
                                     .replace('{0}', successNum)
                                     .replace('{1}', settings.itemLevel)
-                                    .replace('{2}', settings.itemName),
+                                    .replace('{2}', settings.itemName)
+                                    .replace('{3}', failNum > 0 ? '，共有{0}个道具使用失败'.replace('{0}', failNum) : ''),
                                 {
                                     gain: $.extend({}, stat, {'已使用道具': successNum}),
                                     pay: {'道具': -successNum}
@@ -2286,11 +2299,16 @@ var Item = {
                                 .replace('{1}', stat[creditsType]);
                         }
                         var resultStat = msgStat;
-                        console.log('共有{0}个道具使用成功{1}'.replace('{0}', successNum).replace('{1}', logStat));
-                        KFOL.showMsg({
-                            msg: '<strong>共有<em>{0}</em>个道具使用成功{1}'
+                        console.log('共有{0}个道具使用成功，共有{1}个道具使用失败{2}'
                                 .replace('{0}', successNum)
-                                .replace('{1}', msgStat)
+                                .replace('{1}', failNum)
+                                .replace('{2}', logStat)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个道具使用成功{1}{2}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum > 0 ? '，共有{0}个道具使用失败'.replace('{0}', failNum) : '')
+                                .replace('{2}', msgStat)
                             , duration: -1
                         });
                         if (settings.type === 2) {
@@ -2335,9 +2353,18 @@ var Item = {
             );
         });
         $('.kf_fw_ig1 > tbody > tr:lt(2)').find('td').attr('colspan', 5);
-        $('<div class="pd_item_btns"><button>使用道具</button><button>全选</button><button>反选</button></div>')
+        $('<div class="pd_item_btns"><button>复制道具ID</button><button>使用道具</button><button>全选</button><button>反选</button></div>')
             .insertAfter('.kf_fw_ig1')
             .find('button:first-child')
+            .click(function () {
+                var itemList = [];
+                $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
+                    itemList.push($(this).val());
+                });
+                if (itemList.length === 0) return;
+                window.prompt('所选的道具ID（请按Ctrl+C复制）：', itemList.join(','));
+            })
+            .next()
             .click(function () {
                 KFOL.removePopTips($('.pd_pop_tips'));
                 var urlList = [];
@@ -2474,7 +2501,7 @@ var Card = {
                         }
                     };
                     $this.before('<label><input id="uncheckPlayedCard" type="checkbox" checked="checked" /> 不选已出战的卡片</label>' +
-                        '<button>每类只保留一张</button><button>全选</button><button>反选</button><br /><button>转换为VIP时间</button>')
+                    '<button>每类只保留一张</button><button>全选</button><button>反选</button><br /><button>转换为VIP时间</button>')
                         .prev()
                         .click(function () {
                             KFOL.removePopTips($('.pd_pop_tips'));
@@ -2855,84 +2882,6 @@ var Loot = {
                 Log.push('统计争夺收获', '统计争夺收获', {gain: {'KFB': gain}});
             }
         });
-    },
-
-    /**
-     * 添加批量攻击按钮
-     */
-    addBatchAttackButton: function () {
-        $(function () {
-            $("a.kfigpk_hit").off('click').click(function () {
-                var $this = $(this);
-                if ($this.data("disabled")) return;
-                $this.text("提交中...").data("disabled", true);
-                window.setTimeout(function () {
-                    $.ajax({
-                        type: "POST",
-                        url: "kf_fw_ig_pkhit.php",
-                        data: "uid=" + $this.attr("hitid") + "&safeid=" + $this.attr("safeid"),
-                        success: function (msg) {
-                            $this.html(msg);
-                        },
-                        complete: function () {
-                            $this.removeData("disabled");
-                        }
-                    });
-                }, 100);
-            });
-        });
-
-        var safeId = KFOL.getSafeId();
-        if (!safeId) return;
-        $('.kf_fw_ig1 > tbody > tr > td:last-child').each(function (index) {
-            var $this = $(this);
-            if (index === 0) $this.attr('colspan', 5);
-            else if (index === 1) $this.css('width', '310').after('<td>批量攻击</td>');
-            var hitId = $this.find('a').attr('hitid');
-            if (!hitId) return;
-            $this.css('width', '310')
-                .after('<td class="pd_batch_attack" style="width:90px;text-align:center"><label><input style="width:15px" class="pd_input" type="text" /> 次</label> ' +
-                '<input class="pd_input" type="checkbox" value="{0}" /></td>'
-                    .replace('{0}', hitId)
-            );
-        });
-        $('<div style="margin-top:5px;border:1px solid #99F;padding:5px;"><strong>使用方法：</strong><br />勾选要攻击目标的复选框，并填写攻击次数（留空表示使用剩余次数），' +
-            '再点击批量攻击按钮即可开始批量攻击。<br />可点击保存设置按钮保存当前设定，在以后访问本页时，可自动载入所保存的设定。</div>')
-            .insertAfter('.kf_fw_ig1');
-        $('<div class="pd_item_btns"><button>保存设置</button><button>清除设置</button><button><b>批量攻击</b></button><button>全选</button><button>反选</button></div>')
-            .insertAfter('.kf_fw_ig1')
-            .find('button:first-child')
-            .click(function () {
-
-            })
-            .next()
-            .click(function () {
-
-            })
-            .next()
-            .click(function () {
-                KFOL.removePopTips($('.pd_pop_tips'));
-                var attackList = [];
-                $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
-                    attackList.push($(this).val());
-                });
-                if (attackList.length === 0) return;
-                if (!window.confirm('共选择了{0}个目标，是否批量攻击？'.replace('{0}', attackList.length))) return;
-                KFOL.showWaitMsg('<strong>正在批量攻击中...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
-                        .replace('{0}', attackList.length)
-                    , true);
-                Item.useItems();
-            })
-            .next()
-            .click(function () {
-                $('.kf_fw_ig1 input[type="checkbox"]').prop('checked', true);
-            })
-            .next()
-            .click(function () {
-                $('.kf_fw_ig1 input[type="checkbox"]').each(function () {
-                    $(this).prop('checked', !$(this).prop('checked'));
-                });
-            });
     }
 };
 
@@ -3551,7 +3500,7 @@ var KFOL = {
      */
     addFastGotoFloorInput: function () {
         $('<form><li class="pd_fast_goto_floor">电梯直达 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
-            '<span>楼</span></li></form>')
+        '<span>楼</span></li></form>')
             .prependTo('.readlou:eq(0) > div:first-child > ul')
             .submit(function (event) {
                 event.preventDefault();
@@ -3590,7 +3539,7 @@ var KFOL = {
      */
     addFastGotoPageInput: function () {
         $('<form><li class="pd_fast_goto_page">跳至 <input class="pd_input" style="width:30px" type="text" maxlength="8" /> ' +
-            '<span>页</span></li></form>')
+        '<span>页</span></li></form>')
             .appendTo('table > tbody > tr > td > div > ul.pages')
             .submit(function (event) {
                 event.preventDefault();
@@ -4192,7 +4141,17 @@ var KFOL = {
      */
     followUsers: function () {
         if (!Config.followUserEnabled || Config.followUserList.length === 0) return;
-        if (location.pathname === '/thread.php') {
+        if (KFOL.isInHomePage && Config.highlightFollowUserThreadInHPEnabled) {
+            $('.b_tit4 > a, .b_tit4_1 > a').each(function () {
+                var $this = $(this);
+                var matches = /》by：(.+)/.exec($this.attr('title'));
+                if (!matches) return;
+                if ($.inArray(matches[1], Config.followUserList) > -1) {
+                    $this.addClass('pd_highlight');
+                }
+            });
+        }
+        else if (location.pathname === '/thread.php') {
             $('a.bl[href^="profile.php?action=show&uid="]').each(function () {
                 var $this = $(this);
                 if ($.inArray($this.text(), Config.followUserList) > -1) {
@@ -4232,7 +4191,17 @@ var KFOL = {
      */
     blockUsers: function () {
         if (!Config.blockUserEnabled || Config.blockUserList.length === 0) return;
-        if (location.pathname === '/thread.php') {
+        if (KFOL.isInHomePage) {
+            $('.b_tit4 > a, .b_tit4_1 > a').each(function () {
+                var $this = $(this);
+                var matches = /》by：(.+)/.exec($this.attr('title'));
+                if (!matches) return;
+                if ($.inArray(matches[1], Config.blockUserList) > -1) {
+                    $this.parent('li').remove();
+                }
+            });
+        }
+        else if (location.pathname === '/thread.php') {
             $('a.bl[href^="profile.php?action=show&uid="]').each(function () {
                 var $this = $(this);
                 if ($.inArray($this.text(), Config.blockUserList) > -1) {
@@ -4538,9 +4507,6 @@ var KFOL = {
         else if (location.pathname === '/kf_fw_ig_index.php') {
             Loot.statLootGain();
         }
-        /*else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
-         Loot.addBatchAttackButton();
-         }*/
         KFOL.blockUsers();
         KFOL.followUsers();
 
