@@ -103,7 +103,7 @@ https://greasyfork.org/zh-CN/scripts/8615
 * ID备注
 
 ## 讨论帖
-http://bbs.2dgal.com/read.php?tid=487899
+http://bbs.2dgal.com/read.php?tid=493907
 
 ## License
 [MIT](http://opensource.org/licenses/MIT)
