@@ -9,7 +9,7 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.5.0-dev
+// @version     3.5.0
 // @grant       none
 // @run-at      document-end
 // @license     MIT
@@ -1799,20 +1799,22 @@ var Log = {
         $.each(sortStatItemList(profit), function (index, key) {
             content += '<i>{0}{1}</i>'.replace('{0}', key).replace('{1}', Tools.getStatFormatNumber(profit[key]));
         });
-        var smBoxIncome = 0, minSmBox = 0, maxSmBox = 0;
-        $.each(smBox, function (index, kfb) {
-            smBoxIncome += kfb;
-            if (index === 0) minSmBox = kfb;
-            if (minSmBox > kfb) minSmBox = kfb;
-            if (maxSmBox < kfb) maxSmBox = kfb;
-        });
-        content += ('<br /><strong>神秘盒子收获(KFB)：</strong><i>抽取次数<em>+{0}</em></i><i>合计<em>+{1}</em></i><i>平均值<em>+{2}</em></i>' +
-        '<i>最小值<em>+{3}</em></i><i>最大值<em>+{4}</em></i>')
-            .replace('{0}', smBox.length.toLocaleString())
-            .replace('{1}', smBoxIncome.toLocaleString())
-            .replace('{2}', smBox.length > 0 ? (smBoxIncome / smBox.length).toFixed(2).toLocaleString() : 0)
-            .replace('{3}', minSmBox.toLocaleString())
-            .replace('{4}', maxSmBox.toLocaleString());
+        if (Config.autoDrawSmbox2Enabled) {
+            var smBoxIncome = 0, minSmBox = 0, maxSmBox = 0;
+            $.each(smBox, function (index, kfb) {
+                smBoxIncome += kfb;
+                if (index === 0) minSmBox = kfb;
+                if (minSmBox > kfb) minSmBox = kfb;
+                if (maxSmBox < kfb) maxSmBox = kfb;
+            });
+            content += ('<br /><strong>神秘盒子收获(KFB)：</strong><i>抽取次数<em>+{0}</em></i><i>合计<em>+{1}</em></i><i>平均值<em>+{2}</em></i>' +
+            '<i>最小值<em>+{3}</em></i><i>最大值<em>+{4}</em></i>')
+                .replace('{0}', smBox.length.toLocaleString())
+                .replace('{1}', smBoxIncome.toLocaleString())
+                .replace('{2}', smBox.length > 0 ? (smBoxIncome / smBox.length).toFixed(2).toLocaleString() : 0)
+                .replace('{3}', minSmBox.toLocaleString())
+                .replace('{4}', maxSmBox.toLocaleString());
+        }
         $('#pd_log_stat').html(content);
     }
 };
@@ -3131,7 +3133,7 @@ var KFOL = {
                 Tools.setCookie(Config.donationCookieName, 1, date);
                 KFOL.showFormatLog('捐款{0}KFB'.replace('{0}', kfb), html);
                 var msg = '<strong>捐款<em>{0}</em>KFB</strong>'.replace('{0}', kfb);
-                var matches = /捐款获得(\d+)经验值(?:.*?补偿期.*?\+(\d+)KFB.*?(\d+)成长经验)?/i.exec(html);
+                var matches = /捐款获得(\d+)经验值(?:.*?补偿期(?:.*?\+(\d+)KFB)?(?:.*?(\d+)成长经验)?)?/i.exec(html);
                 if (!matches) {
                     if (/KFB不足。<br \/>/.test(html)) {
                         msg += '<i class="pd_notice">KFB不足</i><a target="_blank" href="kf_growup.php">手动捐款</a>';
@@ -3141,12 +3143,18 @@ var KFOL = {
                 else {
                     msg += '<i>经验值<em>+{0}</em></i>'.replace('{0}', matches[1]);
                     var gain = {'经验值': parseInt(matches[1])};
-                    if (typeof matches[2] !== 'undefined' && typeof matches[3] !== 'undefined') {
-                        msg += '<i style="margin-left:5px">(补偿期:</i><i>KFB<em>+{0}</em></i><i>经验值<em>+{1}</em>)</i>'
-                            .replace('{0}', matches[2])
-                            .replace('{1}', matches[3]);
-                        gain['经验值'] += parseInt(matches[3]);
-                        gain['KFB'] = parseInt(matches[2]);
+                    if (typeof matches[2] !== 'undefined' || typeof matches[3] !== 'undefined') {
+                        msg += '<i style="margin-left:5px">(补偿期:</i>{0}{1}'
+                            .replace('{0}', typeof matches[2] !== 'undefined' ?
+                                '<i>KFB<em>+{0}</em>{1}</i>'
+                                    .replace('{0}', matches[2])
+                                    .replace('{1}', typeof matches[3] !== 'undefined' ? '' : ')')
+                                : '')
+                            .replace('{1}', typeof matches[3] !== 'undefined' ? '<i>经验值<em>+{0}</em>)</i>'.replace('{0}', matches[3]) : '');
+                        if (typeof matches[2] !== 'undefined')
+                            gain['KFB'] = parseInt(matches[2]);
+                        if (typeof matches[3] !== 'undefined')
+                            gain['经验值'] += parseInt(matches[3]);
                     }
                     Log.push('捐款', '捐款`{0}`KFB'.replace('{0}', kfb), {gain: gain, pay: {'KFB': -kfb}});
                 }
@@ -4393,7 +4401,7 @@ var KFOL = {
         $('<input value="自定义" type="button" style="margin-right:3px">').insertBefore('input[type="button"][value="全选"]')
             .click(function (event) {
                 event.preventDefault();
-                var title = $.trim(window.prompt('请填写所要选择的短消息标题（可用|符号分隔多个标题）', '收到了他人转账的KFB|银行汇款通知|您的文章被评分|您的文章被删除'));
+                var title = $.trim(window.prompt('请填写所要选择的包含指定字符串的短消息标题（可用|符号分隔多个标题）', '收到了他人转账的KFB|银行汇款通知|您的文章被评分|您的文章被删除'));
                 if (title !== '') {
                     $('.thread1 > tbody > tr > td:nth-child(2) > a').each(function () {
                         var $this = $(this);
