@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.5.0
+// @version     3.5.1
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.5.0';
+var version = '3.5.1';
 /**
  * 配置类
  */
@@ -29,6 +29,8 @@ var Config = {
     donationAfterTime: '00:05:00',
     // 在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款，true：开启；false：关闭
     donationAfterVipEnabled: false,
+    // 是否自动领取争夺奖励，true：开启；false：关闭
+    autoGetLootAwardEnabled: false,
     // 是否自动抽取神秘盒子，true：开启；false：关闭
     autoDrawSmbox2Enabled: false,
     // 偏好的神秘盒子数字，例：[52,1,28,400]（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空
@@ -103,6 +105,8 @@ var Config = {
     /* 以下设置如非必要请勿修改： */
     // KFB捐款额度的最大值
     maxDonationKfb: 5000,
+    // 争夺的默认领取间隔（分钟）
+    defLootInterval: 720,
     // 神秘盒子的默认抽奖间隔（分钟）
     defDrawSmboxInterval: 300,
     // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
@@ -123,6 +127,8 @@ var Config = {
     smLevelUpStorageName: 'pd_sm_level_up',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
+    // 标记已领取争夺奖励的Cookie名称
+    getLootAwardCookieName: 'pd_get_loot_award',
     // 标记已抽取神秘盒子的Cookie名称
     drawSmboxCookieName: 'pd_draw_smbox',
     // 标记已去除首页已读at高亮提示的Cookie名称
@@ -508,6 +514,11 @@ var ConfigDialog = {
             '之后捐款 <a class="pd_cfg_tips" href="#" title="在当天的指定时间之后捐款（24小时制），例：22:30:00（注意不要设置得太接近零点，以免错过捐款）">[?]</a></label><br />' +
             '        <label><input id="pd_cfg_donation_after_vip_enabled" type="checkbox" />在获得VIP后才进行捐款 ' +
             '<a class="pd_cfg_tips" href="#" title="在获得VIP资格后才进行捐款，如开启此选项，将只能在首页进行捐款">[?]</a></label>' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label>争夺相关</legend>' +
+            '        <label><input id="pd_cfg_auto_get_loot_award_enabled" type="checkbox" />自动领取争夺奖励 ' +
+            '<a class="pd_cfg_tips" href="#" title="自动领取争夺奖励，请注意及时打怪">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend><label><input id="pd_cfg_auto_draw_smbox_enabled" type="checkbox" />自动抽取神秘盒子 ' +
@@ -1034,6 +1045,7 @@ var ConfigDialog = {
         $('#pd_cfg_donation_kfb').val(Config.donationKfb);
         $('#pd_cfg_donation_after_time').val(Config.donationAfterTime);
         $('#pd_cfg_donation_after_vip_enabled').prop('checked', Config.donationAfterVipEnabled);
+        $('#pd_cfg_auto_get_loot_award_enabled').prop('checked', Config.autoGetLootAwardEnabled);
         $('#pd_cfg_auto_draw_smbox_enabled').prop('checked', Config.autoDrawSmbox2Enabled);
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
         $('#pd_cfg_auto_refresh_enabled').prop('checked', Config.autoRefreshEnabled);
@@ -1079,6 +1091,7 @@ var ConfigDialog = {
         options.donationKfb = $.isNumeric(options.donationKfb) ? parseInt(options.donationKfb) : options.donationKfb;
         options.donationAfterVipEnabled = $('#pd_cfg_donation_after_vip_enabled').prop('checked');
         options.donationAfterTime = $('#pd_cfg_donation_after_time').val();
+        options.autoGetLootAwardEnabled = $('#pd_cfg_auto_get_loot_award_enabled').prop('checked');
         options.autoDrawSmbox2Enabled = $('#pd_cfg_auto_draw_smbox_enabled').prop('checked');
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
         options.autoRefreshEnabled = $('#pd_cfg_auto_refresh_enabled').prop('checked');
@@ -1267,6 +1280,8 @@ var ConfigDialog = {
         }
         settings.donationAfterVipEnabled = typeof options.donationAfterVipEnabled === 'boolean' ?
             options.donationAfterVipEnabled : defConfig.donationAfterVipEnabled;
+        settings.autoGetLootAwardEnabled = typeof options.autoGetLootAwardEnabled === 'boolean' ?
+            options.autoGetLootAwardEnabled : defConfig.autoGetLootAwardEnabled;
         settings.autoDrawSmbox2Enabled = typeof options.autoDrawSmbox2Enabled === 'boolean' ?
             options.autoDrawSmbox2Enabled : defConfig.autoDrawSmbox2Enabled;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
@@ -1684,7 +1699,7 @@ var Log = {
         if ($.type(Log.log[date]) !== 'array') return;
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
-            var sortTypeList = ['捐款', '统计争夺收获', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
+            var sortTypeList = ['捐款', '领取争夺奖励', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
                 '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
@@ -2875,15 +2890,58 @@ var Bank = {
  */
 var Loot = {
     /**
-     * 统计争夺收获
+     * 统计争夺奖励
      */
     statLootGain: function () {
         $('form[name="rvrc1"]').submit(function () {
             var gain = parseInt($('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]').parent('td').find('span:eq(0)').text());
             if (!isNaN(gain) && gain >= 0) {
-                Log.push('统计争夺收获', '统计争夺收获', {gain: {'KFB': gain}});
+                Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
             }
         });
+    },
+
+    /**
+     * 领取争夺奖励
+     * @param {boolean} isAutoDonation 是否自动捐款
+     */
+    getLootAward: function (isAutoDonation) {
+        console.log('领取争夺奖励Start');
+        $.get('kf_fw_ig_index.php', function (html) {
+            var matches = /<INPUT name="submit1" type="submit" value="(.+?)"/i.exec(html);
+            if (!matches) {
+                Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                return;
+            }
+            var remainingMatches = /还有(\d+)(分钟|小时)领取/i.exec(matches[1]);
+            if (remainingMatches) {
+                var lootInterval = parseInt(remainingMatches[1]) + 1;
+                if (remainingMatches[2] === '小时') lootInterval = lootInterval * 60;
+                Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + lootInterval + 'm'));
+                return;
+            }
+            if (/(点击这里预领KFB|已经可以领取KFB)/i.test(matches[1])) {
+                var gainMatches = /当前拥有\s*<span style=".+?">(\d+)<\/span>\s*预领KFB<br \/>/i.exec(html);
+                var gain = 0;
+                if (gainMatches) gain = parseInt(gainMatches[1]);
+                $.post('kf_fw_ig_index.php',
+                    {submit1: 1, one: 1},
+                    function (html) {
+                        Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                        if (/(领取成功！|已经预领\d+KFB)/i.test(html)) {
+                            Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
+                            console.log('领取争夺奖励，KFB+' + gain);
+                            KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i><a target="_blank" href="kf_fw_ig_pklist.php">攻击NPC</a>'
+                                    .replace('{0}', gain)
+                            );
+                            if (isAutoDonation) KFOL.donation(false);
+                        }
+                    }, 'html');
+            }
+            else {
+                Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+            }
+        }, 'html');
     }
 };
 
@@ -3182,9 +3240,8 @@ var KFOL = {
 
     /**
      * 抽取神秘盒子
-     * @param {boolean} isAutoDonation 是否在抽取神秘盒子完毕之后自动捐款
      */
-    drawSmbox: function (isAutoDonation) {
+    drawSmbox: function () {
         console.log('抽取神秘盒子Start');
         $.get('kf_smbox.php', function (html) {
             if (!/kf_smbox\.php\?box=\d+&safeid=\w+/i.test(html)) {
@@ -3212,9 +3269,6 @@ var KFOL = {
             $.get(url, function (html) {
                 Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
                 KFOL.showFormatLog('抽取神秘盒子', html);
-                if (isAutoDonation) {
-                    window.setTimeout(KFOL.donation, 1000);
-                }
                 var kfbRegex = /获得了(\d+)KFB的奖励.*?(\(\d+\|\d+\))/i;
                 var smRegex = /获得本轮的头奖/i;
                 var msg = '<strong>抽取神秘盒子[<em>No.{0}</em>]</strong>'.replace('{0}', smboxNumber);
@@ -4518,16 +4572,20 @@ var KFOL = {
         KFOL.blockUsers();
         KFOL.followUsers();
 
-        var isDrawSmboxStarted = false;
+        var isGetLootAwardStarted = false;
         var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
+        if (Config.autoGetLootAwardEnabled && !Tools.getCookie(Config.getLootAwardCookieName)) {
+            isGetLootAwardStarted = true;
+            Loot.getLootAward(autoDonationAvailable);
+        }
+
         if (Config.autoDrawSmbox2Enabled && !Tools.getCookie(Config.drawSmboxCookieName)) {
-            isDrawSmboxStarted = true;
-            KFOL.drawSmbox(autoDonationAvailable);
+            KFOL.drawSmbox();
         }
 
         var isDonationStarted = false;
         var autoSaveCurrentDepositAvailable = Config.autoSaveCurrentDepositEnabled && KFOL.isInHomePage;
-        if (autoDonationAvailable && !isDrawSmboxStarted) {
+        if (autoDonationAvailable && !isGetLootAwardStarted) {
             isDonationStarted = true;
             KFOL.donation(autoSaveCurrentDepositAvailable);
         }
