@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.5.1
+// @version     3.5.2
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.5.1';
+var version = '3.5.2';
 /**
  * 配置类
  */
@@ -2915,8 +2915,9 @@ var Loot = {
             }
             var remainingMatches = /还有(\d+)(分钟|小时)领取/i.exec(matches[1]);
             if (remainingMatches) {
-                var lootInterval = parseInt(remainingMatches[1]) + 1;
+                var lootInterval = parseInt(remainingMatches[1]);
                 if (remainingMatches[2] === '小时') lootInterval = lootInterval * 60;
+                lootInterval++;
                 Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + lootInterval + 'm'));
                 return;
             }
