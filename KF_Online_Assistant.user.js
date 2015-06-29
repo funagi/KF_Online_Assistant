@@ -67,8 +67,10 @@ var Config = {
     customSmColorConfigList: [],
     // 是否将帖子中的绯月其它域名的链接修改为当前域名，true：开启；false：关闭
     modifyKFOtherDomainEnabled: false,
-    // 是否开启多重回复和多重引用的功能，true：开启；false：关闭
+    // 是否在帖子页面开启多重回复和多重引用的功能，true：开启；false：关闭
     multiQuoteEnabled: true,
+    // 是否在帖子页面开启批量购买帖子的功能，true：开启；false：关闭
+    batchBuyThreadEnabled: true,
     // 默认提示消息的持续时间（秒）
     defShowMsgDuration: 10,
     // 日志保存天数
@@ -247,7 +249,7 @@ var Tools = {
     /**
      * 获取指定Date对象的日期字符串
      * @param {?Date} [date] 指定Date对象，留空表示现在
-     * @param {string} [separator] 分隔符，留空表示使用“-”作为分隔符
+     * @param {string} [separator='-'] 分隔符，留空表示使用“-”作为分隔符
      * @returns {string} 日期字符串
      */
     getDateString: function (date, separator) {
@@ -264,8 +266,8 @@ var Tools = {
     /**
      * 获取指定Date对象的时间字符串
      * @param {?Date} [date] 指定Date对象，留空表示现在
-     * @param {string} [separator] 分隔符，留空表示使用“:”作为分隔符
-     * @param {boolean} [isShowSecond] 是否显示秒钟
+     * @param {string} [separator=':'] 分隔符，留空表示使用“:”作为分隔符
+     * @param {boolean} [isShowSecond=true] 是否显示秒钟
      * @returns {string} 时间字符串
      */
     getTimeString: function (date, separator, isShowSecond) {
@@ -274,6 +276,7 @@ var Tools = {
         var minute = date.getMinutes();
         var second = date.getSeconds();
         var sep = typeof separator !== 'undefined' ? separator : ':';
+        isShowSecond = $.type(isShowSecond) === 'boolean' ? isShowSecond : true;
         return '{0}{3}{1}{4}{2}'
             .replace('{0}', hour < 10 ? '0' + hour : hour)
             .replace('{1}', minute < 10 ? '0' + minute : minute)
@@ -569,6 +572,8 @@ var ConfigDialog = {
             '<a class="pd_cfg_tips" href="#" title="将帖子和短消息中的绯月其它域名的链接修改为当前域名">[?]</a></label><br />' +
             '        <label><input id="pd_cfg_multi_quote_enabled" type="checkbox" />开启多重引用功能 ' +
             '<a class="pd_cfg_tips" href="#" title="在帖子页面开启多重回复和多重引用功能">[?]</a></label>' +
+            '        <label style="margin-left:10px"><input id="pd_cfg_batch_buy_thread_enabled" type="checkbox" />开启批量购买帖子功能 ' +
+            '<a class="pd_cfg_tips" href="#" title="在帖子页面开启批量购买帖子的功能">[?]</a></label>' +
             '      </fieldset>' +
             '    </div>' +
             '    <div class="pd_cfg_panel">' +
@@ -1067,6 +1072,7 @@ var ConfigDialog = {
         $('#pd_cfg_custom_sm_color_enabled').prop('checked', Config.customSmColorEnabled);
         $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked', Config.modifyKFOtherDomainEnabled);
         $('#pd_cfg_multi_quote_enabled').prop('checked', Config.multiQuoteEnabled);
+        $('#pd_cfg_batch_buy_thread_enabled').prop('checked', Config.batchBuyThreadEnabled);
         if (Config.customMySmColor) $('#pd_cfg_custom_my_sm_color_select').val(Config.customMySmColor);
         $('#pd_cfg_def_show_msg_duration').val(Config.defShowMsgDuration);
         $('#pd_cfg_log_save_days').val(Config.logSaveDays);
@@ -1113,6 +1119,7 @@ var ConfigDialog = {
         options.customSmColorEnabled = $('#pd_cfg_custom_sm_color_enabled').prop('checked');
         options.modifyKFOtherDomainEnabled = $('#pd_cfg_modify_kf_other_domain_enabled').prop('checked');
         options.multiQuoteEnabled = $('#pd_cfg_multi_quote_enabled').prop('checked');
+        options.batchBuyThreadEnabled = $('#pd_cfg_batch_buy_thread_enabled').prop('checked');
         options.defShowMsgDuration = parseInt($.trim($('#pd_cfg_def_show_msg_duration').val()));
         options.logSaveDays = parseInt($.trim($('#pd_cfg_log_save_days').val()));
         options.showLogLinkInPageEnabled = $('#pd_cfg_show_log_link_in_page_enabled').prop('checked');
@@ -1363,6 +1370,8 @@ var ConfigDialog = {
             options.modifyKFOtherDomainEnabled : defConfig.modifyKFOtherDomainEnabled;
         settings.multiQuoteEnabled = typeof options.multiQuoteEnabled === 'boolean' ?
             options.multiQuoteEnabled : defConfig.multiQuoteEnabled;
+        settings.batchBuyThreadEnabled = typeof options.batchBuyThreadEnabled === 'boolean' ?
+            options.batchBuyThreadEnabled : defConfig.batchBuyThreadEnabled;
         if (typeof options.defShowMsgDuration !== 'undefined') {
             var defShowMsgDuration = parseInt(options.defShowMsgDuration);
             if ($.isNumeric(defShowMsgDuration) && defShowMsgDuration >= -1)
@@ -1703,7 +1712,7 @@ var Log = {
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
             var sortTypeList = ['捐款', '领取争夺奖励', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
-                '购买道具', '统计道具购买价格', '出售道具', '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '自动存款'];
+                '购买道具', '统计道具购买价格', '出售道具', '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '购买帖子', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
             });
@@ -3232,7 +3241,7 @@ var Loot = {
     /**
      * 显示领取争夺奖励的时间
      */
-    showGetLootTime: function () {
+    showGetLootAwardTime: function () {
         $('form[name="rvrc1"]').submit(function () {
             var gain = parseInt($('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]').parent('td').find('span:eq(0)').text());
             if (!isNaN(gain) && gain >= 0) {
@@ -3258,7 +3267,7 @@ var Loot = {
                 if (hours !== 0) return;
             }
             var end = new Date(time);
-            $submit.prev().prev().before('<span class="pd_highlight">领取时间：{0}</span>'
+            $submit.prev().prev().before('<span class="pd_highlight">可领取时间：{0}</span>'
                     .replace('{0}', Tools.getDateString(end) + ' ' + Tools.getTimeString(end, ':', false))
             );
         }
@@ -4494,7 +4503,6 @@ var KFOL = {
             var matches = /此帖售价\s*(\d+)\s*KFB/i.exec($this.closest('legend').contents().eq(0).text());
             if (!matches) return;
             var sell = parseInt(matches[1]);
-            if (sell < Config.minBuyThreadWarningSell) return;
             matches = /location\.href="(.+?)"/i.exec($this.attr('onclick'));
             if (!matches) return;
             $this.data('sell', sell).data('url', matches[1]).removeAttr('onclick').click(function (event) {
@@ -4503,11 +4511,109 @@ var KFOL = {
                 var sell = $this.data('sell');
                 var url = $this.data('url');
                 if (!sell || !url) return;
-                if (window.confirm('此贴售价{0}KFB，是否购买？'.replace('{0}', sell))) {
+                if (sell < Config.minBuyThreadWarningSell || window.confirm('此贴售价{0}KFB，是否购买？'.replace('{0}', sell))) {
                     location.href = url;
                 }
             });
         });
+    },
+
+    /**
+     * 添加批量购买帖子的按钮
+     */
+    addBatchBuyThreadButton: function () {
+        var $btns = $('.readtext input[type="button"][value="愿意购买,支付KFB"]');
+        if ($btns.length === 0) return;
+        $btns.each(function () {
+            var $this = $(this);
+            var sell = $this.data('sell');
+            var url = $this.data('url');
+            if (!sell || !url) return;
+            $this.after('<input class="pd_buy_thread" style="margin-left:10px;vertical-align:middle" type="checkbox" data-sell="{0}" data-url="{1}" />'
+                    .replace('{0}', sell)
+                    .replace('{1}', url)
+            );
+        });
+        $('<span style="margin:0 5px">|</span><a class="pd_buy_thread_btn" title="批量购买所选帖子" href="#">批量购买</a>').insertAfter('td > a[href^="kf_tidfavor.php?action=favor&tid="]')
+            .filter('a').click(function (event) {
+                event.preventDefault();
+                KFOL.removePopTips($('.pd_pop_tips'));
+                var urlList = [];
+                var totalSell = 0;
+                $('.pd_buy_thread:checked').each(function () {
+                    var $this = $(this);
+                    var url = $this.data('url');
+                    if (url) urlList.push(url);
+                    var sell = parseInt($this.data('sell'));
+                    if (!isNaN(sell)) totalSell += sell;
+                });
+                if (urlList.length === 0) return;
+                if (window.confirm('你共选择了{0}个帖子，总售价{1}KFB，是否批量购买？'.replace('{0}', urlList.length).replace('{1}', totalSell))) {
+                    KFOL.showWaitMsg('<strong>正在购买帖子中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                            .replace('{0}', urlList.length)
+                        , true);
+                    KFOL.buyThreads(urlList, totalSell);
+                }
+            })
+            .parent()
+            .mouseenter(function () {
+                $('<span style="margin-left:5px">[<a href="#">全选</a><a style="margin-left:5px" href="#">反选</a>]</span>').insertAfter($(this).find('.pd_buy_thread_btn'))
+                    .find('a:first')
+                    .click(function (event) {
+                        event.preventDefault();
+                        $('.pd_buy_thread').prop('checked', true);
+                    })
+                    .next('a')
+                    .click(function (event) {
+                        event.preventDefault();
+                        $('.pd_buy_thread').each(function () {
+                            $(this).prop('checked', !$(this).prop('checked'));
+                        });
+                    });
+            }).mouseleave(function () {
+                $(this).find('.pd_buy_thread_btn').next('span').remove();
+            });
+    },
+
+    /**
+     * 购买指定的一系列帖子
+     * @param {string[]} urlList 购买帖子的URL列表
+     * @param {number} totalSell 总售价
+     */
+    buyThreads: function (urlList, totalSell) {
+        var successNum = 0, failNum = 0;
+        $(document).queue('SellItems', []);
+        $.each(urlList, function (index, url) {
+            $(document).queue('BuyThreads', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('购买帖子', html);
+                    if (/操作完成/.test(html)) successNum++;
+                    else failNum++;
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === urlList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        Log.push('购买帖子', '共有`{0}`个帖子购买成功'.replace('{0}', successNum), {pay: {'KFB': -totalSell}});
+                        console.log('共有{0}个帖子购买成功，共有{1}个帖子购买失败，KFB-{2}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum)
+                                .replace('{2}', totalSell)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个帖子购买成功{1}</strong><i>KFB<ins>-{2}</ins></i>'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>个帖子购买失败'.replace('{0}', failNum) : '')
+                                .replace('{2}', totalSell)
+                            , duration: -1
+                        });
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('BuyThreads');
+                    }, Config.defAjaxInterval);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('BuyThreads');
     },
 
     /**
@@ -4883,6 +4989,7 @@ var KFOL = {
             KFOL.addStatReplyersLink();
             if (Config.modifyKFOtherDomainEnabled) KFOL.modifyKFOtherDomainLink();
             KFOL.addBuyThreadWarning();
+            if (Config.batchBuyThreadEnabled) KFOL.addBatchBuyThreadButton();
         }
         else if (location.pathname === '/thread.php') {
             if (Config.highlightNewPostEnabled) KFOL.highlightNewPost();
@@ -4923,7 +5030,7 @@ var KFOL = {
             KFOL.addMsgSelectButton();
         }
         else if (location.pathname === '/kf_fw_ig_index.php') {
-            Loot.showGetLootTime();
+            Loot.showGetLootAwardTime();
         }
         else if (location.pathname === '/kf_fw_ig_shop.php') {
             Item.addBatchBuyItemsLink();
