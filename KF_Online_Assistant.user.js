@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.6.0
+// @version     3.7.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.6.0';
+var version = '3.7.0';
 /**
  * 配置类
  */
@@ -123,8 +123,8 @@ var Config = {
     minBuyThreadWarningSell: 6,
     // 存储多重引用数据的LocalStorage名称
     multiQuoteStorageName: 'pd_multi_quote',
-    // 存储神秘等级升级提醒数据的LocalStorage名称
-    smLevelUpStorageName: 'pd_sm_level_up',
+    // 领取争夺奖励临时日志名称
+    getLootAwardTmpLogName: 'GetLootAward',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
     // 标记已领取争夺奖励的Cookie名称
@@ -265,18 +265,21 @@ var Tools = {
      * 获取指定Date对象的时间字符串
      * @param {?Date} [date] 指定Date对象，留空表示现在
      * @param {string} [separator] 分隔符，留空表示使用“:”作为分隔符
+     * @param {boolean} [isShowSecond] 是否显示秒钟
      * @returns {string} 时间字符串
      */
-    getTimeString: function (date, separator) {
+    getTimeString: function (date, separator, isShowSecond) {
         date = date ? date : new Date();
         var hour = date.getHours();
         var minute = date.getMinutes();
         var second = date.getSeconds();
-        return '{0}{3}{1}{3}{2}'
+        var sep = typeof separator !== 'undefined' ? separator : ':';
+        return '{0}{3}{1}{4}{2}'
             .replace('{0}', hour < 10 ? '0' + hour : hour)
             .replace('{1}', minute < 10 ? '0' + minute : minute)
-            .replace('{2}', second < 10 ? '0' + second : second)
-            .replace(/\{3\}/g, typeof separator !== 'undefined' ? separator : ':');
+            .replace('{2}', isShowSecond ? (second < 10 ? '0' + second : second) : '')
+            .replace('{3}', sep)
+            .replace('{4}', isShowSecond ? sep : '');
     },
 
     /**
@@ -1700,7 +1703,7 @@ var Log = {
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
             var sortTypeList = ['捐款', '领取争夺奖励', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
-                '购买道具', '统计道具购买价格', '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '自动存款'];
+                '购买道具', '统计道具购买价格', '出售道具', '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
             });
@@ -1836,6 +1839,74 @@ var Log = {
                 .replace('{4}', maxSmBox.toLocaleString());
         }
         $('#pd_log_stat').html(content);
+    }
+};
+
+/**
+ * 临时日志类
+ */
+var TmpLog = {
+    // 保存临时日志的键值名称
+    name: 'pd_tmp_log',
+    // 临时日志对象
+    log: {},
+
+    /**
+     * 读取临时日志
+     */
+    read: function () {
+        TmpLog.log = {};
+        var log = localStorage[TmpLog.name + '_' + KFOL.uid];
+        if (!log) return;
+        try {
+            log = JSON.parse(log);
+        }
+        catch (ex) {
+            return;
+        }
+        if (!log || $.type(log) !== 'object') return;
+        TmpLog.log = log;
+    },
+
+    /**
+     * 写入临时日志
+     */
+    write: function () {
+        localStorage[TmpLog.name + '_' + KFOL.uid] = JSON.stringify(TmpLog.log);
+    },
+
+    /**
+     * 获取指定名称的临时日志内容
+     * @param {string} key 日志名称
+     * @returns {*} 日志内容
+     */
+    getValue: function (key) {
+        TmpLog.read();
+        if (typeof TmpLog.log[key] !== 'undefined') return TmpLog.log[key];
+        else return null;
+    },
+
+    /**
+     * 设置指定名称的临时日志内容
+     * @param {string} key 日志名称
+     * @param {*} value 日志内容
+     */
+    setValue: function (key, value) {
+        TmpLog.read();
+        TmpLog.log[key] = value;
+        TmpLog.write();
+    },
+
+    /**
+     * 删除指定名称的临时日志
+     * @param {string} key 日志名称
+     */
+    deleteValue: function (key) {
+        TmpLog.read();
+        if (typeof TmpLog.log[key] !== 'undefined') {
+            delete TmpLog.log[key];
+            TmpLog.write();
+        }
     }
 };
 
@@ -2304,7 +2375,7 @@ var Item = {
                                     .replace('{0}', successNum)
                                     .replace('{1}', settings.itemLevel)
                                     .replace('{2}', settings.itemName)
-                                    .replace('{3}', failNum > 0 ? '，共有{0}个道具使用失败'.replace('{0}', failNum) : ''),
+                                    .replace('{3}', failNum > 0 ? '，共有`{0}`个道具使用失败'.replace('{0}', failNum) : ''),
                                 {
                                     gain: $.extend({}, stat, {'已使用道具': successNum}),
                                     pay: {'道具': -successNum}
@@ -2327,9 +2398,9 @@ var Item = {
                                 .replace('{2}', logStat)
                         );
                         KFOL.showMsg({
-                            msg: '<strong>共有<em>{0}</em>个道具使用成功{1}{2}'
+                            msg: '<strong>共有<em>{0}</em>个道具使用成功{1}</strong>{2}'
                                 .replace('{0}', successNum)
-                                .replace('{1}', failNum > 0 ? '，共有{0}个道具使用失败'.replace('{0}', failNum) : '')
+                                .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>个道具使用失败'.replace('{0}', failNum) : '')
                                 .replace('{2}', msgStat)
                             , duration: -1
                         });
@@ -2352,9 +2423,89 @@ var Item = {
     },
 
     /**
-     * 添加批量使用道具的按钮
+     * 出售指定的一系列道具
+     * @param {Object} options 设置项
+     * @param {string[]} options.itemList 指定的道具ID列表
+     * @param {string} options.safeId 用户的SafeID
+     * @param {number} options.itemLevel 道具等级
+     * @param {string} options.itemName 道具名称
      */
-    addUseItemsButton: function () {
+    sellItems: function (options) {
+        var settings = {
+            itemList: [],
+            itemLevel: 0,
+            itemName: ''
+        };
+        $.extend(settings, options);
+        /**
+         * 获取指定等级道具的出售所得
+         * @param {number} itemLevel 道具等级
+         * @returns {number} 出售所得
+         */
+        var getSellItemGain = function (itemLevel) {
+            switch (itemLevel) {
+                case 3:
+                    return 300;
+                case 4:
+                    return 2000;
+                case 5:
+                    return 8000;
+                default:
+                    return 0;
+            }
+        };
+        var successNum = 0, failNum = 0, totalGain = 0;
+        $(document).queue('SellItems', []);
+        $.each(settings.itemList, function (index, itemId) {
+            var url = 'kf_fw_ig_shop.php?sell=yes&id={0}'.replace('{0}', itemId);
+            $(document).queue('SellItems', function () {
+                $.get(url, function (html) {
+                    KFOL.showFormatLog('出售道具', html);
+                    if (/出售成功/.test(html)) {
+                        successNum++;
+                        totalGain += getSellItemGain(settings.itemLevel);
+                    }
+                    else failNum++;
+                    var $remainingNum = $('#pd_remaining_num');
+                    $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                    if (index === settings.itemList.length - 1) {
+                        KFOL.removePopTips($('.pd_pop_tips'));
+                        Log.push('出售道具',
+                            '共有`{0}`个【`Lv.{1}：{2}`】道具出售成功'
+                                .replace('{0}', successNum)
+                                .replace('{1}', settings.itemLevel)
+                                .replace('{2}', settings.itemName),
+                            {
+                                gain: {'KFB': totalGain},
+                                pay: {'道具': -successNum}
+                            }
+                        );
+                        console.log('共有{0}个道具出售成功，共有{1}个道具出售失败，KFB+{2}'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum)
+                                .replace('{2}', totalGain)
+                        );
+                        KFOL.showMsg({
+                            msg: '<strong>共有<em>{0}</em>个道具出售成功{1}</strong><i>KFB<em>+{2}</em></i>'
+                                .replace('{0}', successNum)
+                                .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>个道具出售失败'.replace('{0}', failNum) : '')
+                                .replace('{2}', totalGain)
+                            , duration: -1
+                        });
+                    }
+                    window.setTimeout(function () {
+                        $(document).dequeue('SellItems');
+                    }, Config.defAjaxInterval);
+                }, 'html');
+            });
+        });
+        $(document).dequeue('SellItems');
+    },
+
+    /**
+     * 添加批量购买和使用道具的按钮
+     */
+    addSellAndUseItemsButton: function () {
         var safeId = KFOL.getSafeId();
         if (!safeId) return;
         var $lastLine = $('.kf_fw_ig1 > tbody > tr:last-child');
@@ -2385,7 +2536,7 @@ var Item = {
                     urlList.push('kf_fw_ig_my.php?pro={0}'.replace('{0}', $(this).val()));
                 });
                 if (urlList.length === 0) return;
-                if (!window.confirm('共选择了{0}个道具，是否批量使用道具？'.replace('{0}', urlList.length))) return;
+                if (!window.confirm('共选择了{0}个道具，是否批量【使用】道具？'.replace('{0}', urlList.length))) return;
                 KFOL.showWaitMsg('<strong>正在使用道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                         .replace('{0}', urlList.length)
                     , true);
@@ -2408,6 +2559,25 @@ var Item = {
                     $(this).prop('checked', !$(this).prop('checked'));
                 });
             });
+        if (itemTypeId >= 7 && itemTypeId <= 12) {
+            $('<button>出售道具</button>').prependTo('.pd_item_btns').click(function () {
+                KFOL.removePopTips($('.pd_pop_tips'));
+                var itemList = [];
+                $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
+                    itemList.push($(this).val());
+                });
+                if (itemList.length === 0) return;
+                if (!window.confirm('共选择了{0}个道具，是否批量【出售】道具？'.replace('{0}', itemList.length))) return;
+                KFOL.showWaitMsg('<strong>正在出售道具中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', itemList.length)
+                    , true);
+                Item.sellItems({
+                    itemList: itemList,
+                    itemLevel: itemLevel,
+                    itemName: itemName
+                });
+            });
+        }
     },
 
     /**
@@ -2474,7 +2644,7 @@ var Item = {
                     }
                     window.setTimeout(function () {
                         $(document).dequeue('StatBuyItemsPrice');
-                    }, 500);
+                    }, Config.defAjaxInterval);
                 }, 'html');
             });
         });
@@ -2485,6 +2655,21 @@ var Item = {
      * 添加批量购买道具的链接
      */
     addBatchBuyItemsLink: function () {
+        $('.kf_fw_ig1 > tbody > tr > td:last-child > a').click(function () {
+            var $this = $(this);
+            var itemLevel = parseInt($this.closest('tr').find('td:first-child').text());
+            if (!itemLevel) return;
+            var itemName = $this.closest('tr').find('td:nth-child(2)').text();
+            if (!itemName) return;
+            if (!window.confirm(
+                    '是否购买【Lv.{0}：{1}】道具？'
+                        .replace('{0}', itemLevel)
+                        .replace('{1}', itemName)
+                )
+            ) {
+                return false;
+            }
+        });
         $('.kf_fw_ig1 > tbody > tr:gt(1)').each(function () {
             $(this).find('td:last-child').css('width', '110px').append('<a class="pd__batch_buy_items" style="margin-left:15px" href="#">批量购买</a>');
         });
@@ -2512,6 +2697,7 @@ var Item = {
             $.each(new Array(num), function (index) {
                 $(document).queue('BatchBuyItems', function () {
                     $.get(link, function (html) {
+                        KFOL.showFormatLog('购买道具', html);
                         var $remainingNum = $('#pd_remaining_num');
                         $remainingNum.text(parseInt($remainingNum.text()) - 1);
                         var isStop = false;
@@ -2543,7 +2729,7 @@ var Item = {
                                     .replace('{2}', itemName)
                             );
                             KFOL.showMsg({
-                                msg: '<strong>共有<em>{0}</em>个【<em>Lv.{1}</em>{2}】道具购买成功'
+                                msg: '<strong>共有<em>{0}</em>个【<em>Lv.{1}</em>{2}】道具购买成功</strong>'
                                     .replace('{0}', successNum)
                                     .replace('{1}', itemLevel)
                                     .replace('{2}', itemName)
@@ -3044,15 +3230,38 @@ var Bank = {
  */
 var Loot = {
     /**
-     * 统计争夺奖励
+     * 显示领取争夺奖励的时间
      */
-    statLootGain: function () {
+    showGetLootTime: function () {
         $('form[name="rvrc1"]').submit(function () {
             var gain = parseInt($('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]').parent('td').find('span:eq(0)').text());
             if (!isNaN(gain) && gain >= 0) {
+                TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000);
                 Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
             }
         });
+        var $submit = $('input[name="submit1"][value$="领取，点击这里抢别人的"]');
+        if ($submit.length > 0) {
+            var time = TmpLog.getValue(Config.getLootAwardTmpLogName);
+            if (!time || $.type(time) !== 'number') return;
+            var diff = Math.floor((time - (new Date()).getTime()) / 1000);
+            if (diff <= 0) return;
+            var hours = Math.floor(diff / 60 / 60);
+            var matches = /还有(\d+)小时领取，点击这里抢别人的/.exec($submit.val());
+            if (matches) {
+                if (hours !== parseInt(matches[1])) return;
+                var minutes = Math.floor((diff - hours * 60 * 60) / 60);
+                if (minutes < 0) minutes = 0;
+                $submit.css('width', '270px').val('还有{0}小时{1}分领取，点击这里抢别人的'.replace('{0}', hours).replace('{1}', minutes));
+            }
+            else {
+                if (hours !== 0) return;
+            }
+            var end = new Date(time);
+            $submit.prev().prev().before('<span class="pd_highlight">领取时间：{0}</span>'
+                    .replace('{0}', Tools.getDateString(end) + ' ' + Tools.getTimeString(end, ':', false))
+            );
+        }
     },
 
     /**
@@ -3083,7 +3292,9 @@ var Loot = {
                     {submit1: 1, one: 1},
                     function (html) {
                         Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                        KFOL.showFormatLog('领取争夺奖励', html);
                         if (/(领取成功！|已经预领\d+KFB)/i.test(html)) {
+                            TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime());
                             Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
                             console.log('领取争夺奖励，KFB+' + gain);
                             KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i><a target="_blank" href="kf_fw_ig_pklist.php">攻击NPC</a>'
@@ -4555,25 +4766,15 @@ var KFOL = {
      * 在神秘等级升级后进行提醒
      */
     smLevelUpAlert: function () {
+        var logKey = 'SmLevelUp';
         var matches = /神秘(\d+)级/.exec($('a.indbox1[href="kf_growup.php"]').text());
         if (!matches) return;
         var smLevel = parseInt(matches[1]);
-        var data = localStorage[Config.smLevelUpStorageName + '_' + KFOL.uid];
-        if (data) {
-            try {
-                data = JSON.parse(data);
-            }
-            catch (ex) {
-                data = {};
-            }
-        }
+        var data = TmpLog.getValue(logKey);
         var writeData = function () {
-            localStorage[Config.smLevelUpStorageName + '_' + KFOL.uid] = JSON.stringify({
-                time: (new Date()).getTime(),
-                smLevel: smLevel
-            });
+            TmpLog.setValue(logKey, {time: (new Date()).getTime(), smLevel: smLevel});
         };
-        if (!data || $.type(data) !== 'object' || $.isEmptyObject(data) || $.type(data.time) !== 'number' || $.type(data.smLevel) !== 'number') {
+        if (!data || $.type(data.time) !== 'number' || $.type(data.smLevel) !== 'number') {
             writeData();
         }
         else if (smLevel > data.smLevel) {
@@ -4694,7 +4895,7 @@ var KFOL = {
             Item.addConvertEnergyAndRestoreItemsButton();
         }
         else if (/\/kf_fw_ig_my\.php\?lv=\d+$/i.test(location.href)) {
-            Item.addUseItemsButton();
+            Item.addSellAndUseItemsButton();
         }
         else if (/\/hack\.php\?H_name=bank$/i.test(location.href)) {
             Bank.addBatchTransferButton();
@@ -4722,7 +4923,7 @@ var KFOL = {
             KFOL.addMsgSelectButton();
         }
         else if (location.pathname === '/kf_fw_ig_index.php') {
-            Loot.statLootGain();
+            Loot.showGetLootTime();
         }
         else if (location.pathname === '/kf_fw_ig_shop.php') {
             Item.addBatchBuyItemsLink();
