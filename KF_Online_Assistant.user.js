@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.7.0
+// @version     3.8.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.7.0';
+var version = '3.8.0';
 /**
  * 配置类
  */
@@ -39,8 +39,9 @@ var Config = {
     autoRefreshEnabled: false,
     // 在首页的网页标题上显示定时模式提示的方案，auto：停留一分钟后显示；always：总是显示；never：不显示
     showRefreshModeTipsType: 'auto',
-    // 是否开启去除首页已读at高亮提示的功能，true：开启；false：关闭
-    hideMarkReadAtTipsEnabled: true,
+    // 对首页上的有人@你的消息框进行处理的方案，no_highlight_1：取消已读提醒高亮，并在无提醒时补上消息框；no_highlight_2：取消已读提醒高亮；
+    // hide_box_1：不显示已读提醒的消息框；hide_box_2：永不显示消息框；default：保持默认；at_change_to_cao：将@改为艹(其他和方式1相同)
+    atTipsHandleType: 'no_highlight_1',
     // 是否在无VIP时去除首页的VIP标识高亮，true：开启；false：关闭
     hideNoneVipEnabled: true,
     // 是否在神秘等级升级后进行提醒，只在首页生效，true：开启；false：关闭
@@ -535,8 +536,10 @@ var ConfigDialog = {
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend>首页相关</legend>' +
-            '        <label><input id="pd_cfg_hide_mark_read_at_tips_enabled" type="checkbox" />去除首页已读@高亮提示 ' +
-            '<a class="pd_cfg_tips" href="#" title="点击有人@你的按钮后，高亮边框将被去除；当无人@你时，将加上最近无人@你的按钮">[?]</a></label>' +
+            '        <label>@提醒<select id="pd_cfg_at_tips_handle_type" style="width:130px"><option value="no_highlight_1">取消已读提醒高亮，并在无提醒时补上消息框</option>' +
+            '<option value="no_highlight_2">取消已读提醒高亮</option><option value="hide_box_1">不显示已读提醒的消息框</option><option value="hide_box_2">永不显示消息框</option>' +
+            '<option value="default">保持默认</option><option value="at_change_to_cao">将@改为艹(其他和方式1相同)</option></select>' +
+            '<a class="pd_cfg_tips" href="#" title="对首页上的有人@你的消息框进行处理的方案">[?]</a></label>' +
             '        <label style="margin-left:10px"><input id="pd_cfg_hide_none_vip_enabled" type="checkbox" />无VIP时取消高亮 ' +
             '<a class="pd_cfg_tips" href="#" title="在无VIP时去除首页的VIP标识高亮">[?]</a></label><br />' +
             '        <label><input id="pd_cfg_sm_level_up_alert_enabled" type="checkbox" />神秘等级升级提醒 ' +
@@ -1058,7 +1061,7 @@ var ConfigDialog = {
         $('#pd_cfg_favor_smbox_numbers').val(Config.favorSmboxNumbers.join(','));
         $('#pd_cfg_auto_refresh_enabled').prop('checked', Config.autoRefreshEnabled);
         $('#pd_cfg_show_refresh_mode_tips_type').val(Config.showRefreshModeTipsType.toLowerCase());
-        $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked', Config.hideMarkReadAtTipsEnabled);
+        $('#pd_cfg_at_tips_handle_type').val(Config.atTipsHandleType.toLowerCase());
         $('#pd_cfg_hide_none_vip_enabled').prop('checked', Config.hideNoneVipEnabled);
         $('#pd_cfg_sm_level_up_alert_enabled').prop('checked', Config.smLevelUpAlertEnabled);
         $('#pd_cfg_home_page_thread_fast_goto_link_enabled').prop('checked', Config.homePageThreadFastGotoLinkEnabled);
@@ -1105,7 +1108,7 @@ var ConfigDialog = {
         options.favorSmboxNumbers = $.trim($('#pd_cfg_favor_smbox_numbers').val()).split(',');
         options.autoRefreshEnabled = $('#pd_cfg_auto_refresh_enabled').prop('checked');
         options.showRefreshModeTipsType = $('#pd_cfg_show_refresh_mode_tips_type').val();
-        options.hideMarkReadAtTipsEnabled = $('#pd_cfg_hide_mark_read_at_tips_enabled').prop('checked');
+        options.atTipsHandleType = $('#pd_cfg_at_tips_handle_type').val();
         options.hideNoneVipEnabled = $('#pd_cfg_hide_none_vip_enabled').prop('checked');
         options.smLevelUpAlertEnabled = $('#pd_cfg_sm_level_up_alert_enabled').prop('checked');
         options.homePageThreadFastGotoLinkEnabled = $('#pd_cfg_home_page_thread_fast_goto_link_enabled').prop('checked');
@@ -1313,8 +1316,13 @@ var ConfigDialog = {
                 settings.showRefreshModeTipsType = showRefreshModeTipsType;
             else settings.showRefreshModeTipsType = defConfig.showRefreshModeTipsType;
         }
-        settings.hideMarkReadAtTipsEnabled = typeof options.hideMarkReadAtTipsEnabled === 'boolean' ?
-            options.hideMarkReadAtTipsEnabled : defConfig.hideMarkReadAtTipsEnabled;
+        if (typeof options.atTipsHandleType !== 'undefined') {
+            var atTipsHandleType = $.trim(options.atTipsHandleType).toLowerCase();
+            var allowTypes = ['no_highlight_1', 'no_highlight_2', 'hide_box_1', 'hide_box_2', 'default', 'at_change_to_cao'];
+            if (atTipsHandleType !== '' && $.inArray(atTipsHandleType, allowTypes) > -1)
+                settings.atTipsHandleType = atTipsHandleType;
+            else settings.atTipsHandleType = defConfig.atTipsHandleType;
+        }
         settings.hideNoneVipEnabled = typeof options.hideNoneVipEnabled === 'boolean' ?
             options.hideNoneVipEnabled : defConfig.hideNoneVipEnabled;
         settings.smLevelUpAlertEnabled = typeof options.smLevelUpAlertEnabled === 'boolean' ?
@@ -3874,32 +3882,50 @@ var KFOL = {
     },
 
     /**
-     * 处理首页已读at高亮提示
+     * 处理首页有人@你的消息框
      */
-    handleMarkReadAtTips: function () {
+    handleAtTips: function () {
+        var type = Config.atTipsHandleType;
+        if (type === 'default') return;
         var $atTips = $('a[href^="guanjianci.php?gjc="]');
-        if ($atTips.length > 0) {
-            var cookieText = Tools.getCookie(Config.hideMarkReadAtTipsCookieName);
-            var atTipsText = $atTips.text();
-            if (cookieText) {
-                if (cookieText === atTipsText) {
-                    $atTips.removeClass('indbox5').addClass('indbox6');
-                    return;
+        var noHighlight = function () {
+            $atTips.removeClass('indbox5').addClass('indbox6');
+        };
+        var hideBox = function () {
+            $atTips.parent().prev('div').addBack().remove();
+        };
+        var handleBox = noHighlight;
+        if (type === 'hide_box_1' || type === 'hide_box_2') handleBox = hideBox;
+        if (type === 'no_highlight_1' || type === 'no_highlight_2' || type === 'hide_box_1' || type === 'at_change_to_cao') {
+            if ($atTips.length > 0) {
+                var cookieText = Tools.getCookie(Config.hideMarkReadAtTipsCookieName);
+                var atTipsText = $atTips.text();
+                if (cookieText && cookieText === atTipsText) {
+                    handleBox();
+                }
+                else {
+                    $atTips.click(function () {
+                        Tools.setCookie(Config.hideMarkReadAtTipsCookieName,
+                            atTipsText,
+                            Tools.getDate('+' + Config.hideMarkReadAtTipsExpires + 'd')
+                        );
+                        handleBox();
+                    });
+                }
+                if (type === 'at_change_to_cao') {
+                    $atTips.text(atTipsText.replace('@', '艹'));
                 }
             }
-            $atTips.click(function () {
-                Tools.setCookie(Config.hideMarkReadAtTipsCookieName,
-                    atTipsText,
-                    Tools.getDate('+' + Config.hideMarkReadAtTipsExpires + 'd')
-                );
-                $(this).removeClass('indbox5').addClass('indbox6');
-            });
+            else if ($atTips.length === 0 && (type === 'no_highlight_1' || type === 'at_change_to_cao')) {
+                var html = ('<div style="width:300px;"><a href="guanjianci.php?gjc={0}" target="_blank" class="indbox6">最近无人{1}你</a>' +
+                '<br /><div class="line"></div><div class="c"></div></div><div class="line"></div>')
+                    .replace('{0}', KFOL.userName)
+                    .replace('{1}', type === 'at_change_to_cao' ? '艹' : '@');
+                $('a[href="kf_vmember.php"]:contains("VIP会员")').parent().before(html);
+            }
         }
-        else {
-            var html = ('<div style="width:300px;"><a href="guanjianci.php?gjc={0}" target="_blank" class="indbox6">最近无人@你</a>' +
-            '<br /><div class="line"></div><div class="c"></div></div><div class="line"></div>')
-                .replace('{0}', KFOL.userName);
-            $('a[href="kf_vmember.php"]:contains("VIP会员")').parent().before(html);
+        else if (type === 'hide_box_2') {
+            if ($atTips.length > 0) handleBox();
         }
     },
 
@@ -4970,7 +4996,7 @@ var KFOL = {
         if (Config.addSideBarFastNavEnabled) KFOL.addFastNavForSideBar();
         if (KFOL.isInHomePage) {
             //KFOL.adjustCookiesExpires();
-            if (Config.hideMarkReadAtTipsEnabled) KFOL.handleMarkReadAtTips();
+            KFOL.handleAtTips();
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
             if (Config.homePageThreadFastGotoLinkEnabled) KFOL.addHomePageThreadFastGotoLink();
