@@ -31,6 +31,8 @@ var Config = {
     donationAfterVipEnabled: false,
     // 是否自动领取争夺奖励，true：开启；false：关闭
     autoGetLootAwardEnabled: false,
+    // 批量攻击的目标列表，格式：{攻击ID:次数}，例：{1:10,2:20}
+    batchAttackList: {},
     // 是否自动抽取神秘盒子，true：开启；false：关闭
     autoDrawSmbox2Enabled: false,
     // 偏好的神秘盒子数字，例：[52,1,28,400]（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空
@@ -110,6 +112,8 @@ var Config = {
     maxDonationKfb: 5000,
     // 争夺的默认领取间隔（分钟）
     defLootInterval: 720,
+    // 每回合攻击的最大次数
+    maxAttackNum: 20,
     // 神秘盒子的默认抽奖间隔（分钟）
     defDrawSmboxInterval: 300,
     // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
@@ -1295,6 +1299,21 @@ var ConfigDialog = {
             options.donationAfterVipEnabled : defConfig.donationAfterVipEnabled;
         settings.autoGetLootAwardEnabled = typeof options.autoGetLootAwardEnabled === 'boolean' ?
             options.autoGetLootAwardEnabled : defConfig.autoGetLootAwardEnabled;
+        if (typeof options.batchAttackList !== 'undefined') {
+            if ($.type(options.batchAttackList) === 'object') {
+                settings.batchAttackList = {};
+                var totalAttackNum = 0;
+                for (var id in options.batchAttackList) {
+                    var attackNum = parseInt(options.batchAttackList[id]);
+                    if (!isNaN(attackNum) && attackNum > 0) {
+                        settings.batchAttackList[parseInt(id)] = attackNum;
+                        totalAttackNum += attackNum;
+                    }
+                }
+                if (totalAttackNum > Config.maxAttackNum) settings.batchAttackList = defConfig.batchAttackList;
+            }
+            else settings.batchAttackList = defConfig.batchAttackList;
+        }
         settings.autoDrawSmbox2Enabled = typeof options.autoDrawSmbox2Enabled === 'boolean' ?
             options.autoDrawSmbox2Enabled : defConfig.autoDrawSmbox2Enabled;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
@@ -1719,7 +1738,7 @@ var Log = {
         if ($.type(Log.log[date]) !== 'array') return;
         var logList = Log.log[date];
         if (Config.logSortType === 'type') {
-            var sortTypeList = ['捐款', '领取争夺奖励', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
+            var sortTypeList = ['捐款', '领取争夺奖励', '批量攻击', '抽取神秘盒子', '抽取道具或卡片', '使用道具', '恢复道具', '将道具转换为能量', '将卡片转换为VIP时间',
                 '购买道具', '统计道具购买价格', '出售道具', '神秘抽奖', '统计神秘抽奖结果', '神秘等级升级', '批量转账', '购买帖子', '自动存款'];
             logList.sort(function (a, b) {
                 return $.inArray(a.type, sortTypeList) > $.inArray(b.type, sortTypeList);
@@ -1754,13 +1773,27 @@ var Log = {
             if ($.type(key.gain) === 'object' && !$.isEmptyObject(key.gain)) {
                 stat += '，';
                 for (var k in key.gain) {
-                    stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k].toLocaleString());
+                    if (k === 'item') {
+                        for (var itemName in key.gain['item']) {
+                            stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', itemName).replace('{1}', key.gain['item'][itemName].toLocaleString());
+                        }
+                    }
+                    else {
+                        stat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', k).replace('{1}', key.gain[k].toLocaleString());
+                    }
                 }
             }
             if ($.type(key.pay) === 'object' && !$.isEmptyObject(key.pay)) {
                 if (!stat) stat += '，';
                 for (var k in key.pay) {
-                    stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k].toLocaleString());
+                    if (k === 'item') {
+                        for (var itemName in key.pay['item']) {
+                            stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', itemName).replace('{1}', key.pay['item'][itemName].toLocaleString());
+                        }
+                    }
+                    else {
+                        stat += '<i>{0}<ins>{1}</ins></i>'.replace('{0}', k).replace('{1}', key.pay[k].toLocaleString());
+                    }
                 }
             }
             content += stat + '</p>';
@@ -1798,6 +1831,7 @@ var Log = {
                 if (key.notStat || typeof key.type === 'undefined') return;
                 if ($.type(key.gain) === 'object') {
                     for (var k in key.gain) {
+                        if (k === 'item' || k === '夺取KFB') continue;
                         if (typeof income[k] === 'undefined') income[k] = key.gain[k];
                         else income[k] += key.gain[k];
                     }
@@ -1807,6 +1841,7 @@ var Log = {
                 }
                 if ($.type(key.pay) === 'object') {
                     for (var k in key.pay) {
+                        if (k === 'item' || k === '夺取KFB') continue;
                         if (typeof expense[k] === 'undefined') expense[k] = key.pay[k];
                         else expense[k] += key.pay[k];
                     }
@@ -2487,16 +2522,18 @@ var Item = {
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === settings.itemList.length - 1) {
                         KFOL.removePopTips($('.pd_pop_tips'));
-                        Log.push('出售道具',
-                            '共有`{0}`个【`Lv.{1}：{2}`】道具出售成功'
-                                .replace('{0}', successNum)
-                                .replace('{1}', settings.itemLevel)
-                                .replace('{2}', settings.itemName),
-                            {
-                                gain: {'KFB': totalGain},
-                                pay: {'道具': -successNum}
-                            }
-                        );
+                        if (successNum > 0) {
+                            Log.push('出售道具',
+                                '共有`{0}`个【`Lv.{1}：{2}`】道具出售成功'
+                                    .replace('{0}', successNum)
+                                    .replace('{1}', settings.itemLevel)
+                                    .replace('{2}', settings.itemName),
+                                {
+                                    gain: {'KFB': totalGain},
+                                    pay: {'道具': -successNum}
+                                }
+                            );
+                        }
                         console.log('共有{0}个道具出售成功，共有{1}个道具出售失败，KFB+{2}'
                                 .replace('{0}', successNum)
                                 .replace('{1}', failNum)
@@ -2577,7 +2614,7 @@ var Item = {
                 });
             });
         if (itemTypeId >= 7 && itemTypeId <= 12) {
-            $('<button>出售道具</button>').prependTo('.pd_item_btns').click(function () {
+            $('<button class="pd_highlight">出售道具</button>').prependTo('.pd_item_btns').click(function () {
                 KFOL.removePopTips($('.pd_pop_tips'));
                 var itemList = [];
                 $('.kf_fw_ig1 input[type="checkbox"]:checked').each(function () {
@@ -2602,7 +2639,7 @@ var Item = {
      * @param {jQuery} $result 购买结果的jQuery对象
      */
     statBuyItemsPrice: function ($result) {
-        var succesNum = 0, failNum = 0, totalPrice = 0, minPrice = 0, maxPrice = 0, totalNum = $result.find('li > a').length;
+        var successNum = 0, failNum = 0, totalPrice = 0, minPrice = 0, maxPrice = 0, totalNum = $result.find('li > a').length;
         KFOL.showWaitMsg('<strong>正在统计购买价格中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                 .replace('{0}', totalNum)
             , true);
@@ -2617,7 +2654,7 @@ var Item = {
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     var matches = /从商店购买，购买价(\d+)KFB。<br>/i.exec(html);
                     if (matches) {
-                        succesNum++;
+                        successNum++;
                         var price = parseInt(matches[1]);
                         totalPrice += price;
                         if (minPrice === 0) minPrice = price;
@@ -2631,20 +2668,22 @@ var Item = {
                     }
                     if (index === totalNum - 1) {
                         KFOL.removePopTips($('.pd_pop_tips'));
-                        Log.push('统计道具购买价格', '共有`{0}`个道具统计成功{1}，总计价格：`{2}`，平均价格：`{3}`，最低价格：`{4}`，最高价格：`{5}`'
-                                .replace('{0}', succesNum)
-                                .replace('{1}', failNum > 0 ? '（共有`{0}`个道具未能统计成功）'.replace('{0}', failNum) : '')
-                                .replace('{2}', totalPrice.toLocaleString())
-                                .replace('{3}', succesNum > 0 ? (totalPrice / succesNum).toFixed(2).toLocaleString() : 0)
-                                .replace('{4}', minPrice.toLocaleString())
-                                .replace('{5}', maxPrice.toLocaleString())
-                            , {pay: {'KFB': -totalPrice}}
-                        );
+                        if (successNum > 0) {
+                            Log.push('统计道具购买价格', '共有`{0}`个道具统计成功{1}，总计价格：`{2}`，平均价格：`{3}`，最低价格：`{4}`，最高价格：`{5}`'
+                                    .replace('{0}', successNum)
+                                    .replace('{1}', failNum > 0 ? '（共有`{0}`个道具未能统计成功）'.replace('{0}', failNum) : '')
+                                    .replace('{2}', totalPrice.toLocaleString())
+                                    .replace('{3}', successNum > 0 ? (totalPrice / successNum).toFixed(2).toLocaleString() : 0)
+                                    .replace('{4}', minPrice.toLocaleString())
+                                    .replace('{5}', maxPrice.toLocaleString())
+                                , {pay: {'KFB': -totalPrice}}
+                            );
+                        }
                         console.log('统计道具购买价格（KFB）（共有{0}个道具未能统计成功），统计成功数量：{1}，总计价格：{2}，平均价格：{3}，最低价格：{4}，最高价格：{5}'
                                 .replace('{0}', failNum)
-                                .replace('{1}', succesNum)
+                                .replace('{1}', successNum)
                                 .replace('{2}', totalPrice.toLocaleString())
-                                .replace('{3}', succesNum > 0 ? (totalPrice / succesNum).toFixed(2).toLocaleString() : 0)
+                                .replace('{3}', successNum > 0 ? (totalPrice / successNum).toFixed(2).toLocaleString() : 0)
                                 .replace('{4}', minPrice.toLocaleString())
                                 .replace('{5}', maxPrice.toLocaleString())
                         );
@@ -2652,9 +2691,9 @@ var Item = {
                             ('<li class="pd_stat"><b>统计结果{0}：</b><br /><i>统计成功数量：<em>{1}</em></i><i>总计价格：<em>{2}</em></i>' +
                             '<i>平均价格：<em>{3}</em></i><i>最低价格：<em>{4}</em></i><i>最高价格：<em>{5}</em></i></li>')
                                 .replace('{0}', failNum > 0 ? '<span class="pd_notice">（共有{0}个道具未能统计成功）</span>'.replace('{0}', failNum) : '')
-                                .replace('{1}', succesNum)
+                                .replace('{1}', successNum)
                                 .replace('{2}', totalPrice.toLocaleString())
-                                .replace('{3}', succesNum > 0 ? (totalPrice / succesNum).toFixed(2).toLocaleString() : 0)
+                                .replace('{3}', successNum > 0 ? (totalPrice / successNum).toFixed(2).toLocaleString() : 0)
                                 .replace('{4}', minPrice.toLocaleString())
                                 .replace('{5}', maxPrice.toLocaleString())
                         );
@@ -3314,7 +3353,7 @@ var Loot = {
                             TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime());
                             Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
                             console.log('领取争夺奖励，KFB+' + gain);
-                            KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i><a target="_blank" href="kf_fw_ig_pklist.php">攻击NPC</a>'
+                            KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i><a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>'
                                     .replace('{0}', gain)
                             );
                             if (isAutoDonation) KFOL.donation(false);
@@ -3325,6 +3364,202 @@ var Loot = {
                 Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
             }
         }, 'html');
+    },
+
+    getGainViaMsg: function (msg) {
+        var gain = {};
+        var matches = /被实际夺取(\d+)KFB/i.exec(msg);
+        if (matches) gain['夺取KFB'] = parseInt(matches[1]);
+        matches = /被实际燃烧(\d+)KFB/i.exec(msg);
+        if (matches) gain['经验值'] = parseInt(matches[1]);
+        matches = /掉落道具!(.+?)$/.exec(msg);
+        if (matches) {
+            gain['道具'] = 1;
+            var item = {};
+            item[matches[1]] = 1;
+            gain['item'] = item;
+        }
+        return gain;
+    },
+
+    /**
+     * 批量攻击
+     * @param {Object} options 设置项
+     * @param {number} options.type 攻击类型，1：在争夺页面中进行批量攻击；2：在自动争夺中进行批量攻击
+     * @param {number} options.totalAttackNum 总攻击次数
+     * @param {Object} options.attackList 攻击目标列表
+     * @param {string} options.safeId 用户的SafeID
+     */
+    batchAttack: function (options) {
+        var settings = {
+            type: 1,
+            totalAttackNum: 0,
+            attackList: {},
+            safeId: ''
+        };
+        $.extend(settings, options);
+        $('.kf_fw_ig1').parent().append('<ul class="pd_result"><li><strong>攻击结果：</strong></li></ul>');
+        var count = 0, successNum = 0, failNum = 0;
+        var gain = {};
+        $.each(settings.attackList, function (id, num) {
+            for (var i = 1; i <= num; i++) {
+                window.setTimeout(function () {
+                    $.ajax({
+                        type: 'POST',
+                        url: 'kf_fw_ig_pkhit.php',
+                        data: {uid: id, safeid: settings.safeId},
+                        success: function (msg) {
+                            if (/发起争夺/.test(msg)) {
+                                successNum++;
+                                $.each(Loot.getGainViaMsg(msg), function (key, data) {
+                                    if (key === 'item') {
+                                        if (typeof gain[key] === 'undefined') gain['item'] = {};
+                                        for (var k in data) {
+                                            if (typeof gain['item'][k] === 'undefined') gain['item'][k] = data[k];
+                                            else gain['item'][k] += data[k];
+                                        }
+                                    }
+                                    else {
+                                        if (typeof gain[key] === 'undefined') gain[key] = data;
+                                        else gain[key] += data;
+                                    }
+                                });
+                            }
+                            else failNum++;
+                            console.log('【批量攻击】回应：' + msg);
+                            $('.pd_result:last').append('<li>{0}</li>'.replace('{0}', msg));
+                        },
+                        error: function () {
+                            failNum++;
+                        },
+                        complete: function () {
+                            var $remainingNum = $('#pd_remaining_num');
+                            $remainingNum.text(parseInt($remainingNum.text()) - 1);
+                            if (successNum + failNum === settings.totalAttackNum) {
+                                KFOL.removePopTips($('.pd_pop_tips'));
+                                if (successNum > 0) {
+                                    Log.push('批量攻击', '共有`{0}`次攻击成功'.replace('{0}', successNum), {gain: gain});
+                                }
+                                var msgStat = '', logStat = '', resultStat = '';
+                                for (var key in gain) {
+                                    if (key === 'item') {
+                                        msgStat += '<br />';
+                                        for (var itemName in gain['item']) {
+                                            msgStat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', itemName).replace('{1}', gain['item'][itemName]);
+                                            logStat += '，{0}+{1}'.replace('{0}', itemName).replace('{1}', gain['item'][itemName]);
+                                        }
+                                    }
+                                    else {
+                                        msgStat += '<i>{0}<em>+{1}</em></i>'.replace('{0}', key).replace('{1}', gain[key]);
+                                        logStat += '，{0}+{1}'.replace('{0}', key).replace('{1}', gain[key]);
+                                    }
+                                }
+                                resultStat = msgStat.replace('</i><br />', '</i>');
+                                console.log('共有{0}次攻击成功{1}{2}'
+                                        .replace('{0}', successNum)
+                                        .replace('{1}', failNum > 0 ? '，共有{0}次攻击失败'.replace('{0}', failNum) : '')
+                                        .replace('{2}', logStat)
+                                );
+                                KFOL.showMsg('<strong>共有<em>{0}</em>次攻击成功{1}</strong>{2}'
+                                        .replace('{0}', successNum)
+                                        .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>次攻击失败'.replace('{0}', failNum) : '')
+                                        .replace('{2}', msgStat)
+                                    , -1);
+                                $('.pd_result:last').append('<li class="pd_stat"><b>统计结果：</b><br />{0}</li>'.replace('{0}', resultStat ? resultStat : '无'));
+                            }
+                        },
+                        dataType: 'html'
+                    });
+                }, count * Config.defAjaxInterval);
+                count++;
+            }
+        });
+    },
+
+    /**
+     * 添加批量攻击按钮
+     */
+    addBatchAttackButton: function () {
+        var safeId = KFOL.getSafeId();
+        if (!safeId) return;
+        $('.kf_fw_ig1 > tbody > tr > td:last-child').each(function (index) {
+            var $this = $(this);
+            if (index === 0) $this.attr('colspan', 5);
+            else if (index === 1) $this.css('width', '310').after('<td>批量攻击</td>');
+            var hitId = parseInt($this.find('a').attr('hitid'));
+            if (!hitId) return;
+            $this.css('width', '330')
+                .after(('<td class="pd_batch_attack" style="width:70px;text-align:center"><label>' +
+                '<input style="width:15px" class="pd_input" type="text" maxlength="2" data-id="{0}" value="{1}" /> 次</label></td>')
+                    .replace('{0}', hitId)
+                    .replace('{1}', Config.batchAttackList[hitId] ? Config.batchAttackList[hitId] : '')
+            );
+        });
+        $('.pd_batch_attack .pd_input').keydown(function (event) {
+            if (event.keyCode === 13) {
+                $('.pd_item_btns > button:last-child').click();
+            }
+        });
+        /**
+         * 获取攻击列表和总次数
+         * @param {Object} attackList 攻击目标列表
+         * @returns {number} 攻击总次数
+         */
+        var getAttackNum = function (attackList) {
+            var totalAttackNum = 0;
+            $('.pd_batch_attack .pd_input').each(function () {
+                var $this = $(this);
+                var attackNum = $.trim($this.val());
+                if (!attackNum) return 0;
+                attackNum = parseInt(attackNum);
+                if (isNaN(attackNum) || attackNum < 0) {
+                    alert('攻击次数格式不正确');
+                    $this.select();
+                    $this.focus();
+                    return 0;
+                }
+                attackList[parseInt($this.data('id'))] = attackNum;
+                totalAttackNum += attackNum;
+            });
+            if ($.isEmptyObject(attackList)) return 0;
+            if (totalAttackNum > Config.maxAttackNum) {
+                alert('攻击次数不得超过{0}次'.replace('{0}', Config.maxAttackNum));
+                return 0;
+            }
+            return totalAttackNum;
+        };
+        $('.kf_fw_ig1');
+        $('<div class="pd_item_btns"><button>保存设置</button><button>清除设置</button><button><b>批量攻击</b></button></div>')
+            .insertAfter('.kf_fw_ig1')
+            .find('button:first-child')
+            .click(function () {
+                var attackList = {};
+                var totalAttackNum = getAttackNum(attackList);
+                if (totalAttackNum == 0) return;
+                ConfigDialog.read();
+                Config.batchAttackList = attackList;
+                ConfigDialog.write();
+                alert('设置已保存');
+            })
+            .next()
+            .click(function () {
+                ConfigDialog.read();
+                Config.batchAttackList = {};
+                ConfigDialog.write();
+                alert('设置已清除');
+            })
+            .next()
+            .click(function () {
+                KFOL.removePopTips($('.pd_pop_tips'));
+                var attackList = {};
+                var totalAttackNum = getAttackNum(attackList);
+                if (!totalAttackNum) return;
+                if (!window.confirm('准备进行{0}次批量攻击，是否开始攻击？'.replace('{0}', totalAttackNum))) return;
+                KFOL.showWaitMsg('<strong>正在批量攻击中...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', totalAttackNum)
+                    , true);
+                Loot.batchAttack({type: 1, totalAttackNum: totalAttackNum, attackList: attackList, safeId: safeId});
+            });
     }
 };
 
@@ -4619,7 +4854,10 @@ var KFOL = {
                     $remainingNum.text(parseInt($remainingNum.text()) - 1);
                     if (index === urlList.length - 1) {
                         KFOL.removePopTips($('.pd_pop_tips'));
-                        Log.push('购买帖子', '共有`{0}`个帖子购买成功'.replace('{0}', successNum), {pay: {'KFB': -totalSell}});
+                        if (successNum > 0) {
+                            Log.push('购买帖子', '共有`{0}`个帖子购买成功'.replace('{0}', successNum), {pay: {'KFB': -totalSell}});
+                        }
+                        else totalSell = 0;
                         console.log('共有{0}个帖子购买成功，共有{1}个帖子购买失败，KFB-{2}'
                                 .replace('{0}', successNum)
                                 .replace('{1}', failNum)
@@ -5055,11 +5293,14 @@ var KFOL = {
         else if (/\/message\.php($|\?action=receivebox)/i.test(location.href)) {
             KFOL.addMsgSelectButton();
         }
+        else if (location.pathname === '/kf_fw_ig_shop.php') {
+            Item.addBatchBuyItemsLink();
+        }
         else if (location.pathname === '/kf_fw_ig_index.php') {
             Loot.showGetLootAwardTime();
         }
-        else if (location.pathname === '/kf_fw_ig_shop.php') {
-            Item.addBatchBuyItemsLink();
+        else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
+            Loot.addBatchAttackButton();
         }
         KFOL.blockUsers();
         KFOL.followUsers();
