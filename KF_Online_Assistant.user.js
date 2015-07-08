@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.9.1
+// @version     3.9.2
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.9.1';
+var version = '3.9.2';
 /**
  * 配置类
  */
@@ -2531,6 +2531,24 @@ var Item = {
     },
 
     /**
+     * 获取指定等级道具的出售所得
+     * @param {number} itemLevel 道具等级
+     * @returns {number} 出售所得
+     */
+    getSellItemGain: function (itemLevel) {
+        switch (itemLevel) {
+            case 3:
+                return 300;
+            case 4:
+                return 2000;
+            case 5:
+                return 8000;
+            default:
+                return 0;
+        }
+    },
+
+    /**
      * 出售指定的一系列道具
      * @param {Object} options 设置项
      * @param {string[]} options.itemList 指定的道具ID列表
@@ -2545,23 +2563,6 @@ var Item = {
             itemName: ''
         };
         $.extend(settings, options);
-        /**
-         * 获取指定等级道具的出售所得
-         * @param {number} itemLevel 道具等级
-         * @returns {number} 出售所得
-         */
-        var getSellItemGain = function (itemLevel) {
-            switch (itemLevel) {
-                case 3:
-                    return 300;
-                case 4:
-                    return 2000;
-                case 5:
-                    return 8000;
-                default:
-                    return 0;
-            }
-        };
         var successNum = 0, failNum = 0, totalGain = 0;
         $(document).queue('SellItems', []);
         $.each(settings.itemList, function (index, itemId) {
@@ -2571,7 +2572,7 @@ var Item = {
                     KFOL.showFormatLog('出售道具', html);
                     if (/出售成功/.test(html)) {
                         successNum++;
-                        totalGain += getSellItemGain(settings.itemLevel);
+                        totalGain += Item.getSellItemGain(settings.itemLevel);
                     }
                     else failNum++;
                     var $remainingNum = $('#pd_remaining_num');
@@ -2864,6 +2865,22 @@ var Item = {
             });
             $(document).dequeue('BatchBuyItems');
         });
+    },
+
+    /**
+     * 修正道具卖出价格描述
+     */
+    modifyItemSellInfo: function () {
+        var $node = $('.kf_fw_ig1 > tbody > tr:nth-child(3) > td:last-child');
+        var html = $node.html();
+        var matches = /道具等级：(\d+)级道具/.exec(html);
+        if (!matches) return;
+        var sell = Item.getSellItemGain(parseInt(matches[1]));
+        if (!sell) return;
+        html = html.replace(/(卖出获得\d+道具恢复能量)/,
+            '<strike>$1</strike><span style="color:#00F" title="信息可能有误，请确认后再出售">（卖出获得{0}KFB）</span>'.replace('{0}', sell)
+        );
+        $node.html(html);
     }
 };
 
@@ -3475,6 +3492,7 @@ var Loot = {
      * 检查自动攻击是否完成
      */
     checkAutoAttack: function () {
+        if (!Tools.getCookie(Config.autoAttackingCookieName))return;
         var safeId = KFOL.getSafeId();
         if (!safeId) return;
         if (window.confirm('之前的自动攻击似乎并未完成，是否继续自动攻击？')) {
@@ -3482,6 +3500,7 @@ var Loot = {
             for (var id in Config.batchAttackList) {
                 totalAttackNum += Config.batchAttackList[id];
             }
+            if (!totalAttackNum) return;
             KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
                     .replace('{0}', totalAttackNum)
                 , true);
@@ -5438,6 +5457,9 @@ var KFOL = {
         else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
             Loot.addBatchAttackButton();
         }
+        else if (/\/kf_fw_ig_my\.php\?pro=\d+$/i.test(location.href)) {
+            Item.modifyItemSellInfo();
+        }
         KFOL.blockUsers();
         KFOL.followUsers();
 
@@ -5461,8 +5483,8 @@ var KFOL = {
 
         if (autoSaveCurrentDepositAvailable && !isDonationStarted) KFOL.autoSaveCurrentDeposit();
 
-        if (KFOL.isInHomePage && Tools.getCookie(Config.autoAttackingCookieName)) {
-            Loot.checkAutoAttack();
+        if (Config.autoAttackEnabled && KFOL.isInHomePage) {
+            window.setTimeout(Loot.checkAutoAttack, 2000);
         }
 
         /*if (Config.autoRefreshEnabled) {
