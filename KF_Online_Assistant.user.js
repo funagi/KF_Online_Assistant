@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.9.0
+// @version     3.9.1-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.9.0';
+var version = '3.9.1';
 /**
  * 配置类
  */
@@ -648,10 +648,10 @@ var ConfigDialog = {
             '</form>';
         var $dialog = $(html).appendTo('body');
 
-        $dialog.find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
-            return Tools.close('pd_config');
-        }).end().find('.pd_cfg_tips').click(function () {
+        $dialog.on('click', '.pd_cfg_tips', function () {
             return false;
+        }).find('h1 > span, .pd_cfg_btns > button:eq(1)').click(function () {
+            return Tools.close('pd_config');
         }).end().find('.pd_cfg_btns > button:eq(2)').click(function (event) {
             event.preventDefault();
             if (window.confirm('是否重置所有设置？')) {
@@ -3377,68 +3377,76 @@ var Loot = {
     },
 
     /**
-     * 争夺
+     * 领取争夺奖励
      * @param {boolean} isAutoDonation 是否自动捐款
      */
-    loot: function (isAutoDonation) {
-        console.log('争夺Start');
+    getLootAward: function (isAutoDonation) {
+        console.log('领取争夺奖励Start');
+        var autoAttack = function (safeId) {
+            if (Config.autoAttackEnabled && !$.isEmptyObject(Config.batchAttackList) && safeId) {
+                Tools.setCookie(Config.autoAttackingCookieName, 1);
+                var totalAttackNum = 0;
+                for (var id in Config.batchAttackList) {
+                    totalAttackNum += Config.batchAttackList[id];
+                }
+                KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
+                        .replace('{0}', totalAttackNum)
+                    , true);
+                Loot.batchAttack({
+                    type: 2,
+                    totalAttackNum: totalAttackNum,
+                    attackList: Config.batchAttackList,
+                    safeId: safeId
+                });
+            }
+        };
         $.get('kf_fw_ig_index.php', function (html) {
             var matches = /<INPUT name="submit1" type="submit" value="(.+?)"/i.exec(html);
             if (!matches) {
                 Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
                 return;
             }
+            var safeIdMatches = /<a href="kf_fw_card_pk\.php\?safeid=(\w+)">/i.exec(html);
+            var safeId = '';
+            if (safeIdMatches) safeId = safeIdMatches[1];
             var remainingMatches = /还有(\d+)(分钟|小时)领取/i.exec(matches[1]);
             if (remainingMatches) {
                 var lootInterval = parseInt(remainingMatches[1]);
                 if (remainingMatches[2] === '小时') lootInterval = lootInterval * 60;
                 lootInterval++;
                 Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + lootInterval + 'm'));
-                return;
-            }
-            if (/(点击这里预领KFB|已经可以领取KFB)/i.test(matches[1])) {
-                var gainMatches = /当前拥有\s*<span style=".+?">(\d+)<\/span>\s*预领KFB<br \/>/i.exec(html);
-                var gain = 0;
-                if (gainMatches) gain = parseInt(gainMatches[1]);
-                var safeIdMatches = /<a href="kf_fw_card_pk\.php\?safeid=(\w+)">/i.exec(html);
-                var safeId = '';
-                if (safeIdMatches) safeId = safeIdMatches[1];
-                $.post('kf_fw_ig_index.php',
-                    {submit1: 1, one: 1},
-                    function (html) {
-                        Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
-                        KFOL.showFormatLog('领取争夺奖励', html);
-                        if (/(领取成功！|已经预领\d+KFB)/i.test(html)) {
-                            TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime());
-                            Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
-                            console.log('领取争夺奖励，KFB+' + gain);
-                            KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i>{1}'
-                                    .replace('{0}', gain)
-                                    .replace('{1}', !Config.autoAttackEnabled ? '<a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>' : '')
-                            );
-                            if (Config.autoAttackEnabled && !$.isEmptyObject(Config.batchAttackList) && safeId) {
-                                Tools.setCookie(Config.autoAttackingCookieName, 1);
-                                var totalAttackNum = 0;
-                                for (var id in Config.batchAttackList) {
-                                    totalAttackNum += Config.batchAttackList[id];
-                                }
-                                KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
-                                        .replace('{0}', totalAttackNum)
-                                    , true);
-                                Loot.batchAttack({
-                                    type: 2,
-                                    totalAttackNum: totalAttackNum,
-                                    attackList: Config.batchAttackList,
-                                    safeId: safeId
-                                });
-                            }
-                            if (isAutoDonation) KFOL.donation(false);
-                        }
-                    }, 'html');
+                var attackNumMatches = />本回合剩余攻击次数\s*(\d+)\s*次<\/span><br/.exec(html);
+                if (attackNumMatches && parseInt(attackNumMatches[1]) > 0) {
+                    autoAttack(safeId);
+                }
             }
             else {
-                Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                if (/(点击这里预领KFB|已经可以领取KFB)/i.test(matches[1])) {
+                    var gainMatches = /当前拥有\s*<span style=".+?">(\d+)<\/span>\s*预领KFB<br \/>/i.exec(html);
+                    var gain = 0;
+                    if (gainMatches) gain = parseInt(gainMatches[1]);
+                    $.post('kf_fw_ig_index.php',
+                        {submit1: 1, one: 1},
+                        function (html) {
+                            Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                            KFOL.showFormatLog('领取争夺奖励', html);
+                            if (/(领取成功！|已经预领\d+KFB)/i.test(html)) {
+                                TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime());
+                                Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
+                                console.log('领取争夺奖励，KFB+' + gain);
+                                KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i>{1}'
+                                        .replace('{0}', gain)
+                                        .replace('{1}', !Config.autoAttackEnabled ? '<a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>' : '')
+                                );
+                                autoAttack(safeId);
+                            }
+                        }, 'html');
+                }
+                else {
+                    Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                }
             }
+            if (isAutoDonation) KFOL.donation(false);
         }, 'html');
     },
 
@@ -3738,6 +3746,15 @@ var KFOL = {
         if (!matches) return false;
         KFOL.uid = matches[1];
         return true;
+    },
+
+    /**
+     * 获取用户的SafeID
+     */
+    getSafeId: function () {
+        var matches = /safeid=(\w+)/i.exec($('a[href*="safeid="]').eq(0).attr('href'));
+        if (!matches) return '';
+        else return matches[1];
     },
 
     /**
@@ -4212,15 +4229,6 @@ var KFOL = {
         };
         window.setTimeout(checkRefreshInterval, interval * 1000);
         showRefreshModeTips(interval);
-    },
-
-    /**
-     * 获取用户的SafeID
-     */
-    getSafeId: function () {
-        var matches = /safeid=(\w+)/i.exec($('a[href*="safeid="]').eq(0).attr('href'));
-        if (!matches) return '';
-        else return matches[1];
     },
 
     /**
@@ -5362,7 +5370,6 @@ var KFOL = {
         if (Config.modifySideBarEnabled) KFOL.modifySideBar();
         if (Config.addSideBarFastNavEnabled) KFOL.addFastNavForSideBar();
         if (KFOL.isInHomePage) {
-            //KFOL.adjustCookiesExpires();
             KFOL.handleAtTips();
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
@@ -5438,7 +5445,7 @@ var KFOL = {
         var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
         if (Config.autoLootEnabled && !Tools.getCookie(Config.getLootAwardCookieName)) {
             isGetLootAwardStarted = true;
-            Loot.loot(autoDonationAvailable);
+            Loot.getLootAward(autoDonationAvailable);
         }
 
         if (Config.autoDrawSmbox2Enabled && !Tools.getCookie(Config.drawSmboxCookieName)) {
