@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.9.2
+// @version     3.9.3
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.9.2';
+var version = '3.9.3';
 /**
  * 配置类
  */
@@ -113,7 +113,7 @@ var Config = {
     // KFB捐款额度的最大值
     maxDonationKfb: 5000,
     // 争夺的默认领取间隔（分钟）
-    defLootInterval: 720,
+    defLootInterval: 660,
     // 每回合攻击的最大次数
     maxAttackNum: 20,
     // 神秘盒子的默认抽奖间隔（分钟）
@@ -138,6 +138,8 @@ var Config = {
     donationCookieName: 'pd_donation',
     // 标记已领取争夺奖励的Cookie名称
     getLootAwardCookieName: 'pd_get_loot_award',
+    // 标记自动攻击已开始的Cookie名称
+    autoAttackStartCookieName: 'pd_auto_attack_start',
     // 标记正在进行自动攻击的Cookie名称
     autoAttackingCookieName: 'pd_auto_attacking',
     // 标记已抽取神秘盒子的Cookie名称
@@ -1240,6 +1242,11 @@ var ConfigDialog = {
             return false;
         }
 
+        if ($('#pd_cfg_auto_loot_enabled').prop('checked') && $('#pd_cfg_auto_draw_smbox_enabled').prop('checked')) {
+            alert('请不要将自动争夺与自动抽取神秘盒子一起使用');
+            return false;
+        }
+
         var $txtFavorSmboxNumbers = $('#pd_cfg_favor_smbox_numbers');
         var favorSmboxNumbers = $.trim($txtFavorSmboxNumbers.val());
         if (favorSmboxNumbers) {
@@ -1372,6 +1379,7 @@ var ConfigDialog = {
         }
         settings.autoDrawSmbox2Enabled = typeof options.autoDrawSmbox2Enabled === 'boolean' ?
             options.autoDrawSmbox2Enabled : defConfig.autoDrawSmbox2Enabled;
+        if (settings.autoDrawSmbox2Enabled && settings.autoLootEnabled) settings.autoDrawSmbox2Enabled = false;
         if (typeof options.favorSmboxNumbers !== 'undefined') {
             if ($.isArray(options.favorSmboxNumbers)) {
                 settings.favorSmboxNumbers = [];
@@ -2538,11 +2546,11 @@ var Item = {
     getSellItemGain: function (itemLevel) {
         switch (itemLevel) {
             case 3:
-                return 300;
+                return 150;
             case 4:
-                return 2000;
+                return 1000;
             case 5:
-                return 8000;
+                return 5000;
             default:
                 return 0;
         }
@@ -2865,22 +2873,6 @@ var Item = {
             });
             $(document).dequeue('BatchBuyItems');
         });
-    },
-
-    /**
-     * 修正道具卖出价格描述
-     */
-    modifyItemSellInfo: function () {
-        var $node = $('.kf_fw_ig1 > tbody > tr:nth-child(3) > td:last-child');
-        var html = $node.html();
-        var matches = /道具等级：(\d+)级道具/.exec(html);
-        if (!matches) return;
-        var sell = Item.getSellItemGain(parseInt(matches[1]));
-        if (!sell) return;
-        html = html.replace(/(卖出获得\d+道具恢复能量)/,
-            '<strike>$1</strike><span style="color:#00F" title="信息可能有误，请确认后再出售">（卖出获得{0}KFB）</span>'.replace('{0}', sell)
-        );
-        $node.html(html);
     }
 };
 
@@ -3401,13 +3393,15 @@ var Loot = {
         console.log('领取争夺奖励Start');
         var autoAttack = function (safeId) {
             if (Config.autoAttackEnabled && !$.isEmptyObject(Config.batchAttackList) && safeId) {
-                Tools.setCookie(Config.autoAttackingCookieName, 1);
+                Tools.setCookie(Config.autoAttackStartCookieName, 1);
+                Tools.setCookie(Config.autoAttackingCookieName, 1, Tools.getDate('+2m'));
                 var totalAttackNum = 0;
                 for (var id in Config.batchAttackList) {
                     totalAttackNum += Config.batchAttackList[id];
                 }
-                KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
+                KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
                         .replace('{0}', totalAttackNum)
+                        .replace('{1}', location.href)
                     , true);
                 Loot.batchAttack({
                     type: 2,
@@ -3492,17 +3486,18 @@ var Loot = {
      * 检查自动攻击是否完成
      */
     checkAutoAttack: function () {
-        if (!Tools.getCookie(Config.autoAttackingCookieName))return;
         var safeId = KFOL.getSafeId();
         if (!safeId) return;
         if (window.confirm('之前的自动攻击似乎并未完成，是否继续自动攻击？')) {
+            Tools.setCookie(Config.autoAttackingCookieName, 1, Tools.getDate('+2m'));
             var totalAttackNum = 0;
             for (var id in Config.batchAttackList) {
                 totalAttackNum += Config.batchAttackList[id];
             }
             if (!totalAttackNum) return;
-            KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
+            KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
                     .replace('{0}', totalAttackNum)
+                    .replace('{1}', location.href)
                 , true);
             Loot.batchAttack({
                 type: 2,
@@ -3512,7 +3507,7 @@ var Loot = {
             });
         }
         else {
-            Tools.setCookie(Config.autoAttackingCookieName, '', Tools.getDate('-1d'));
+            Tools.setCookie(Config.autoAttackStartCookieName, '', Tools.getDate('-1d'));
         }
     },
 
@@ -3527,7 +3522,7 @@ var Loot = {
             '<div class="pd_cfg_box" id="pd_attack_log" style="z-index:1002">' +
             '  <h1>批量攻击日志<span>&times;</span></h1>' +
             '  <div class="pd_cfg_main">' +
-            '    <textarea style="width:800px;height:350px;margin:5px 0" readonly="readonly"></textarea>' +
+            '    <textarea style="width:850px;height:350px;margin:5px 0" readonly="readonly"></textarea>' +
             '  </div>' +
             '</div>' +
             '</form>';
@@ -3560,17 +3555,17 @@ var Loot = {
         $.extend(settings, options);
         if (settings.type === 1)
             $('.kf_fw_ig1').parent().append('<ul class="pd_result"><li><strong>攻击结果：</strong></li></ul>');
-        var count = 0, successNum = 0, failNum = 0;
+        var count = 0, successNum = 0;
         var gain = {'夺取KFB': 0, '经验值': 0};
-        var attackLog = '';
+        var attackLog = '', isStop = false;
+        $(document).queue('BatchAttack', []);
         $.each(settings.attackList, function (id, num) {
-            for (var i = 1; i <= num; i++) {
-                window.setTimeout(function () {
-                    $.ajax({
-                        type: 'POST',
-                        url: 'kf_fw_ig_pkhit.php',
-                        data: {uid: id, safeid: settings.safeId},
-                        success: function (msg) {
+            $.each(new Array(num), function () {
+                $(document).queue('BatchAttack', function () {
+                    count++;
+                    $.post('kf_fw_ig_pkhit.php',
+                        {uid: id, safeid: settings.safeId},
+                        function (msg) {
                             if (/发起争夺/.test(msg)) {
                                 successNum++;
                                 $.each(Loot.getGainViaMsg(msg), function (key, data) {
@@ -3587,19 +3582,24 @@ var Loot = {
                                     }
                                 });
                             }
-                            else failNum++;
-                            attackLog += msg + '\n';
-                            if (settings.type === 1) {
-                                $('.pd_result:last').append('<li>{0}</li>'.replace('{0}', msg));
+                            else if(!/每次攻击间隔\d+秒/.test(msg)) {
+                                isStop = true;
+                                $(document).queue('BatchAttack', []);
                             }
-                        },
-                        error: function () {
-                            failNum++;
-                        },
-                        complete: function () {
+                            attackLog += '第{0}次：{1}{2}\n'.replace('{0}', count).replace('{1}', msg).replace('{2}', isStop ? '（攻击已中止）' : '');
+                            if (settings.type === 2) {
+                                console.log('【批量攻击】第{0}次：{1}{2}'.replace('{0}', count).replace('{1}', msg).replace('{2}', isStop ? '（攻击已中止）' : ''));
+                            }
+                            else {
+                                $('.pd_result:last').append('<li><b>第{0}次：</b>{1}{2}</li>'
+                                        .replace('{0}', count)
+                                        .replace('{1}', msg)
+                                        .replace('{2}', isStop ? '<span class="pd_notice">（攻击已中止）</span>' : '')
+                                );
+                            }
                             var $remainingNum = $('#pd_remaining_num');
                             $remainingNum.text(parseInt($remainingNum.text()) - 1);
-                            if (successNum + failNum === settings.totalAttackNum) {
+                            if (isStop || count === settings.totalAttackNum) {
                                 KFOL.removePopTips($remainingNum.closest('.pd_pop_tips'));
                                 if (gain['夺取KFB'] === 0) delete gain['夺取KFB'];
                                 if (gain['经验值'] === 0) delete gain['经验值'];
@@ -3621,21 +3621,19 @@ var Loot = {
                                     }
                                 }
                                 resultStat = msgStat.replace('</i><br />', '</i>');
-                                console.log('共有{0}次攻击成功，共有{1}次攻击失败{2}'
+                                console.log('共有{0}次攻击成功{1}'
                                         .replace('{0}', successNum)
-                                        .replace('{1}', failNum)
-                                        .replace('{2}', logStat)
+                                        .replace('{1}', logStat)
                                 );
-                                var $msg = KFOL.showMsg('<strong>共有<em>{0}</em>次攻击成功{1}</strong>{2}{3}'
+                                var $msg = KFOL.showMsg('<strong>共有<em>{0}</em>次攻击成功</strong>{1}{2}'
                                         .replace('{0}', successNum)
-                                        .replace('{1}', failNum > 0 ? '，共有<em>{0}</em>次攻击失败'.replace('{0}', failNum) : '')
-                                        .replace('{2}', msgStat)
-                                        .replace('{3}', settings.type === 2 ? '<a href="#">查看日志</a>' : '')
+                                        .replace('{1}', msgStat)
+                                        .replace('{2}', settings.type === 2 ? '<a href="#">查看日志</a>' : '')
                                     , -1);
                                 if (settings.type === 2) {
                                     Tools.setCookie(Config.autoAttackingCookieName, '', Tools.getDate('-1d'));
+                                    Tools.setCookie(Config.autoAttackStartCookieName, '', Tools.getDate('-1d'));
                                     $('.pd_layer').remove();
-                                    console.log('【批量攻击日志】\n' + attackLog);
                                     $msg.find('a:last').click(function (event) {
                                         event.preventDefault();
                                         Loot.showAttackLogDialog(attackLog);
@@ -3645,13 +3643,14 @@ var Loot = {
                                     $('.pd_result:last').append('<li class="pd_stat"><b>统计结果：</b><br />{0}</li>'.replace('{0}', resultStat ? resultStat : '无'));
                                 }
                             }
-                        },
-                        dataType: 'html'
-                    });
-                }, count * Config.defAjaxInterval);
-                count++;
-            }
+                            window.setTimeout(function () {
+                                $(document).dequeue('BatchAttack');
+                            }, 2000);
+                        }, 'html');
+                });
+            });
         });
+        $(document).dequeue('BatchAttack');
     },
 
     /**
@@ -3660,14 +3659,12 @@ var Loot = {
     addBatchAttackButton: function () {
         var safeId = KFOL.getSafeId();
         if (!safeId) return;
-        $('.kf_fw_ig1 > tbody > tr > td:last-child').each(function (index) {
+        $('.kf_fw_ig1 > tbody > tr:gt(3) > td > a.kfigpk_hit').each(function () {
             var $this = $(this);
-            if (index === 0) $this.attr('colspan', 5);
-            else if (index === 1) $this.css('width', '310').after('<td>批量攻击</td>');
-            var hitId = parseInt($this.find('a').attr('hitid'));
+            var hitId = parseInt($this.attr('hitid'));
             if (!hitId) return;
-            $this.css('width', '330')
-                .after(('<td class="pd_batch_attack" style="width:70px;text-align:center"><label>' +
+            $this.parent().attr('colspan', '3')
+                .after(('<td class="pd_batch_attack" style="text-align:center"><label>' +
                 '<input style="width:15px" class="pd_input" type="text" maxlength="2" data-id="{0}" value="{1}" /> 次</label></td>')
                     .replace('{0}', hitId)
                     .replace('{1}', Config.batchAttackList[hitId] ? Config.batchAttackList[hitId] : '')
@@ -3706,7 +3703,6 @@ var Loot = {
             }
             return totalAttackNum;
         };
-        $('.kf_fw_ig1');
         $('<div class="pd_item_btns"><button>保存设置</button><button>清除设置</button><button><b>批量攻击</b></button></div>')
             .insertAfter('.kf_fw_ig1')
             .find('button:first-child')
@@ -3733,7 +3729,7 @@ var Loot = {
                 var totalAttackNum = getAttackNum(attackList);
                 if (!totalAttackNum) return;
                 if (!window.confirm('准备进行{0}次批量攻击，是否开始攻击？'.replace('{0}', totalAttackNum))) return;
-                KFOL.showWaitMsg('<strong>正在批量攻击中，请稍后...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i>'
+                KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="/">浏览其它页面</a>'
                         .replace('{0}', totalAttackNum)
                     , true);
                 Loot.batchAttack({type: 1, totalAttackNum: totalAttackNum, attackList: attackList, safeId: safeId});
@@ -4963,8 +4959,16 @@ var KFOL = {
                         totalSell += sell;
                     }
                 });
-                if (threadList.length === 0) return;
-                if (window.confirm('你共选择了{0}个帖子，总售价{1}KFB，是否批量购买？'.replace('{0}', threadList.length).replace('{1}', totalSell))) {
+                if (threadList.length === 0) {
+                    alert('请选择要购买的帖子');
+                    return;
+                }
+                if (window.confirm('你共选择了{0}个帖子，总售价{1}KFB，均价{2}KFB，是否批量购买？'
+                            .replace('{0}', threadList.length)
+                            .replace('{1}', totalSell)
+                            .replace('{2}', (totalSell / threadList.length).toFixed(2))
+                    )
+                ) {
                     KFOL.showWaitMsg('<strong>正在购买帖子中...</strong><i>剩余数量：<em id="pd_remaining_num">{0}</em></i>'
                             .replace('{0}', threadList.length)
                         , true);
@@ -4978,13 +4982,18 @@ var KFOL = {
                     .click(function (event) {
                         event.preventDefault();
                         $('.pd_buy_thread').prop('checked', true);
+                        alert('共选择了{0}项'.replace('{0}', $('.pd_buy_thread').length));
                     })
                     .next('a')
                     .click(function (event) {
                         event.preventDefault();
+                        var totalNum = 0;
                         $('.pd_buy_thread').each(function () {
-                            $(this).prop('checked', !$(this).prop('checked'));
+                            var $this = $(this);
+                            $this.prop('checked', !$this.prop('checked'));
+                            if ($this.prop('checked')) totalNum++;
                         });
+                        alert('共选择了{0}项'.replace('{0}', totalNum));
                     });
             }).mouseleave(function () {
                 $(this).find('.pd_buy_thread_btn').next('span').remove();
@@ -5457,9 +5466,6 @@ var KFOL = {
         else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
             Loot.addBatchAttackButton();
         }
-        else if (/\/kf_fw_ig_my\.php\?pro=\d+$/i.test(location.href)) {
-            Item.modifyItemSellInfo();
-        }
         KFOL.blockUsers();
         KFOL.followUsers();
 
@@ -5483,8 +5489,8 @@ var KFOL = {
 
         if (autoSaveCurrentDepositAvailable && !isDonationStarted) KFOL.autoSaveCurrentDeposit();
 
-        if (Config.autoAttackEnabled && KFOL.isInHomePage) {
-            window.setTimeout(Loot.checkAutoAttack, 2000);
+        if (Config.autoAttackEnabled && KFOL.isInHomePage && Tools.getCookie(Config.autoAttackStartCookieName) && !Tools.getCookie(Config.autoAttackingCookieName)) {
+            Loot.checkAutoAttack();
         }
 
         /*if (Config.autoRefreshEnabled) {
