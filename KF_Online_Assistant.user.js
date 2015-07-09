@@ -9,13 +9,13 @@
 // @include     http://*.2dgal.com/*
 // @include     http://9baka.com/*
 // @include     http://*.9baka.com/*
-// @version     3.9.3
+// @version     4.0.0-dev
 // @grant       none
 // @run-at      document-end
 // @license     MIT
 // ==/UserScript==
 // 版本号
-var version = '3.9.3';
+var version = '4.0.0';
 /**
  * 配置类
  */
@@ -1242,7 +1242,7 @@ var ConfigDialog = {
             return false;
         }
 
-        if ($('#pd_cfg_auto_loot_enabled').prop('checked') && $('#pd_cfg_auto_draw_smbox_enabled').prop('checked')) {
+        if ($('#pd_cfg_auto_draw_smbox_enabled').prop('checked') && $('#pd_cfg_auto_loot_enabled').prop('checked')) {
             alert('请不要将自动争夺与自动抽取神秘盒子一起使用');
             return false;
         }
@@ -3351,21 +3351,35 @@ var Bank = {
  */
 var Loot = {
     /**
+     * 获取下次领取争夺奖励的时间对象
+     * @returns {Object} 下次领取争夺奖励的时间对象，obj.type：时间类型（0：获取失败；1：估计时间；2：精确时间）；time：下次领取时间
+     */
+    getNextLootAwardTime: function () {
+        var timeLog = TmpLog.getValue(Config.getLootAwardTmpLogName);
+        if ($.type(timeLog) === 'object' && $.type(timeLog.type) === 'number' && $.type(timeLog.time) === 'number')
+            return {type: parseInt(timeLog.type), time: parseInt(timeLog.time)};
+        else return {type: 0, time: 0};
+    },
+
+    /**
      * 显示领取争夺奖励的时间
      */
     showGetLootAwardTime: function () {
         $('form[name="rvrc1"]').submit(function () {
             var gain = parseInt($('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]').parent('td').find('span:eq(0)').text());
             if (!isNaN(gain) && gain >= 0) {
-                TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000);
+                TmpLog.setValue(Config.getLootAwardTmpLogName, {
+                    type: 2,
+                    time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000
+                });
                 Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
             }
         });
         var $submit = $('input[name="submit1"][value$="领取，点击这里抢别人的"]');
         if ($submit.length > 0) {
-            var time = TmpLog.getValue(Config.getLootAwardTmpLogName);
-            if (!time || $.type(time) !== 'number') return;
-            var diff = Math.floor((time - (new Date()).getTime()) / 1000);
+            var timeLog = Loot.getNextLootAwardTime();
+            if (timeLog.type <= 1) return;
+            var diff = Math.floor((timeLog.time - (new Date()).getTime()) / 1000);
             if (diff <= 0) return;
             var hours = Math.floor(diff / 60 / 60);
             var matches = /还有(\d+)小时领取，点击这里抢别人的/.exec($submit.val());
@@ -3378,7 +3392,7 @@ var Loot = {
             else {
                 if (hours !== 0) return;
             }
-            var end = new Date(time);
+            var end = new Date(timeLog.time);
             $submit.prev().prev().before('<span class="pd_highlight">可领取时间：{0}</span>'
                     .replace('{0}', Tools.getDateString(end) + ' ' + Tools.getTimeString(end, ':', false))
             );
@@ -3399,6 +3413,7 @@ var Loot = {
                 for (var id in Config.batchAttackList) {
                     totalAttackNum += Config.batchAttackList[id];
                 }
+                if (!totalAttackNum) return;
                 KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
                         .replace('{0}', totalAttackNum)
                         .replace('{1}', location.href)
@@ -3426,6 +3441,10 @@ var Loot = {
                 if (remainingMatches[2] === '小时') lootInterval = lootInterval * 60;
                 lootInterval++;
                 Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + lootInterval + 'm'));
+                TmpLog.setValue(Config.getLootAwardTmpLogName, {
+                    type: remainingMatches[2] === '小时' ? 1 : 2,
+                    time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime()
+                });
                 var attackNumMatches = />本回合剩余攻击次数\s*(\d+)\s*次<\/span><br/.exec(html);
                 if (attackNumMatches && parseInt(attackNumMatches[1]) > 0) {
                     autoAttack(safeId);
@@ -3442,13 +3461,19 @@ var Loot = {
                             Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
                             KFOL.showFormatLog('领取争夺奖励', html);
                             if (/(领取成功！|已经预领\d+KFB)/i.test(html)) {
-                                TmpLog.setValue(Config.getLootAwardTmpLogName, Tools.getDate('+' + Config.defLootInterval + 'm').getTime());
+                                TmpLog.setValue(Config.getLootAwardTmpLogName, {
+                                    type: 2,
+                                    time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime()
+                                });
                                 Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
                                 console.log('领取争夺奖励，KFB+' + gain);
                                 KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i>{1}'
                                         .replace('{0}', gain)
                                         .replace('{1}', !Config.autoAttackEnabled ? '<a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>' : '')
                                 );
+                                if (KFOL.isInHomePage) {
+                                    $('a.indbox5[href="kf_fw_ig_index.php"]').removeClass('indbox5').addClass('indbox6');
+                                }
                                 autoAttack(safeId);
                             }
                         }, 'html');
@@ -3582,7 +3607,7 @@ var Loot = {
                                     }
                                 });
                             }
-                            else if(!/每次攻击间隔\d+秒/.test(msg)) {
+                            else if (!/每次攻击间隔\d+秒/.test(msg)) {
                                 isStop = true;
                                 $(document).queue('BatchAttack', []);
                             }
@@ -5383,6 +5408,34 @@ var KFOL = {
     },
 
     /**
+     * 在首页上显示领取争夺奖励剩余时间
+     */
+    showLootAwardInterval: function () {
+        var timeLog = Loot.getNextLootAwardTime();
+        if (!timeLog.type) return;
+        var now = (new Date()).getTime();
+        var diff = timeLog.time - now;
+        var $loot = $('a[href="kf_fw_ig_index.php"]');
+        if ($loot.length === 0) return;
+        if (diff <= 0) return;
+        diff = Math.floor(diff / 1000);
+        var hours = Math.floor(diff / 60 / 60);
+        if (hours < 0) return;
+        if (timeLog.type === 2) {
+            var minutes = Math.floor((diff - hours * 60 * 60) / 60);
+            if (minutes < 0) minutes = 0;
+            $loot.text('争夺奖励(剩余{0}{1}分)'.replace('{0}', hours < 1 ? '' : hours + '小时').replace('{1}', minutes))
+                .removeClass('indbox5')
+                .addClass('indbox6');
+        }
+        else {
+            $loot.text('争夺奖励(剩余{0})'.replace('{0}', hours < 1 ? '1小时以内' : hours + '多小时'))
+                .removeClass('indbox5')
+                .addClass('indbox6');
+        }
+    },
+
+    /**
      * 初始化
      */
     init: function () {
@@ -5400,6 +5453,7 @@ var KFOL = {
         if (KFOL.isInHomePage) {
             KFOL.handleAtTips();
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
+            if (Config.autoLootEnabled) KFOL.showLootAwardInterval();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
             if (Config.homePageThreadFastGotoLinkEnabled) KFOL.addHomePageThreadFastGotoLink();
         }
@@ -5489,7 +5543,8 @@ var KFOL = {
 
         if (autoSaveCurrentDepositAvailable && !isDonationStarted) KFOL.autoSaveCurrentDeposit();
 
-        if (Config.autoAttackEnabled && KFOL.isInHomePage && Tools.getCookie(Config.autoAttackStartCookieName) && !Tools.getCookie(Config.autoAttackingCookieName)) {
+        if (Config.autoLootEnabled && Config.autoAttackEnabled && KFOL.isInHomePage && Tools.getCookie(Config.autoAttackStartCookieName)
+            && !Tools.getCookie(Config.autoAttackingCookieName)) {
             Loot.checkAutoAttack();
         }
 
