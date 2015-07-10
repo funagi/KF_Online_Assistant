@@ -116,8 +116,10 @@ var Config = {
     defLootInterval: 660,
     // 每回合攻击的最大次数
     maxAttackNum: 20,
-    // 神秘盒子的默认抽奖间隔（分钟）
+    // 神秘盒子的默认抽取间隔（分钟）
     defDrawSmboxInterval: 300,
+    // 在抽取神秘盒子后所推迟的争夺抽奖间隔（分钟）
+    afterDrawSmboxLootInterval: 480,
     // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
     drawSmboxCompleteRefreshInterval: 20,
     // 获取剩余抽奖时间失败后的重试间隔（分钟），用于定时模式
@@ -134,6 +136,8 @@ var Config = {
     multiQuoteStorageName: 'pd_multi_quote',
     // 领取争夺奖励临时日志名称
     getLootAwardTmpLogName: 'GetLootAward',
+    // 抽取神秘盒子临时日志名称
+    drawSmboxTmpLogName: 'DrawSmbox',
     // 标记已KFB捐款的Cookie名称
     donationCookieName: 'pd_donation',
     // 标记已领取争夺奖励的Cookie名称
@@ -294,6 +298,25 @@ var Tools = {
             .replace('{2}', isShowSecond ? (second < 10 ? '0' + second : second) : '')
             .replace('{3}', sep)
             .replace('{4}', isShowSecond ? sep : '');
+    },
+
+    /**
+     * 获取指定时间戳距现在所剩余时间的描述
+     * @param {number} timestamp 指定时间戳
+     * @returns {{hours: number, minutes: number}} 剩余时间的描述，hours：剩余的小时数；minutes：剩余的分钟数
+     */
+    getTimeDiffObject: function (timestamp) {
+        var diff = timestamp - (new Date()).getTime();
+        if (diff > 0) {
+            diff = Math.floor(diff / 1000);
+            var hours = Math.floor(diff / 60 / 60);
+            if (hours >= 0) {
+                var minutes = Math.floor((diff - hours * 60 * 60) / 60);
+                if (minutes < 0) minutes = 0;
+                return {hours: hours, minutes: minutes};
+            }
+        }
+        return {hours: 0, minutes: 0};
     },
 
     /**
@@ -3352,7 +3375,7 @@ var Bank = {
 var Loot = {
     /**
      * 获取下次领取争夺奖励的时间对象
-     * @returns {Object} 下次领取争夺奖励的时间对象，obj.type：时间类型（0：获取失败；1：估计时间；2：精确时间）；time：下次领取时间
+     * @returns {{type: number, time: number}} 下次领取争夺奖励的时间对象，type：时间类型（0：获取失败；1：估计时间；2：精确时间）；time：下次领取时间
      */
     getNextLootAwardTime: function () {
         var timeLog = TmpLog.getValue(Config.getLootAwardTmpLogName);
@@ -3365,32 +3388,36 @@ var Loot = {
      * 显示领取争夺奖励的时间
      */
     showGetLootAwardTime: function () {
-        $('form[name="rvrc1"]').submit(function () {
-            var gain = parseInt($('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]').parent('td').find('span:eq(0)').text());
-            if (!isNaN(gain) && gain >= 0) {
-                TmpLog.setValue(Config.getLootAwardTmpLogName, {
-                    type: 2,
-                    time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000
-                });
-                Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
-            }
-        });
+        var $btn = $('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]');
+        if (Config.autoLootEnabled && $btn.length > 0 && Tools.getCookie(Config.getLootAwardCookieName)) {
+            $btn.prop('disabled', true);
+            Loot.getLootAward(false);
+        }
+        else {
+            $('form[name="rvrc1"]').submit(function () {
+                var gain = parseInt($btn.parent('td').find('span:eq(0)').text());
+                if (!isNaN(gain) && gain >= 0) {
+                    TmpLog.setValue(Config.getLootAwardTmpLogName, {
+                        type: 2,
+                        time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000
+                    });
+                    Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
+                }
+            });
+        }
         var $submit = $('input[name="submit1"][value$="领取，点击这里抢别人的"]');
         if ($submit.length > 0) {
             var timeLog = Loot.getNextLootAwardTime();
             if (timeLog.type <= 1) return;
-            var diff = Math.floor((timeLog.time - (new Date()).getTime()) / 1000);
-            if (diff <= 0) return;
-            var hours = Math.floor(diff / 60 / 60);
+            var remain = Tools.getTimeDiffObject(timeLog.time);
+            if (remain.hours === 0 && remain.minutes === 0) return;
             var matches = /还有(\d+)小时领取，点击这里抢别人的/.exec($submit.val());
             if (matches) {
-                if (hours !== parseInt(matches[1])) return;
-                var minutes = Math.floor((diff - hours * 60 * 60) / 60);
-                if (minutes < 0) minutes = 0;
-                $submit.css('width', '270px').val('还有{0}小时{1}分领取，点击这里抢别人的'.replace('{0}', hours).replace('{1}', minutes));
+                if (remain.hours !== parseInt(matches[1])) return;
+                $submit.css('width', '270px').val('还有{0}小时{1}分领取，点击这里抢别人的'.replace('{0}', remain.hours).replace('{1}', remain.minutes));
             }
             else {
-                if (hours !== 0) return;
+                if (remain.hours !== 0) return;
             }
             var end = new Date(timeLog.time);
             $submit.prev().prev().before('<span class="pd_highlight">可领取时间：{0}</span>'
@@ -4095,7 +4122,19 @@ var KFOL = {
                 smboxNumber = numberMatches ? numberMatches[1] : 0;
             }
             $.get(url, function (html) {
-                Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+' + Config.defDrawSmboxInterval + 'm'));
+                var nextTime = Tools.getDate('+' + Config.defDrawSmboxInterval + 'm');
+                Tools.setCookie(Config.drawSmboxCookieName, 1, nextTime);
+                TmpLog.setValue(Config.drawSmboxTmpLogName, nextTime.getTime());
+                var timeLog = Loot.getNextLootAwardTime();
+                if (timeLog.type > 0) {
+                    var time = timeLog.time + Config.afterDrawSmboxLootInterval * 60 * 1000;
+                    if (timeLog.time > (new Date()).getTime()) {
+                        TmpLog.setValue(Config.getLootAwardTmpLogName, {type: timeLog.type, time: time});
+                    }
+                    else {
+                        TmpLog.deleteValue(Config.getLootAwardTmpLogName);
+                    }
+                }
                 KFOL.showFormatLog('抽取神秘盒子', html);
                 var kfbRegex = /获得了(\d+)KFB的奖励.*?(\(\d+\|\d+\))/i;
                 var smRegex = /获得本轮的头奖/i;
@@ -5408,31 +5447,40 @@ var KFOL = {
     },
 
     /**
-     * 在首页上显示领取争夺奖励剩余时间
+     * 在首页上显示领取争夺奖励的剩余时间
      */
     showLootAwardInterval: function () {
         var timeLog = Loot.getNextLootAwardTime();
         if (!timeLog.type) return;
-        var now = (new Date()).getTime();
-        var diff = timeLog.time - now;
-        var $loot = $('a[href="kf_fw_ig_index.php"]');
-        if ($loot.length === 0) return;
-        if (diff <= 0) return;
-        diff = Math.floor(diff / 1000);
-        var hours = Math.floor(diff / 60 / 60);
-        if (hours < 0) return;
+        var $msg = $('a[href="kf_fw_ig_index.php"]');
+        if ($msg.length === 0) return;
+        var remain = Tools.getTimeDiffObject(timeLog.time);
+        if (remain.hours === 0 && remain.minutes === 0) return;
         if (timeLog.type === 2) {
-            var minutes = Math.floor((diff - hours * 60 * 60) / 60);
-            if (minutes < 0) minutes = 0;
-            $loot.text('争夺奖励(剩余{0}{1}分)'.replace('{0}', hours < 1 ? '' : hours + '小时').replace('{1}', minutes))
+            $msg.text('争夺奖励(剩余{0}{1}分)'.replace('{0}', remain.hours < 1 ? '' : remain.hours + '小时').replace('{1}', remain.minutes))
                 .removeClass('indbox5')
                 .addClass('indbox6');
         }
         else {
-            $loot.text('争夺奖励(剩余{0})'.replace('{0}', hours < 1 ? '1小时以内' : hours + '多小时'))
+            $msg.text('争夺奖励(剩余{0})'.replace('{0}', remain.hours < 1 ? '1小时以内' : remain.hours + '多小时'))
                 .removeClass('indbox5')
                 .addClass('indbox6');
         }
+    },
+
+    /**
+     * 在首页上显示抽取神秘盒子的剩余时间
+     */
+    showDrawSmboxInterval: function () {
+        var time = TmpLog.getValue(Config.drawSmboxTmpLogName);
+        if (!time && $.type(time) !== 'number') return;
+        var $msg = $('a[href="kf_smbox.php"]');
+        if ($msg.length === 0) return;
+        var remain = Tools.getTimeDiffObject(time);
+        if (remain.hours === 0 && remain.minutes === 0) return;
+        $msg.text('神秘盒子(剩余{0}{1}分)'.replace('{0}', remain.hours < 1 ? '' : remain.hours + '小时').replace('{1}', remain.minutes))
+            .removeClass('indbox5')
+            .addClass('indbox6');
     },
 
     /**
@@ -5454,6 +5502,7 @@ var KFOL = {
             KFOL.handleAtTips();
             if (Config.hideNoneVipEnabled) KFOL.hideNoneVipTips();
             if (Config.autoLootEnabled) KFOL.showLootAwardInterval();
+            if (Config.autoDrawSmbox2Enabled) KFOL.showDrawSmboxInterval();
             if (Config.smLevelUpAlertEnabled) KFOL.smLevelUpAlert();
             if (Config.homePageThreadFastGotoLinkEnabled) KFOL.addHomePageThreadFastGotoLink();
         }
