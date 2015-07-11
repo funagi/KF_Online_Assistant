@@ -33,6 +33,8 @@ var Config = {
     autoLootEnabled: false,
     // 是否在自动领取争夺奖励后，进行自动批量攻击（需指定攻击目标），true：开启；false：关闭
     autoAttackEnabled: false,
+    // 在距本回合结束前指定时间内才进行自动批量攻击，取值范围：660-62（分钟），设置为0表示不启用
+    attackAfterTime: 0,
     // 批量攻击的目标列表，格式：{攻击ID:次数}，例：{1:10,2:20}
     batchAttackList: {},
     // 是否自动抽取神秘盒子，true：开启；false：关闭
@@ -77,7 +79,7 @@ var Config = {
     // 是否在帖子页面开启批量购买帖子的功能，true：开启；false：关闭
     batchBuyThreadEnabled: true,
     // 默认提示消息的持续时间（秒）
-    defShowMsgDuration: 10,
+    defShowMsgDuration: 15,
     // 日志保存天数
     logSaveDays: 10,
     // 在页面上方显示助手日志的链接，true：开启；false：关闭
@@ -114,12 +116,14 @@ var Config = {
     maxDonationKfb: 5000,
     // 争夺的默认领取间隔（分钟）
     defLootInterval: 660,
+    // 所允许的在距本回合结束前指定时间后才进行自动批量攻击的最小时间（分钟）
+    minAttackAfterTime: 63,
     // 每回合攻击的最大次数
     maxAttackNum: 20,
     // 神秘盒子的默认抽取间隔（分钟）
     defDrawSmboxInterval: 300,
-    // 在抽取神秘盒子后所推迟的争夺抽奖间隔（分钟）
-    afterDrawSmboxLootInterval: 480,
+    // 在抽取神秘盒子后所推迟的争夺领取间隔（分钟）
+    afterDrawSmboxLootDelayInterval: 480,
     // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
     drawSmboxCompleteRefreshInterval: 20,
     // 获取剩余抽奖时间失败后的重试间隔（分钟），用于定时模式
@@ -142,8 +146,8 @@ var Config = {
     donationCookieName: 'pd_donation',
     // 标记已领取争夺奖励的Cookie名称
     getLootAwardCookieName: 'pd_get_loot_award',
-    // 标记自动攻击已开始的Cookie名称
-    autoAttackStartCookieName: 'pd_auto_attack_start',
+    // 标记自动攻击已准备就绪的Cookie名称
+    autoAttackReadyCookieName: 'pd_auto_attack_ready',
     // 标记正在进行自动攻击的Cookie名称
     autoAttackingCookieName: 'pd_auto_attacking',
     // 标记已抽取神秘盒子的Cookie名称
@@ -305,7 +309,7 @@ var Tools = {
      * @param {number} timestamp 指定时间戳
      * @returns {{hours: number, minutes: number}} 剩余时间的描述，hours：剩余的小时数；minutes：剩余的分钟数
      */
-    getTimeDiffObject: function (timestamp) {
+    getTimeDiffInfo: function (timestamp) {
         var diff = timestamp - (new Date()).getTime();
         if (diff > 0) {
             diff = Math.floor(diff / 1000);
@@ -561,7 +565,10 @@ var ConfigDialog = {
             '        <fieldset>' +
             '          <legend><label><input id="pd_cfg_auto_attack_enabled" type="checkbox" />自动攻击 ' +
             '<a class="pd_cfg_tips" href="#" title="在自动领取争夺奖励后，进行自动批量攻击（需指定攻击目标）">[?]</a></label></legend>' +
-            '          <table id="pd_cfg_batch_attack_list">' +
+            '        <label>在距本回合结束前<input id="pd_cfg_attack_after_time" maxlength="3" style="width:23px" type="text" />分钟内攻击 ' +
+            '<a class="pd_cfg_tips" href="#" title="在距本回合结束前指定时间内才进行自动批量攻击，取值范围：{0}-{1}，留空表示不启用">[?]</a></label>'
+                .replace('{0}', Config.defLootInterval).replace('{1}', Config.minAttackAfterTime) +
+            '          <table id="pd_cfg_batch_attack_list" style="margin-top:5px">' +
             '            <tbody>' +
             '              <tr><td style="width:110px">Lv.1：小史莱姆</td><td style="width:70px"><label><input style="width:15px" type="text" maxlength="2" data-id="1" />次' +
             '</label></td><td style="width:62px">Lv.2：笨蛋</td><td><label><input style="width:15px" type="text" maxlength="2" data-id="2" />次</label></td></tr>' +
@@ -1103,6 +1110,7 @@ var ConfigDialog = {
         $('#pd_cfg_donation_after_vip_enabled').prop('checked', Config.donationAfterVipEnabled);
         $('#pd_cfg_auto_loot_enabled').prop('checked', Config.autoLootEnabled);
         $('#pd_cfg_auto_attack_enabled').prop('checked', Config.autoAttackEnabled);
+        if (Config.attackAfterTime > 0) $('#pd_cfg_attack_after_time').val(Config.attackAfterTime);
         $.each(Config.batchAttackList, function (id, num) {
             $('#pd_cfg_batch_attack_list input[data-id="{0}"]'.replace('{0}', id)).val(num);
         });
@@ -1154,6 +1162,7 @@ var ConfigDialog = {
         options.donationAfterTime = $('#pd_cfg_donation_after_time').val();
         options.autoLootEnabled = $('#pd_cfg_auto_loot_enabled').prop('checked');
         options.autoAttackEnabled = $('#pd_cfg_auto_attack_enabled').prop('checked');
+        options.attackAfterTime = parseInt($.trim($('#pd_cfg_attack_after_time').val()));
         options.batchAttackList = {};
         $('#pd_cfg_batch_attack_list input').each(function () {
             var $this = $(this);
@@ -1235,12 +1244,24 @@ var ConfigDialog = {
         }
 
         var $txtDonationAfterTime = $('#pd_cfg_donation_after_time');
-        var donationAfterTime = $txtDonationAfterTime.val();
+        var donationAfterTime = $.trim($txtDonationAfterTime.val());
         if (!/^(2[0-3]|[0-1][0-9]):[0-5][0-9]:[0-5][0-9]$/.test(donationAfterTime)) {
             alert('在指定时间之后捐款格式不正确');
             $txtDonationAfterTime.select();
             $txtDonationAfterTime.focus();
             return false;
+        }
+
+        var $txtAttackAfterTime = $('#pd_cfg_attack_after_time');
+        var attackAfterTime = $.trim($txtAttackAfterTime.val());
+        if (attackAfterTime) {
+            attackAfterTime = parseInt(attackAfterTime);
+            if (isNaN(attackAfterTime) || attackAfterTime > Config.defLootInterval || attackAfterTime < Config.minAttackAfterTime) {
+                alert('在指定时间之内攻击的取值范围为：{0}-{1}'.replace('{0}', Config.defLootInterval).replace('{1}', Config.minAttackAfterTime));
+                $txtAttackAfterTime.select();
+                $txtAttackAfterTime.focus();
+                return false;
+            }
         }
 
         var totalAttackNum = 0;
@@ -1385,6 +1406,12 @@ var ConfigDialog = {
             options.autoLootEnabled : defConfig.autoLootEnabled;
         settings.autoAttackEnabled = typeof options.autoAttackEnabled === 'boolean' ?
             options.autoAttackEnabled : defConfig.autoAttackEnabled;
+        if (typeof options.attackAfterTime !== 'undefined') {
+            var attackAfterTime = parseInt(options.attackAfterTime);
+            if ($.isNumeric(attackAfterTime) && attackAfterTime >= Config.minAttackAfterTime && attackAfterTime <= Config.defLootInterval)
+                settings.attackAfterTime = attackAfterTime;
+            else settings.attackAfterTime = defConfig.attackAfterTime;
+        }
         if (typeof options.batchAttackList !== 'undefined') {
             if ($.type(options.batchAttackList) === 'object') {
                 settings.batchAttackList = {};
@@ -3374,59 +3401,6 @@ var Bank = {
  */
 var Loot = {
     /**
-     * 获取下次领取争夺奖励的时间对象
-     * @returns {{type: number, time: number}} 下次领取争夺奖励的时间对象，type：时间类型（0：获取失败；1：估计时间；2：精确时间）；time：下次领取时间
-     */
-    getNextLootAwardTime: function () {
-        var timeLog = TmpLog.getValue(Config.getLootAwardTmpLogName);
-        if ($.type(timeLog) === 'object' && $.type(timeLog.type) === 'number' && $.type(timeLog.time) === 'number')
-            return {type: parseInt(timeLog.type), time: parseInt(timeLog.time)};
-        else return {type: 0, time: 0};
-    },
-
-    /**
-     * 显示领取争夺奖励的时间
-     */
-    showGetLootAwardTime: function () {
-        var $btn = $('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]');
-        if (Config.autoLootEnabled && $btn.length > 0 && Tools.getCookie(Config.getLootAwardCookieName)) {
-            $btn.prop('disabled', true);
-            Loot.getLootAward(false);
-        }
-        else {
-            $('form[name="rvrc1"]').submit(function () {
-                var gain = parseInt($btn.parent('td').find('span:eq(0)').text());
-                if (!isNaN(gain) && gain >= 0) {
-                    TmpLog.setValue(Config.getLootAwardTmpLogName, {
-                        type: 2,
-                        time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000
-                    });
-                    Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
-                }
-            });
-        }
-        var $submit = $('input[name="submit1"][value$="领取，点击这里抢别人的"]');
-        if ($submit.length > 0) {
-            var timeLog = Loot.getNextLootAwardTime();
-            if (timeLog.type <= 1) return;
-            var remain = Tools.getTimeDiffObject(timeLog.time);
-            if (remain.hours === 0 && remain.minutes === 0) return;
-            var matches = /还有(\d+)小时领取，点击这里抢别人的/.exec($submit.val());
-            if (matches) {
-                if (remain.hours !== parseInt(matches[1])) return;
-                $submit.css('width', '270px').val('还有{0}小时{1}分领取，点击这里抢别人的'.replace('{0}', remain.hours).replace('{1}', remain.minutes));
-            }
-            else {
-                if (remain.hours !== 0) return;
-            }
-            var end = new Date(timeLog.time);
-            $submit.prev().prev().before('<span class="pd_highlight">可领取时间：{0}</span>'
-                    .replace('{0}', Tools.getDateString(end) + ' ' + Tools.getTimeString(end, ':', false))
-            );
-        }
-    },
-
-    /**
      * 领取争夺奖励
      * @param {boolean} isAutoDonation 是否自动捐款
      */
@@ -3434,23 +3408,13 @@ var Loot = {
         console.log('领取争夺奖励Start');
         var autoAttack = function (safeId) {
             if (Config.autoAttackEnabled && !$.isEmptyObject(Config.batchAttackList) && safeId) {
-                Tools.setCookie(Config.autoAttackStartCookieName, 1);
-                Tools.setCookie(Config.autoAttackingCookieName, 1, Tools.getDate('+2m'));
-                var totalAttackNum = 0;
-                for (var id in Config.batchAttackList) {
-                    totalAttackNum += Config.batchAttackList[id];
+                if (Loot.isAutoAttackNow()) {
+                    Tools.setCookie(Config.autoAttackReadyCookieName, '1|' + safeId);
+                    Loot.autoAttack(safeId);
                 }
-                if (!totalAttackNum) return;
-                KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
-                        .replace('{0}', totalAttackNum)
-                        .replace('{1}', location.href)
-                    , true);
-                Loot.batchAttack({
-                    type: 2,
-                    totalAttackNum: totalAttackNum,
-                    attackList: Config.batchAttackList,
-                    safeId: safeId
-                });
+                else {
+                    Tools.setCookie(Config.autoAttackReadyCookieName, '2|' + safeId, Tools.getDate('+' + Config.defLootInterval + 'm'));
+                }
             }
         };
         $.get('kf_fw_ig_index.php', function (html) {
@@ -3482,6 +3446,11 @@ var Loot = {
                     var gainMatches = /当前拥有\s*<span style=".+?">(\d+)<\/span>\s*预领KFB<br \/>/i.exec(html);
                     var gain = 0;
                     if (gainMatches) gain = parseInt(gainMatches[1]);
+                    var attackLogMatches = /<tr><td colspan="\d+">\r\n<span style=".+?">(\d+:\d+:\d+ \|.+?<br \/>)<\/td><\/tr>/i.exec(html);
+                    var attackLog = '';
+                    if (attackLogMatches && /发起争夺/.test(attackLogMatches[1])) {
+                        attackLog = attackLogMatches[1].replace(/<br \/>/ig, '\n').replace(/(<.+?>|<.+?\/>)/g, '');
+                    }
                     $.post('kf_fw_ig_index.php',
                         {submit1: 1, one: 1},
                         function (html) {
@@ -3494,10 +3463,15 @@ var Loot = {
                                 });
                                 Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
                                 console.log('领取争夺奖励，KFB+' + gain);
-                                KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i>{1}'
+                                var $msg = KFOL.showMsg('<strong>领取争夺奖励</strong><i>KFB<em>+{0}</em></i>{1}{2}'
                                         .replace('{0}', gain)
-                                        .replace('{1}', !Config.autoAttackEnabled ? '<a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>' : '')
+                                        .replace('{1}', attackLog ? '<a href="#">查看日志</a>' : '')
+                                        .replace('{2}', !Config.autoAttackEnabled ? '<a target="_blank" href="kf_fw_ig_pklist.php">手动攻击</a>' : '')
                                 );
+                                $msg.find('a[href="#"]:first').click(function (event) {
+                                    event.preventDefault();
+                                    Loot.showAttackLogDialog(2, attackLog);
+                                });
                                 if (KFOL.isInHomePage) {
                                     $('a.indbox5[href="kf_fw_ig_index.php"]').removeClass('indbox5').addClass('indbox6');
                                 }
@@ -3511,6 +3485,29 @@ var Loot = {
             }
             if (isAutoDonation) KFOL.donation(false);
         }, 'html');
+    },
+
+    /**
+     * 自动攻击
+     * @param {string} safeId 用户的SafeID
+     */
+    autoAttack: function (safeId) {
+        var totalAttackNum = 0;
+        for (var id in Config.batchAttackList) {
+            totalAttackNum += Config.batchAttackList[id];
+        }
+        if (!totalAttackNum) return;
+        Tools.setCookie(Config.autoAttackingCookieName, 1, Tools.getDate('+4m'));
+        KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
+                .replace('{0}', totalAttackNum)
+                .replace('{1}', location.href)
+            , true);
+        Loot.batchAttack({
+            type: 2,
+            totalAttackNum: totalAttackNum,
+            attackList: Config.batchAttackList,
+            safeId: safeId
+        });
     },
 
     /**
@@ -3532,61 +3529,6 @@ var Loot = {
             gain['item'] = item;
         }
         return gain;
-    },
-
-    /**
-     * 检查自动攻击是否完成
-     */
-    checkAutoAttack: function () {
-        var safeId = KFOL.getSafeId();
-        if (!safeId) return;
-        if (window.confirm('之前的自动攻击似乎并未完成，是否继续自动攻击？')) {
-            Tools.setCookie(Config.autoAttackingCookieName, 1, Tools.getDate('+2m'));
-            var totalAttackNum = 0;
-            for (var id in Config.batchAttackList) {
-                totalAttackNum += Config.batchAttackList[id];
-            }
-            if (!totalAttackNum) return;
-            KFOL.showWaitMsg('<strong>正在批量攻击中，请耐心等待...</strong><i>攻击次数：<em id="pd_remaining_num">{0}</em></i><a target="_blank" href="{1}">浏览其它页面</a>'
-                    .replace('{0}', totalAttackNum)
-                    .replace('{1}', location.href)
-                , true);
-            Loot.batchAttack({
-                type: 2,
-                totalAttackNum: totalAttackNum,
-                attackList: Config.batchAttackList,
-                safeId: safeId
-            });
-        }
-        else {
-            Tools.setCookie(Config.autoAttackStartCookieName, '', Tools.getDate('-1d'));
-        }
-    },
-
-    /**
-     * 显示批量攻击日志对话框
-     * @param {string} log 批量攻击日志
-     */
-    showAttackLogDialog: function (log) {
-        if ($('#pd_attack_log').length > 0) return;
-        var html =
-            '<form>' +
-            '<div class="pd_cfg_box" id="pd_attack_log" style="z-index:1002">' +
-            '  <h1>批量攻击日志<span>&times;</span></h1>' +
-            '  <div class="pd_cfg_main">' +
-            '    <textarea style="width:850px;height:350px;margin:5px 0" readonly="readonly"></textarea>' +
-            '  </div>' +
-            '</div>' +
-            '</form>';
-        var $dialog = $(html).appendTo('body');
-        Tools.resize('pd_attack_log');
-        Tools.escKeydown('pd_attack_log');
-        $dialog.find('h1 > span').click(function () {
-            return Tools.close('pd_attack_log');
-        }).end().find('textarea').val(log).focus();
-        $(window).on('resize.pd_attack_log', function () {
-            Tools.resize('pd_attack_log');
-        });
     },
 
     /**
@@ -3682,13 +3624,13 @@ var Loot = {
                                         .replace('{1}', msgStat)
                                         .replace('{2}', settings.type === 2 ? '<a href="#">查看日志</a>' : '')
                                     , -1);
+                                Tools.setCookie(Config.autoAttackingCookieName, '', Tools.getDate('-1d'));
+                                Tools.setCookie(Config.autoAttackReadyCookieName, '', Tools.getDate('-1d'));
                                 if (settings.type === 2) {
-                                    Tools.setCookie(Config.autoAttackingCookieName, '', Tools.getDate('-1d'));
-                                    Tools.setCookie(Config.autoAttackStartCookieName, '', Tools.getDate('-1d'));
                                     $('.pd_layer').remove();
                                     $msg.find('a:last').click(function (event) {
                                         event.preventDefault();
-                                        Loot.showAttackLogDialog(attackLog);
+                                        Loot.showAttackLogDialog(1, attackLog);
                                     });
                                 }
                                 else {
@@ -3786,6 +3728,130 @@ var Loot = {
                     , true);
                 Loot.batchAttack({type: 1, totalAttackNum: totalAttackNum, attackList: attackList, safeId: safeId});
             });
+    },
+
+    /**
+     * 显示领取争夺奖励的时间
+     */
+    showGetLootAwardTime: function () {
+        var $btn = $('input[name="submit1"][value="已经可以领取KFB，请点击这里获取"]');
+        if (Config.autoLootEnabled && $btn.length > 0 && Tools.getCookie(Config.getLootAwardCookieName)) {
+            $btn.prop('disabled', true);
+            Loot.getLootAward(false);
+        }
+        else {
+            $('form[name="rvrc1"]').submit(function () {
+                var gain = parseInt($btn.parent('td').find('span:eq(0)').text());
+                if (!isNaN(gain) && gain >= 0) {
+                    TmpLog.setValue(Config.getLootAwardTmpLogName, {
+                        type: 2,
+                        time: Tools.getDate('+' + Config.defLootInterval + 'm').getTime() + 10 * 1000
+                    });
+                    Log.push('领取争夺奖励', '领取争夺奖励', {gain: {'KFB': gain}});
+                }
+            });
+        }
+        var $submit = $('input[name="submit1"][value$="领取，点击这里抢别人的"]');
+        if ($submit.length > 0) {
+            var timeLog = Loot.getNextLootAwardTime();
+            if (timeLog.type <= 1) return;
+            var diff = Tools.getTimeDiffInfo(timeLog.time);
+            if (diff.hours === 0 && diff.minutes === 0) return;
+            var matches = /还有(\d+)小时领取，点击这里抢别人的/.exec($submit.val());
+            if (matches) {
+                if (diff.hours !== parseInt(matches[1])) return;
+                $submit.css('width', '270px').val('还有{0}小时{1}分领取，点击这里抢别人的'.replace('{0}', diff.hours).replace('{1}', diff.minutes));
+            }
+            else {
+                if (diff.hours !== 0) return;
+            }
+            var end = new Date(timeLog.time);
+            $submit.prev().prev().before('<span class="pd_highlight">可领取时间：{0}</span>'
+                    .replace('{0}', Tools.getDateString(end) + ' ' + Tools.getTimeString(end, ':', false))
+            );
+        }
+    },
+
+    /**
+     * 获取下次领取争夺奖励的时间对象
+     * @returns {{type: number, time: number}} 下次领取争夺奖励的时间对象，type：时间类型（0：获取失败；1：估计时间；2：精确时间）；time：下次领取时间
+     */
+    getNextLootAwardTime: function () {
+        var timeLog = TmpLog.getValue(Config.getLootAwardTmpLogName);
+        if ($.type(timeLog) === 'object' && $.type(timeLog.type) === 'number' && $.type(timeLog.time) === 'number')
+            return {type: parseInt(timeLog.type), time: parseInt(timeLog.time)};
+        else return {type: 0, time: 0};
+    },
+
+    /**
+     * 判断当前是否可以自动攻击
+     * @returns {boolean} 是否可以自动攻击
+     */
+    isAutoAttackNow: function () {
+        if (!Config.attackAfterTime) return true;
+        var tmpLog = Loot.getNextLootAwardTime();
+        if (tmpLog.type > 0) {
+            var attackAfterTime = Config.attackAfterTime;
+            if (tmpLog.type === 1) {
+                var diff = attackAfterTime - Config.minAttackAfterTime - 30;
+                if (diff < 0) diff = 0;
+                else if (diff > 30) diff = 30;
+                attackAfterTime -= diff;
+            }
+            var end = tmpLog.time - attackAfterTime * 60 * 1000;
+            if (end > (new Date()).getTime()) return false;
+        }
+        return true;
+    },
+
+    /**
+     * 检查自动攻击是否已完成
+     */
+    checkAutoAttack: function () {
+        var valueArr = Tools.getCookie(Config.autoAttackReadyCookieName).split('|');
+        if (valueArr.length !== 2) return;
+        var type = parseInt(valueArr[0]);
+        if (isNaN(type)) return;
+        var safeId = valueArr[1];
+        if (!safeId) return;
+        if (type === 2 && Config.attackAfterTime > 0) {
+            if (Loot.isAutoAttackNow()) Loot.autoAttack(safeId);
+        }
+        else {
+            if (window.confirm('之前的自动攻击似乎并未完成，是否继续自动攻击？'))
+                Loot.autoAttack(safeId);
+            else
+                Tools.setCookie(Config.autoAttackReadyCookieName, '', Tools.getDate('-1d'));
+        }
+    },
+
+    /**
+     * 显示批量攻击或被NPC攻击的日志对话框
+     * @param {number} type 对话框类型，1：批量攻击日志；2：被NPC攻击日志
+     * @param {string} log 批量攻击日志
+     */
+    showAttackLogDialog: function (type, log) {
+        if ($('#pd_attack_log').length > 0) return;
+        var html =
+            '<form>' +
+            '<div class="pd_cfg_box" id="pd_attack_log" style="z-index:1002">' +
+            '  <h1>{0}日志<span>&times;</span></h1>'.replace('{0}', type === 2 ? 'NPC攻击' : '批量攻击') +
+            '  <div class="pd_cfg_main">' +
+            '    <textarea style="width:{0}px;height:{1}px;margin:5px 0" readonly="readonly"></textarea>'
+                .replace('{0}', type === 2 ? 700 : 850)
+                .replace('{1}', type === 2 ? 250 : 350) +
+            '  </div>' +
+            '</div>' +
+            '</form>';
+        var $dialog = $(html).appendTo('body');
+        Tools.resize('pd_attack_log');
+        Tools.escKeydown('pd_attack_log');
+        $dialog.find('h1 > span').click(function () {
+            return Tools.close('pd_attack_log');
+        }).end().find('textarea').val(log).focus();
+        $(window).on('resize.pd_attack_log', function () {
+            Tools.resize('pd_attack_log');
+        });
     }
 };
 
@@ -4127,7 +4193,7 @@ var KFOL = {
                 TmpLog.setValue(Config.drawSmboxTmpLogName, nextTime.getTime());
                 var timeLog = Loot.getNextLootAwardTime();
                 if (timeLog.type > 0) {
-                    var time = timeLog.time + Config.afterDrawSmboxLootInterval * 60 * 1000;
+                    var time = timeLog.time + Config.afterDrawSmboxLootDelayInterval * 60 * 1000;
                     if (timeLog.time > (new Date()).getTime()) {
                         TmpLog.setValue(Config.getLootAwardTmpLogName, {type: timeLog.type, time: time});
                     }
@@ -5454,15 +5520,15 @@ var KFOL = {
         if (!timeLog.type) return;
         var $msg = $('a[href="kf_fw_ig_index.php"]');
         if ($msg.length === 0) return;
-        var remain = Tools.getTimeDiffObject(timeLog.time);
-        if (remain.hours === 0 && remain.minutes === 0) return;
+        var diff = Tools.getTimeDiffInfo(timeLog.time);
+        if (diff.hours === 0 && diff.minutes === 0) return;
         if (timeLog.type === 2) {
-            $msg.text('争夺奖励(剩余{0}{1}分)'.replace('{0}', remain.hours < 1 ? '' : remain.hours + '小时').replace('{1}', remain.minutes))
+            $msg.text('争夺奖励(剩余{0}{1}分)'.replace('{0}', diff.hours < 1 ? '' : diff.hours + '小时').replace('{1}', diff.minutes))
                 .removeClass('indbox5')
                 .addClass('indbox6');
         }
         else {
-            $msg.text('争夺奖励(剩余{0})'.replace('{0}', remain.hours < 1 ? '1小时以内' : remain.hours + '多小时'))
+            $msg.text('争夺奖励(剩余{0})'.replace('{0}', diff.hours < 1 ? '1小时以内' : diff.hours + '多小时'))
                 .removeClass('indbox5')
                 .addClass('indbox6');
         }
@@ -5476,11 +5542,33 @@ var KFOL = {
         if (!time && $.type(time) !== 'number') return;
         var $msg = $('a[href="kf_smbox.php"]');
         if ($msg.length === 0) return;
-        var remain = Tools.getTimeDiffObject(time);
-        if (remain.hours === 0 && remain.minutes === 0) return;
-        $msg.text('神秘盒子(剩余{0}{1}分)'.replace('{0}', remain.hours < 1 ? '' : remain.hours + '小时').replace('{1}', remain.minutes))
+        var diff = Tools.getTimeDiffInfo(time);
+        if (diff.hours === 0 && diff.minutes === 0) return;
+        $msg.text('神秘盒子(剩余{0}{1}分)'.replace('{0}', diff.hours < 1 ? '' : diff.hours + '小时').replace('{1}', diff.minutes))
             .removeClass('indbox5')
             .addClass('indbox6');
+    },
+
+    /**
+     * 添加神秘盒子链接点击事件
+     */
+    addSmboxLinkClickEvent: function () {
+        $('.box1').on('click', 'a[href^="kf_smbox.php?box="]', function () {
+            if (Tools.getCookie(Config.drawSmboxCookieName)) return;
+            var nextTime = Tools.getDate('+' + Config.defDrawSmboxInterval + 'm');
+            Tools.setCookie(Config.drawSmboxCookieName, 1, nextTime);
+            TmpLog.setValue(Config.drawSmboxTmpLogName, nextTime.getTime());
+            var timeLog = Loot.getNextLootAwardTime();
+            if (timeLog.type > 0) {
+                var time = timeLog.time + Config.afterDrawSmboxLootDelayInterval * 60 * 1000;
+                if (timeLog.time > (new Date()).getTime()) {
+                    TmpLog.setValue(Config.getLootAwardTmpLogName, {type: timeLog.type, time: time});
+                }
+                else {
+                    TmpLog.deleteValue(Config.getLootAwardTmpLogName);
+                }
+            }
+        });
     },
 
     /**
@@ -5569,6 +5657,9 @@ var KFOL = {
         else if (/\/kf_fw_ig_pklist\.php(\?l=s)?$/i.test(location.href)) {
             Loot.addBatchAttackButton();
         }
+        else if (location.pathname === '/kf_smbox.php') {
+            KFOL.addSmboxLinkClickEvent();
+        }
         KFOL.blockUsers();
         KFOL.followUsers();
 
@@ -5592,7 +5683,7 @@ var KFOL = {
 
         if (autoSaveCurrentDepositAvailable && !isDonationStarted) KFOL.autoSaveCurrentDeposit();
 
-        if (Config.autoLootEnabled && Config.autoAttackEnabled && KFOL.isInHomePage && Tools.getCookie(Config.autoAttackStartCookieName)
+        if (Config.autoLootEnabled && Config.autoAttackEnabled && Tools.getCookie(Config.autoAttackReadyCookieName)
             && !Tools.getCookie(Config.autoAttackingCookieName)) {
             Loot.checkAutoAttack();
         }
