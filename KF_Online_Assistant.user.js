@@ -120,13 +120,15 @@ var Config = {
     minAttackAfterTime: 63,
     // 每回合攻击的最大次数
     maxAttackNum: 20,
+    // 每次攻击的时间间隔（毫秒）
+    perAttackInterval: 2000,
     // 神秘盒子的默认抽取间隔（分钟）
     defDrawSmboxInterval: 300,
     // 在抽取神秘盒子后所推迟的争夺领取间隔（分钟）
     afterDrawSmboxLootDelayInterval: 480,
-    // 抽取神秘盒子完成后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
-    drawSmboxCompleteRefreshInterval: 20,
-    // 获取剩余抽奖时间失败后的重试间隔（分钟），用于定时模式
+    // 抽奖操作结束后的再刷新间隔（秒），用于在定时模式中进行判断，并非是定时模式的实际间隔时间
+    actionFinishRefreshInterval: 30,
+    // 在网络超时的情况下获取剩余时间失败后的重试间隔（分钟），用于定时模式
     errorRefreshInterval: 1,
     // 在网页标题上显示定时模式提示的更新间隔（分钟）
     showRefreshModeTipsInterval: 1,
@@ -585,6 +587,13 @@ var ConfigDialog = {
             '        <label>偏好的神秘盒子数字<input placeholder="例: 52,1,28,400" id="pd_cfg_favor_smbox_numbers" style="width:180px" type="text" />' +
             '<a class="pd_cfg_tips" href="#" title="例：52,1,28,400（以英文逗号分隔，按优先级排序），如设定的数字都不可用，则从剩余的盒子中随机抽选一个，如无需求可留空">' +
             '[?]</a></label>' +
+            '      </fieldset>' +
+            '      <fieldset>' +
+            '        <legend><label><input id="pd_cfg_auto_refresh_enabled" type="checkbox" />定时模式 ' +
+            '<a class="pd_cfg_tips" href="#" title="可按时进行自动操作（包括捐款、争夺、抽取神秘盒子），只在首页生效">[?]</a></label></legend>' +
+            '        <label>标题提示方案<select id="pd_cfg_show_refresh_mode_tips_type"><option value="auto">停留一分钟后显示</option>' +
+            '<option value="always">总是显示</option><option value="never">不显示</option></select>' +
+            '<a class="pd_cfg_tips" href="#" title="在首页的网页标题上显示定时模式提示的方案">[?]</a></label>' +
             '      </fieldset>' +
             '      <fieldset>' +
             '        <legend>首页相关</legend>' +
@@ -3483,7 +3492,7 @@ var Loot = {
                     Tools.setCookie(Config.getLootAwardCookieName, 1, Tools.getDate('+' + Config.defLootInterval + 'm'));
                 }
             }
-            if (isAutoDonation) KFOL.donation(false);
+            if (isAutoDonation) KFOL.donation();
         }, 'html');
     },
 
@@ -3639,7 +3648,7 @@ var Loot = {
                             }
                             window.setTimeout(function () {
                                 $(document).dequeue('BatchAttack');
-                            }, 2000);
+                            }, Config.perAttackInterval);
                         }, 'html');
                 });
             });
@@ -3778,7 +3787,7 @@ var Loot = {
      */
     getNextLootAwardTime: function () {
         var timeLog = TmpLog.getValue(Config.getLootAwardTmpLogName);
-        if ($.type(timeLog) === 'object' && $.type(timeLog.type) === 'number' && $.type(timeLog.time) === 'number')
+        if ($.type(timeLog) === 'object' && $.type(timeLog.type) === 'number' && $.type(timeLog.time) === 'number' && timeLog.type > 0 && timeLog.time > 0)
             return {type: parseInt(timeLog.type), time: parseInt(timeLog.time)};
         else return {type: 0, time: 0};
     },
@@ -3789,16 +3798,16 @@ var Loot = {
      */
     isAutoAttackNow: function () {
         if (!Config.attackAfterTime) return true;
-        var tmpLog = Loot.getNextLootAwardTime();
-        if (tmpLog.type > 0) {
+        var timeLog = Loot.getNextLootAwardTime();
+        if (timeLog.type > 0) {
             var attackAfterTime = Config.attackAfterTime;
-            if (tmpLog.type === 1) {
+            if (timeLog.type === 1) {
                 var diff = attackAfterTime - Config.minAttackAfterTime - 30;
                 if (diff < 0) diff = 0;
                 else if (diff > 30) diff = 30;
                 attackAfterTime -= diff;
             }
-            var end = tmpLog.time - attackAfterTime * 60 * 1000;
+            var end = timeLog.time - attackAfterTime * 60 * 1000;
             if (end > (new Date()).getTime()) return false;
         }
         return true;
@@ -4094,7 +4103,7 @@ var KFOL = {
 
     /**
      * KFB捐款
-     * @param {boolean} isAutoSaveCurrentDeposit 是否在捐款完毕之后自动活期存款
+     * @param {boolean} [isAutoSaveCurrentDeposit=false] 是否在捐款完毕之后自动活期存款
      */
     donation: function (isAutoSaveCurrentDeposit) {
         if (Config.donationAfterVipEnabled) {
@@ -4220,6 +4229,7 @@ var KFOL = {
                     gain['KFB'] = 2000;
                 }
                 else {
+                    Tools.setCookie(Config.drawSmboxCookieName, 1, Tools.getDate('+2h'));
                     return;
                 }
                 Log.push('抽取神秘盒子', action, {gain: gain});
@@ -4232,35 +4242,79 @@ var KFOL = {
     },
 
     /**
-     * 获取定时刷新的最小间隔时间（秒）
-     * @param {number} drawSmboxInterval 神秘盒子抽奖间隔（分钟）
-     * @param {number} drawItemOrCardInterval 道具或卡片抽奖间隔（分钟）
-     * @returns {number} 定时刷新的最小间隔时间（秒）
+     * 添加神秘盒子链接点击事件
      */
-    getMinRefreshInterval: function (drawSmboxInterval, drawItemOrCardInterval) {
+    addSmboxLinkClickEvent: function () {
+        $('.box1').on('click', 'a[href^="kf_smbox.php?box="]', function () {
+            if (Tools.getCookie(Config.drawSmboxCookieName)) return;
+            var nextTime = Tools.getDate('+' + Config.defDrawSmboxInterval + 'm');
+            Tools.setCookie(Config.drawSmboxCookieName, 1, nextTime);
+            TmpLog.setValue(Config.drawSmboxTmpLogName, nextTime.getTime());
+            var timeLog = Loot.getNextLootAwardTime();
+            if (timeLog.type > 0) {
+                var time = timeLog.time + Config.afterDrawSmboxLootDelayInterval * 60 * 1000;
+                if (timeLog.time > (new Date()).getTime()) {
+                    TmpLog.setValue(Config.getLootAwardTmpLogName, {type: timeLog.type, time: time});
+                }
+                else {
+                    TmpLog.deleteValue(Config.getLootAwardTmpLogName);
+                }
+            }
+        });
+    },
+
+    /**
+     * 获取下一次定时刷新的最小间隔时间（秒）
+     * @returns {number} 下一次定时刷新的最小间隔时间（秒）
+     */
+    getMinRefreshInterval: function () {
         var donationInterval = -1;
         if (Config.autoDonationEnabled) {
             var donationTime = Tools.getDateByTime(Config.donationAfterTime);
             var now = new Date();
             if (!Tools.getCookie(Config.donationCookieName) && now <= donationTime) {
-                donationInterval = parseInt((donationTime - now) / 1000);
+                donationInterval = Math.floor((donationTime - now) / 1000);
             }
             else {
                 donationTime.setDate(donationTime.getDate() + 1);
-                donationInterval = parseInt((donationTime - now) / 1000);
+                donationInterval = Math.floor((donationTime - now) / 1000);
             }
         }
+        var getLootAwardInterval = -1, autoAttackInterval = -1;
+        if (Config.autoLootEnabled) {
+            var timeLog = Loot.getNextLootAwardTime();
+            if (Tools.getCookie(Config.getLootAwardCookieName) && timeLog.type > 0) {
+                getLootAwardInterval = Math.floor((timeLog.time - (new Date()).getTime()) / 1000);
+                if (getLootAwardInterval < 0) getLootAwardInterval = 0;
+            }
+            else getLootAwardInterval = 0;
+            if (Config.autoAttackEnabled && Config.attackAfterTime > 0 && !$.isEmptyObject(Config.batchAttackList)
+                && Tools.getCookie(Config.autoAttackReadyCookieName) && !Tools.getCookie(Config.autoAttackingCookieName)) {
+                if (timeLog.type > 0) {
+                    var attackAfterTime = Config.attackAfterTime;
+                    if (timeLog.type === 1) {
+                        var diff = attackAfterTime - Config.minAttackAfterTime - 30;
+                        if (diff < 0) diff = 0;
+                        else if (diff > 30) diff = 30;
+                        attackAfterTime -= diff;
+                    }
+                    autoAttackInterval = Math.floor(timeLog.time - attackAfterTime * 60 * 1000 - (new Date()).getTime() / 1000);
+                    if (autoAttackInterval < 0) autoAttackInterval = 0;
+                }
+                else autoAttackInterval = 0;
+            }
+        }
+        var drawSmboxInterval = -1;
         if (Config.autoDrawSmbox2Enabled) {
-            drawSmboxInterval *= 60;
-            drawSmboxInterval = drawSmboxInterval === 0 ? Config.drawSmboxCompleteRefreshInterval : drawSmboxInterval;
+            var drawSmboxTime = TmpLog.getValue(Config.drawSmboxTmpLogName);
+            if (drawSmboxTime && $.type(drawSmboxTime) === 'number' && drawSmboxTime > 0) {
+                drawSmboxInterval = Math.floor((drawSmboxTime - (new Date()).getTime()) / 1000);
+                if (drawSmboxInterval < 0 && Tools.getCookie(Config.drawSmboxCookieName)) drawSmboxInterval = 2 * 60 * 60;
+                else if (drawSmboxInterval < 0) drawSmboxInterval = 0;
+            }
+            else drawSmboxInterval = 2 * 60 * 60;
         }
-        else drawSmboxInterval = -1;
-        if (false) {
-            drawItemOrCardInterval *= 60;
-            drawItemOrCardInterval = drawItemOrCardInterval === 0 ? Config.defDrawItemOrCardInterval * 60 : drawItemOrCardInterval;
-        }
-        else drawItemOrCardInterval = -1;
-        var minArr = [donationInterval, drawSmboxInterval, drawItemOrCardInterval];
+        var minArr = [donationInterval, getLootAwardInterval, autoAttackInterval, drawSmboxInterval];
         minArr.sort(function (a, b) {
             return a > b;
         });
@@ -4271,23 +4325,27 @@ var KFOL = {
                 break;
             }
         }
-        if (min === -1) return -1;
-        else return min === Config.drawSmboxCompleteRefreshInterval ? min : min + 60;
+        if (min <= -1) return -1;
+        else return min > 0 ? min + 1 : 0;
     },
 
     /**
      * 启动定时模式
      */
     startAutoRefreshMode: function () {
-        var minutes = KFOL.getDrawSmboxAndItemOrCardRemainTime();
-        var interval = KFOL.getMinRefreshInterval(minutes[0], minutes[1]);
+        var interval = KFOL.getMinRefreshInterval();
         if (interval === -1) return;
         var oriTitle = document.title;
         var titleInterval = null;
+        /**
+         * 显示定时模式标题提示
+         * @param {number} interval 下一次定时刷新的间隔时间（秒）
+         * @param {boolean} [isShowTitle=false] 是否立即显示标题
+         */
         var showRefreshModeTips = function (interval, isShowTitle) {
             if (titleInterval) window.clearInterval(titleInterval);
-            var showInterval = interval === Config.drawSmboxCompleteRefreshInterval ? interval : parseInt(interval / 60);
-            var unit = interval === Config.drawSmboxCompleteRefreshInterval ? '秒' : '分钟';
+            var showInterval = interval < 60 ? interval : Math.floor(interval / 60);
+            var unit = interval < 60 ? '秒' : '分钟';
             console.log('下一次刷新间隔为：{0}{1}'
                     .replace('{0}', showInterval)
                     .replace('{1}', unit)
@@ -4300,80 +4358,79 @@ var KFOL = {
                         .replace('{2}', unit);
                     showInterval -= 1;
                 };
-                if (isShowTitle || Config.showRefreshModeTipsType.toLowerCase() === 'always' ||
-                    interval === Config.drawSmboxCompleteRefreshInterval)
+                if (isShowTitle || Config.showRefreshModeTipsType.toLowerCase() === 'always' || interval < 60)
                     showIntervalTitle();
                 else showInterval -= 1;
                 titleInterval = window.setInterval(showIntervalTitle, Config.showRefreshModeTipsInterval * 60 * 1000);
             }
         };
-        var handleError = function (interval, textStatus) {
-            console.log('获取剩余抽奖时间失败，错误信息：' + textStatus);
-            KFOL.removePopTips($('.pd_refresh_notice').parent());
-            KFOL.showMsg('<span class="pd_refresh_notice">获取剩余抽奖时间失败，将在<em>{0}</em>分钟后重试...</span>'
-                    .replace('{0}', interval)
-                , -1);
-            window.setTimeout(checkRefreshInterval, interval * 60 * 1000);
-            showRefreshModeTips(interval * 60, true);
-        };
-        var checkRefreshInterval = function () {
-            KFOL.removePopTips($('.pd_refresh_notice').parent());
-            var refreshNoticeTimeout = window.setTimeout(function () {
-                KFOL.showWaitMsg('<span class="pd_refresh_notice">正在获取抽奖剩余时间...</span>');
-            }, 2000);
+        var handleError = function () {
+            var interval = 0, errorText = '';
             $.ajax({
+                type: 'GET',
                 url: 'index.php',
-                dataType: 'html',
                 success: function (html) {
-                    window.clearTimeout(refreshNoticeTimeout);
-                    KFOL.removePopTips($('.pd_refresh_notice').parent());
-                    var drawSmboxInterval = -1, drawItemOrCardInterval = -1;
-                    var matches = /<a href="kf_smbox\.php".+?>神秘盒子\(剩余(\d+)分钟\)<\/a>/.exec(html);
-                    if (matches) {
-                        drawSmboxInterval = parseInt(matches[1]);
+                    if (!/<a href="kf_fw_ig_index.php"/i.test(html)) {
+                        interval = 10;
+                        errorText = '网站维护或其它未知情况';
                     }
-                    else if (/<a href="kf_smbox\.php".+?>神秘盒子\(现在可以抽取\)<\/a>/.test(html)) {
-                        drawSmboxInterval = 0;
-                    }
-                    matches = /<a href="kf_fw_ig_one\.php".+?>道具卡片\(剩余(\d+)分钟\)<\/a>/.exec(html);
-                    if (matches) {
-                        drawItemOrCardInterval = parseInt(matches[1]);
-                    }
-                    else if (/<a href="kf_fw_ig_one\.php".+?>道具卡片\(现在可以抽取\)<\/a>/.test(html)) {
-                        drawItemOrCardInterval = 0;
-                    }
-                    if (drawSmboxInterval === -1 || drawItemOrCardInterval === -1) {
-                        handleError(10, '遇到论坛维护或其它未知情况');
-                        return;
-                    }
-                    var isDrawSmboxStarted = false;
-                    var autoDrawItemOrCardAvailable = false && drawItemOrCardInterval === 0;
-                    var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
-                    if (Config.autoDrawSmbox2Enabled && drawSmboxInterval === 0) {
-                        isDrawSmboxStarted = true;
-                        KFOL.drawSmbox(autoDrawItemOrCardAvailable, autoDonationAvailable);
-                    }
-                    if (autoDrawItemOrCardAvailable && !isDrawSmboxStarted) {
-                        //KFOL.drawItemOrCard();
-                    }
-                    if (autoDonationAvailable && !isDrawSmboxStarted) {
-                        KFOL.donation();
-                    }
-                    var interval = KFOL.getMinRefreshInterval(drawSmboxInterval, drawItemOrCardInterval);
-                    if (interval === -1) {
-                        if (titleInterval) window.clearInterval(titleInterval);
-                        return;
-                    }
-                    window.setTimeout(checkRefreshInterval, interval * 1000);
-                    showRefreshModeTips(interval, true);
                 },
-                error: function (XMLHttpRequest, textStatus) {
-                    handleError(Config.errorRefreshInterval, textStatus);
-                }
+                error: function () {
+                    interval = Config.errorRefreshInterval;
+                    errorText = '网络超时';
+                },
+                complete: function () {
+                    if (interval > 0) {
+                        console.log('获取剩余时间失败（原因：{0}），将在{1}分钟后重试...'.replace('{0}', errorText).replace('{1}', interval));
+                        KFOL.removePopTips($('.pd_refresh_notice').parent());
+                        KFOL.showMsg('<span class="pd_refresh_notice">获取剩余时间失败，将在<em>{0}</em>分钟后重试...</span>'
+                                .replace('{0}', interval)
+                            , -1);
+                        window.setTimeout(checkRefreshInterval, interval * 60 * 1000);
+                        showRefreshModeTips(interval * 60, true);
+                    }
+                    else checkRefreshInterval();
+                },
+                dataType: 'html'
             });
         };
-        window.setTimeout(checkRefreshInterval, interval * 1000);
-        showRefreshModeTips(interval);
+        var prevInterval = -1;
+        var checkRefreshInterval = function () {
+            KFOL.removePopTips($('.pd_refresh_notice').parent());
+            var isGetLootAwardStarted = false;
+            var autoDonationAvailable = Config.autoDonationEnabled && !Tools.getCookie(Config.donationCookieName);
+            if (Config.autoLootEnabled && !Tools.getCookie(Config.getLootAwardCookieName)) {
+                isGetLootAwardStarted = true;
+                Loot.getLootAward(autoDonationAvailable);
+            }
+            if (Config.autoDrawSmbox2Enabled && !Tools.getCookie(Config.drawSmboxCookieName)) {
+                KFOL.drawSmbox();
+            }
+            if (autoDonationAvailable && !isGetLootAwardStarted) {
+                KFOL.donation();
+            }
+            if (Config.autoLootEnabled && Config.autoAttackEnabled && Tools.getCookie(Config.autoAttackReadyCookieName)
+                && !Tools.getCookie(Config.autoAttackingCookieName)) {
+                Loot.checkAutoAttack();
+            }
+
+            var interval = KFOL.getMinRefreshInterval();
+            if (interval === 0 && prevInterval === 0) {
+                prevInterval = -1;
+                handleError();
+                return;
+            }
+            else prevInterval = interval;
+            if (interval === -1) {
+                if (titleInterval) window.clearInterval(titleInterval);
+                return;
+            }
+            else if (interval === 0) interval = Config.actionFinishRefreshInterval;
+            window.setTimeout(checkRefreshInterval, interval * 1000);
+            showRefreshModeTips(interval, true);
+        };
+        window.setTimeout(checkRefreshInterval, interval < 60 ? 60 * 1000 : interval * 1000);
+        showRefreshModeTips(interval < 60 ? 60 : interval);
     },
 
     /**
@@ -5550,28 +5607,6 @@ var KFOL = {
     },
 
     /**
-     * 添加神秘盒子链接点击事件
-     */
-    addSmboxLinkClickEvent: function () {
-        $('.box1').on('click', 'a[href^="kf_smbox.php?box="]', function () {
-            if (Tools.getCookie(Config.drawSmboxCookieName)) return;
-            var nextTime = Tools.getDate('+' + Config.defDrawSmboxInterval + 'm');
-            Tools.setCookie(Config.drawSmboxCookieName, 1, nextTime);
-            TmpLog.setValue(Config.drawSmboxTmpLogName, nextTime.getTime());
-            var timeLog = Loot.getNextLootAwardTime();
-            if (timeLog.type > 0) {
-                var time = timeLog.time + Config.afterDrawSmboxLootDelayInterval * 60 * 1000;
-                if (timeLog.time > (new Date()).getTime()) {
-                    TmpLog.setValue(Config.getLootAwardTmpLogName, {type: timeLog.type, time: time});
-                }
-                else {
-                    TmpLog.deleteValue(Config.getLootAwardTmpLogName);
-                }
-            }
-        });
-    },
-
-    /**
      * 初始化
      */
     init: function () {
@@ -5688,9 +5723,8 @@ var KFOL = {
             Loot.checkAutoAttack();
         }
 
-        /*if (Config.autoRefreshEnabled) {
-         if (KFOL.isInHomePage) KFOL.startAutoRefreshMode();
-         }*/
+        if (Config.autoRefreshEnabled && KFOL.isInHomePage)
+            KFOL.startAutoRefreshMode();
 
         var endDate = new Date();
         console.log('KF Online助手加载完毕，加载耗时：{0}ms'.replace('{0}', endDate - startDate));
